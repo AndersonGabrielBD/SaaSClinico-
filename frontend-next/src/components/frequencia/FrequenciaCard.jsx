@@ -2,16 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { frequenciaService } from '@/services/frequenciaService'
+import { useAuth } from '@/context/AuthContext'
 import { Calendar, CheckCircle, XCircle, TrendingUp, User } from 'lucide-react'
 
 export default function FrequenciaCard({ pacienteId }) {
+  const { user } = useAuth()
   const [estatisticas, setEstatisticas] = useState(null)
   const [estatisticasPorProfissional, setEstatisticasPorProfissional] = useState([])
   const [loading, setLoading] = useState(true)
   const [showRegistroModal, setShowRegistroModal] = useState(false)
   const [formData, setFormData] = useState({
-    profissional_id: '',
-    agendamento_id: '',
+    data_atendimento: new Date().toISOString().split('T')[0],
     compareceu: true,
     observacoes: ''
   })
@@ -39,18 +40,24 @@ export default function FrequenciaCard({ pacienteId }) {
   const handleRegistrar = async (e) => {
     e.preventDefault()
     
+    if (!user?.id) {
+      alert('Erro: Usuário não autenticado')
+      return
+    }
+    
     try {
       await frequenciaService.registrar({
         paciente_id: pacienteId,
-        ...formData,
-        compareceu: formData.compareceu === 'true' || formData.compareceu === true
+        profissional_id: user.id,
+        data_atendimento: formData.data_atendimento,
+        compareceu: formData.compareceu === 'true' || formData.compareceu === true,
+        observacoes: formData.observacoes || null
       })
       
       alert('Frequência registrada com sucesso!')
       setShowRegistroModal(false)
       setFormData({
-        profissional_id: '',
-        agendamento_id: '',
+        data_atendimento: new Date().toISOString().split('T')[0],
         compareceu: true,
         observacoes: ''
       })
@@ -165,32 +172,34 @@ export default function FrequenciaCard({ pacienteId }) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Registrar Frequência</h2>
+            
+            {/* Info do profissional */}
+            {user && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-600" />
+                <div className="text-sm">
+                  <p className="text-neutral-600">Registrado por:</p>
+                  <p className="font-medium text-neutral-900">{user.nome || user.email}</p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleRegistrar} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  ID do Profissional
+                  Data do Atendimento
                 </label>
                 <input
-                  type="text"
-                  value={formData.profissional_id}
-                  onChange={(e) => setFormData({ ...formData, profissional_id: e.target.value })}
+                  type="date"
+                  value={formData.data_atendimento}
+                  onChange={(e) => setFormData({ ...formData, data_atendimento: e.target.value })}
                   required
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg"
-                  placeholder="UUID do profissional"
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  ID do Agendamento (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={formData.agendamento_id}
-                  onChange={(e) => setFormData({ ...formData, agendamento_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg"
-                  placeholder="UUID do agendamento"
-                />
+                <p className="text-xs text-neutral-500 mt-1">
+                  Não pode ser uma data futura
+                </p>
               </div>
 
               <div>
@@ -201,10 +210,10 @@ export default function FrequenciaCard({ pacienteId }) {
                   value={formData.compareceu}
                   onChange={(e) => setFormData({ ...formData, compareceu: e.target.value })}
                   required
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  <option value="true">Sim</option>
-                  <option value="false">Não</option>
+                  <option value={true}>Sim</option>
+                  <option value={false}>Não</option>
                 </select>
               </div>
 
@@ -216,7 +225,8 @@ export default function FrequenciaCard({ pacienteId }) {
                   value={formData.observacoes}
                   onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Adicione observações sobre o atendimento..."
                 />
               </div>
 
@@ -226,19 +236,18 @@ export default function FrequenciaCard({ pacienteId }) {
                   onClick={() => {
                     setShowRegistroModal(false)
                     setFormData({
-                      profissional_id: '',
-                      agendamento_id: '',
+                      data_atendimento: new Date().toISOString().split('T')[0],
                       compareceu: true,
                       observacoes: ''
                     })
                   }}
-                  className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                  className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 >
                   Salvar
                 </button>

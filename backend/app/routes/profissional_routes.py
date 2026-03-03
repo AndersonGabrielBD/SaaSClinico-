@@ -173,11 +173,11 @@ def get_my_prontuarios():
         
         # Filtros de data
         if data_inicio:
-            query = query.gte('data_prontuario', data_inicio)
+            query = query.gte('data_criacao', data_inicio)
         if data_fim:
-            query = query.lte('data_prontuario', data_fim)
+            query = query.lte('data_criacao', data_fim)
         
-        response = query.order('data_prontuario', desc=True).execute()
+        response = query.order('data_criacao', desc=True).execute()
         prontuarios = response.data or []
         
         return jsonify(prontuarios), 200
@@ -233,11 +233,11 @@ def get_profissional_prontuarios(profissional_id):
         
         # Filtros de data
         if data_inicio:
-            query = query.gte('data_prontuario', data_inicio)
+            query = query.gte('data_criacao', data_inicio)
         if data_fim:
-            query = query.lte('data_prontuario', data_fim)
+            query = query.lte('data_criacao', data_fim)
         
-        response = query.order('data_prontuario', desc=True).execute()
+        response = query.order('data_criacao', desc=True).execute()
         prontuarios = response.data or []
         
         return jsonify(prontuarios), 200
