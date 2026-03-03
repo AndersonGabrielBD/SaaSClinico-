@@ -1,0 +1,15 @@
+Flask==3.0.0
+Flask-CORS==4.0.0
+python-dotenv==1.0.0
+supabase==2.3.4
+httpx==0.25.2
+postgrest==0.13.2
+gotrue==1.3.0
+realtime==1.0.5
+storage3==0.7.4
+Werkzeug==3.0.1
+PyJWT==2.8.0
+requests==2.31.0
+gunicorn==21.2.0
+reportlab==4.0.7
+
