@@ -36,7 +36,12 @@ async function request(endpoint, options = {}) {
     console.log('🌐 [API RESPONSE] Status:', response.status, response.statusText);
     
     if (!response.ok) {
-      if (response.status === 401 && typeof window !== 'undefined') {
+      // Só redireciona para login em 401 se NÃO estiver na página de login
+      // e NÃO for uma tentativa de login/signup
+      const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/signup');
+      const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+      
+      if (response.status === 401 && typeof window !== 'undefined' && !isAuthEndpoint && !isLoginPage) {
         console.warn('⚠️ [API] 401 Unauthorized - Redirecionando para login');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -104,6 +109,19 @@ export const api = {
   },
   delete: (endpoint, options = {}) => {
     return request(endpoint, { ...options, method: 'DELETE' });
+  },
+  // Auth methods
+  login: (email, password) => {
+    return request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  },
+  signup: (data) => {
+    return request('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 

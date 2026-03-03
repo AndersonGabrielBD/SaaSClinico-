@@ -32,23 +32,48 @@ export default function DashboardPage() {
   const loadStats = async () => {
     try {
       setLoading(true)
+      setError('') // Limpar erro anterior
       
       // Calcular datas do mês atual
       const hoje = new Date()
       const data_inicio = format(new Date(hoje.getFullYear(), hoje.getMonth(), 1), 'yyyy-MM-dd')
       const data_fim = format(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0), 'yyyy-MM-dd')
       
-      // Buscar dados em paralelo
-      const [dashData, financeiroData, pendenciasData] = await Promise.all([
+      // Buscar dados em paralelo com tratamento de erro individual
+      const [dashData, financeiroData, pendenciasData] = await Promise.allSettled([
         dashboardService.getStats(),
-        getResumoFinanceiro({ data_inicio, data_fim }).catch(() => null),
-        getPendencias().catch(() => null)
+        getResumoFinanceiro({ data_inicio, data_fim }),
+        getPendencias()
       ])
       
-      setStats(dashData)
-      setResumoFinanceiro(financeiroData)
-      setPendencias(pendenciasData)
+      // Processar resultados individuais
+      if (dashData.status === 'fulfilled') {
+        setStats(dashData.value)
+      } else {
+        console.error('Erro ao carregar estatísticas:', dashData.reason)
+      }
+      
+      if (financeiroData.status === 'fulfilled') {
+        setResumoFinanceiro(financeiroData.value)
+      } else {
+        console.warn('Dados financeiros não disponíveis:', financeiroData.reason)
+        setResumoFinanceiro(null)
+      }
+      
+      if (pendenciasData.status === 'fulfilled') {
+        setPendencias(pendenciasData.value)
+      } else {
+        console.warn('Pendências não disponíveis:', pendenciasData.reason)
+        setPendencias(null)
+      }
+      
+      // Só mostrar erro se NENHUM dado foi carregado
+      if (dashData.status === 'rejected' && financeiroData.status === 'rejected' && pendenciasData.status === 'rejected') {
+        throw new Error('Não foi possível carregar nenhum dado do dashboard')
+      }
+      
     } catch (err) {
+      console.error('Erro no dashboard:', err)
       setError(err.message || 'Erro ao carregar estatísticas')
     } finally {
       setLoading(false)

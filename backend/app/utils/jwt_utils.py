@@ -40,6 +40,13 @@ def get_token_from_header():
         return auth_header.replace('Bearer ', '')
     return None
 
+def get_access_token():
+    """
+    Retorna o token JWT completo do header (incluindo 'Bearer')
+    Para uso com Supabase client
+    """
+    return request.headers.get('Authorization', '')
+
 def require_auth(f):
     """Decorator para proteger rotas autenticadas"""
     import logging

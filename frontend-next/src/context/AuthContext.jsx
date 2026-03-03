@@ -65,9 +65,9 @@ export function AuthProvider({ children }) {
   }
 
   const signIn = async (email, password) => {
+    setLoading(true)
+    
     try {
-      setLoading(true)
-      
       const response = await api.login(email, password)
 
       if (response && response.token && response.user) {
@@ -80,11 +80,20 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true)
         setUser(response.user)
         
+        // Redirecionar apenas após sucesso completo
         router.replace('/dashboard')
+        return response
+      } else {
+        throw new Error('Resposta inválida do servidor')
       }
     } catch (error) {
       console.error('Erro no login:', error)
-      throw new Error(error.message || 'Erro ao fazer login')
+      // Garantir que estados são resetados em caso de erro
+      setIsAuthenticated(false)
+      setUser(null)
+      
+      // Re-lançar o erro para ser tratado no componente
+      throw error
     } finally {
       setLoading(false)
     }
