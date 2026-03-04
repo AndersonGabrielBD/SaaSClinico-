@@ -167,7 +167,7 @@ def get_my_prontuarios():
         # Buscar prontuários
         prontuarios_repo = BaseRepository('prontuarios', clinica_id)
         query = prontuarios_repo.client.table('prontuarios') \
-            .select('*, pacientes(nome_completo)') \
+            .select('*, pacientes(id, nome_completo)') \
             .eq('clinica_id', clinica_id) \
             .in_('paciente_id', paciente_ids)
         
@@ -178,7 +178,13 @@ def get_my_prontuarios():
             query = query.lte('data_criacao', data_fim)
         
         response = query.order('data_criacao', desc=True).execute()
-        prontuarios = response.data or []
+        
+        # Mapear para incluir paciente no formato esperado pelo frontend
+        prontuarios = []
+        for p in (response.data or []):
+            if 'pacientes' in p:
+                p['paciente'] = p.pop('pacientes')
+            prontuarios.append(p)
         
         return jsonify(prontuarios), 200
         
@@ -227,7 +233,7 @@ def get_profissional_prontuarios(profissional_id):
         # Buscar prontuários
         prontuarios_repo = BaseRepository('prontuarios', clinica_id)
         query = prontuarios_repo.client.table('prontuarios') \
-            .select('*, pacientes(nome_completo)') \
+            .select('*, pacientes(id, nome_completo)') \
             .eq('clinica_id', clinica_id) \
             .in_('paciente_id', paciente_ids)
         
@@ -238,7 +244,13 @@ def get_profissional_prontuarios(profissional_id):
             query = query.lte('data_criacao', data_fim)
         
         response = query.order('data_criacao', desc=True).execute()
-        prontuarios = response.data or []
+        
+        # Mapear para incluir paciente no formato esperado pelo frontend
+        prontuarios = []
+        for p in (response.data or []):
+            if 'pacientes' in p:
+                p['paciente'] = p.pop('pacientes')
+            prontuarios.append(p)
         
         return jsonify(prontuarios), 200
         

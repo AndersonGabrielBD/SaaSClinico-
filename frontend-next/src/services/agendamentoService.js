@@ -1,4 +1,5 @@
 import * as api from '@/lib/api'
+import { getTodayBrazil } from '@/lib/dateUtils'
 
 export const agendamentoService = {
   // Listar agendamentos
@@ -48,7 +49,7 @@ export const agendamentoService = {
 
   // Agendamentos do dia
   async getToday() {
-    const today = new Date().toISOString().split('T')[0]
+    const today = getTodayBrazil()
     const result = await this.getAll({ data_agendamento: today })
     return result.data || result || []
   },

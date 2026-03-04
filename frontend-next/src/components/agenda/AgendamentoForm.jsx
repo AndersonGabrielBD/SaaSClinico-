@@ -7,6 +7,7 @@ import { profissionalService } from '@/services/profissionalService'
 import { getUserRole } from '@/utils/auth'
 import * as api from '@/lib/api'
 import Button from '@/components/common/Button'
+import { getTodayBrazil } from '@/lib/dateUtils'
 
 export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
   const [loading, setLoading] = useState(false)
@@ -19,7 +20,7 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
     paciente_id: agendamento?.paciente_id || '',
     profissional_id: agendamento?.profissional_id || '',
     sala_id: agendamento?.sala_id || '',
-    data_agendamento: agendamento?.data_agendamento || new Date().toISOString().split('T')[0],
+    data_agendamento: agendamento?.data_agendamento || getTodayBrazil(),
     horario_inicio: agendamento?.horario_inicio || '',
     horario_fim: agendamento?.horario_fim || '',
     tipo_atendimento: agendamento?.tipo_atendimento || 'Avaliação',
@@ -45,8 +46,24 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
       setPacientes(pacientesData)
 
       // Carregar profissionais
-      const profData = await api.getProfissionais({ ativo: true })
-      setProfissionais(profData?.data || profData || [])
+      let profData = await api.getProfissionais({ ativo: true })
+      profData = profData?.data || profData || []
+      
+      // Se for profissional, filtrar apenas a si mesmo
+      if (isProfissional) {
+        const authToken = localStorage.getItem('auth_token')
+        const userInfo = localStorage.getItem('user_info')
+        if (userInfo) {
+          try {
+            const user = JSON.parse(userInfo)
+            profData = profData.filter(p => p.id === user.id)
+          } catch (e) {
+            console.error('Erro ao parsear user_info:', e)
+          }
+        }
+      }
+      
+      setProfissionais(profData)
 
       // Carregar salas
       const salasData = await api.getSalas({ ativo: true })
@@ -54,7 +71,7 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
     } catch (error) {
       console.error('Erro ao carregar opções:', error)
     }
-  }
+  }}
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -69,6 +86,13 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
 
     if (formData.horario_inicio >= formData.horario_fim) {
       setError('Horário de término deve ser maior que o horário de início')
+      return
+    }
+
+    // Validar data
+    const hoje = getTodayBrazil()
+    if (formData.data_agendamento < hoje) {
+      setError('Não é possível agendar em datas passadas')
       return
     }
 
@@ -97,7 +121,27 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
 
       onSuccess()
     } catch (err) {
-      setError(err.message || 'Erro ao salvar agendamento')
+      // Interpretar diferentes tipos de erro
+      let mensagem = 'Erro ao salvar agendamento'
+      
+      // Se for erro de constraint de data
+      if (err.code === '23514' || err.message?.includes('data_futura') || err.message?.includes('check constraint')) {
+        mensagem = 'Data inválida. Não é possível agendar em datas passadas'
+      }
+      // Se for erro de campo obrigatório
+      else if (err.status === 400 || err.message?.includes('inválido') || err.message?.includes('obrigat')) {
+        mensagem = err.message || 'Por favor, preencha todos os campos obrigatórios'
+      }
+      // Se for erro de conflito de horário
+      else if (err.message?.includes('conflict') || err.message?.includes('Há conflito')) {
+        mensagem = 'Conflito de horário. Escolha outro horário'
+      }
+      // Erro genérico
+      else {
+        mensagem = err.message || mensagem
+      }
+      
+      setError(mensagem)
     } finally {
       setLoading(false)
     }
@@ -140,7 +184,8 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
           <select
             value={formData.profissional_id}
             onChange={(e) => setFormData({ ...formData, profissional_id: e.target.value })}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+            disabled={['fono', 'medico', 'profissional'].includes(getUserRole())}
+            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none disabled:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-75"
             required
           >
             <option value="">Selecione um profissional</option>
@@ -150,6 +195,9 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
               </option>
             ))}
           </select>
+          {['fono', 'medico', 'profissional'].includes(getUserRole()) && (
+            <p className="text-xs text-neutral-500 mt-1">Profissionais criam agendamentos apenas para si mesmos</p>
+          )}
         </div>
 
         {/* Sala */}
@@ -257,4 +305,3 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
       </div>
     </form>
   )
-}

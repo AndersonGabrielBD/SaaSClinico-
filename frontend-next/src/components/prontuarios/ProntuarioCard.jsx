@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, User, Calendar, Edit, Trash2, Eye, Lock } from 'lucide-react'
+import { FileText, User, Calendar, Edit, Trash2 } from 'lucide-react'
 import Button from '@/components/common/Button'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -31,13 +31,6 @@ export default function ProntuarioCard({
                 <span className="font-medium">{prontuario.paciente?.nome_completo}</span>
               </div>
             </div>
-
-            {prontuario.visivel_para_paciente && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
-                <Eye className="w-3 h-3" />
-                Visível
-              </span>
-            )}
           </div>
 
           {prontuario.descricao && (
@@ -98,7 +91,6 @@ export default function ProntuarioCard({
               <Button
                 size="sm"
                 variant="primary"
-                icon={<Eye className="w-4 h-4" />}
               >
                 Ver Detalhes
               </Button>

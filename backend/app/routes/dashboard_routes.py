@@ -1,15 +1,17 @@
 # filepath: backend/app/routes/dashboard_routes.py
 from flask import Blueprint, jsonify
-from app.utils.jwt_utils import require_auth, get_current_user
+from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.services.mensalidade_service import MensalidadeService
 from datetime import datetime, timedelta
 from database.supabase_client import get_supabase_client
+from app.utils.date_utils import today_brazil_str, start_of_week_brazil, days_ago_brazil
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/stats', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_dashboard_stats():
     """Retorna estatísticas do dashboard com payload padronizado"""
     try:
@@ -45,12 +47,12 @@ def _build_dashboard_stats(clinica_id):
         .execute()
     agendamentos = agendamentos_result.data or []
 
-    # Agendamentos hoje
-    hoje = datetime.now().strftime('%Y-%m-%d')
+    # Agendamentos hoje (usando timezone do Brasil)
+    hoje = today_brazil_str()
     agendamentos_hoje = [a for a in agendamentos if str(a.get('data_agendamento', '')).startswith(hoje)]
 
     # Agendamentos desta semana
-    inicio_semana = (datetime.now() - timedelta(days=datetime.now().weekday())).strftime('%Y-%m-%d')
+    inicio_semana = start_of_week_brazil().isoformat()
     agendamentos_semana = [a for a in agendamentos if str(a.get('data_agendamento', '')) >= inicio_semana]
 
     # Distribuição por status (dia atual)
@@ -63,7 +65,7 @@ def _build_dashboard_stats(clinica_id):
     }
 
     # Taxa de comparecimento (últimos 30 dias)
-    trinta_dias_atras = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    trinta_dias_atras = days_ago_brazil(30).isoformat()
     agendamentos_30d = [
         a for a in agendamentos
         if trinta_dias_atras <= str(a.get('data_agendamento', '')) <= hoje
@@ -122,6 +124,7 @@ def _build_dashboard_stats(clinica_id):
 
 @dashboard_bp.route('/recent', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_recent_activity():
     """Retorna atividades recentes"""
     try:

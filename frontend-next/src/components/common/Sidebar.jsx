@@ -8,7 +8,8 @@ import {
   Calendar, 
   FileText,
   DollarSign,
-  Settings
+  Settings,
+  ClipboardCheck
 } from 'lucide-react'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule } from '@/utils/roles'
@@ -38,6 +39,12 @@ const allMenuItems = [
     href: '/prontuarios',
     icon: FileText,
     module: 'prontuarios'
+  },
+  {
+    name: 'Frequência',
+    href: '/frequencia',
+    icon: ClipboardCheck,
+    module: 'frequencia'
   },
   {
     name: 'Financeiro',

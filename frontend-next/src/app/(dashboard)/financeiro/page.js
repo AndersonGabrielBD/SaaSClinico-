@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { mensalidadeService } from '@/services/mensalidadeService'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
 import { getUserRole } from '@/utils/auth'
+import { canAccessModule } from '@/utils/roles'
+import { getTodayBrazil, getFirstDayOfMonthBrazil, getCurrentYearMonthBrazil } from '@/lib/dateUtils'
 import { 
   DollarSign, 
   Edit, 
@@ -17,7 +20,8 @@ import {
   Archive,
   X,
   Clock,
-  CreditCard
+  CreditCard,
+  ShieldX
 } from 'lucide-react'
 
 // Função para formatar moeda no padrão brasileiro
@@ -30,6 +34,8 @@ const formatCurrency = (value) => {
 }
 
 export default function FinanceiroPage() {
+  const router = useRouter()
+  const [hasAccess, setHasAccess] = useState(null) // null = verificando, true = tem acesso, false = sem acesso
   const [mensalidades, setMensalidades] = useState([])
   const [mensalidadesInativas, setMensalidadesInativas] = useState([])
   const [pagamentosMesMap, setPagamentosMesMap] = useState({})
@@ -47,6 +53,21 @@ export default function FinanceiroPage() {
   // Novos estados para melhor UX
   const [toast, setToast] = useState({ show: false, message: '', type: '' })
   const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null })
+
+  // Verificar permissão de acesso
+  useEffect(() => {
+    const userRole = getUserRole()
+    const canAccess = canAccessModule(userRole, 'financeiro')
+    setHasAccess(canAccess)
+    
+    if (!canAccess && userRole) {
+      // Redirecionar após 2 segundos para mostrar a mensagem de erro
+      const timeout = setTimeout(() => {
+        router.push('/pacientes')
+      }, 2000)
+      return () => clearTimeout(timeout)
+    }
+  }, [router])
 
   // Função para mostrar toast
   const showToast = (message, type = 'success') => {
@@ -93,14 +114,17 @@ export default function FinanceiroPage() {
   }
 
   useEffect(() => {
-    loadData()
-    loadPacientes()
-  }, [])
+    // Só carregar dados se o usuário tiver acesso
+    if (hasAccess === true) {
+      loadData()
+      loadPacientes()
+    }
+  }, [hasAccess])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const mesReferencia = new Date().toISOString().slice(0, 7) + '-01'
+      const mesReferencia = getFirstDayOfMonthBrazil()
 
       const [mensalidadesAtivasData, mensalidadesInativasData, vencimentosData, statsData, pagamentosMes] = await Promise.all([
         mensalidadeService.getAll(true),
@@ -194,13 +218,11 @@ export default function FinanceiroPage() {
   }
 
   const handleAlterarVencimento = async (mensalidade) => {
-    const hoje = new Date()
-    const ano = hoje.getFullYear()
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0')
+    const { year: ano, month: mes } = getCurrentYearMonthBrazil()
     const dia = String(mensalidade.dia_vencimento || 1).padStart(2, '0')
 
     setMensalidadeParaVencimento(mensalidade)
-    setNovaDataVencimento(`${ano}-${mes}-${dia}`)
+    setNovaDataVencimento(`${ano}-${String(mes).padStart(2, '0')}-${dia}`)
     setShowVencimentoModal(true)
   }
 
@@ -221,7 +243,7 @@ export default function FinanceiroPage() {
       // Pegar o pagamento do mês atual
       const pagamentos = await mensalidadeService.getPagamentos({
         paciente_id: mensalidadeParaVencimento.paciente_id,
-        mes_referencia: new Date().toISOString().slice(0, 7) + '-01'
+        mes_referencia: getFirstDayOfMonthBrazil()
       })
 
       if (pagamentos.length > 0) {
@@ -292,6 +314,29 @@ export default function FinanceiroPage() {
           showToast(mensagem, 'error')
         }
       }
+    )
+  }
+
+  // Verificação de acesso - mostrar tela de erro se não autorizado
+  if (hasAccess === false) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-center">
+        <ShieldX className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-xl font-semibold text-neutral-900 mb-2">Acesso Negado</h2>
+        <p className="text-neutral-600 mb-4">
+          Você não tem permissão para acessar esta página.
+        </p>
+        <p className="text-sm text-neutral-500">Redirecionando...</p>
+      </div>
+    )
+  }
+
+  // Aguardando verificação de acesso
+  if (hasAccess === null) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
     )
   }
 

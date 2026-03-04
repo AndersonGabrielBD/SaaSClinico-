@@ -53,21 +53,36 @@ def get_prontuarios():
             # Buscar prontuários dos pacientes vinculados
             repo = BaseRepository('prontuarios', clinica_id)
             prontuarios = repo.client.table('prontuarios') \
-                .select('*') \
+                .select('*, pacientes(id, nome_completo)') \
                 .eq('clinica_id', clinica_id) \
                 .in_('paciente_id', paciente_ids) \
-                .order('created_at', desc=True) \
+                .order('data_criacao', desc=True) \
                 .execute()
             
-            prontuarios_data = prontuarios.data or []
+            # Mapear para incluir paciente no formato esperado pelo frontend
+            prontuarios_data = []
+            for p in (prontuarios.data or []):
+                if 'pacientes' in p:
+                    p['paciente'] = p.pop('pacientes')
+                prontuarios_data.append(p)
         else:
             # Admin e recepção veem todos os prontuários
-            filters = {}
-            if paciente_id:
-                filters['paciente_id'] = paciente_id
-            
             repo = BaseRepository('prontuarios', clinica_id)
-            prontuarios_data = repo.get_all(filters=filters, order_by='-created_at')
+            prontuarios = repo.client.table('prontuarios') \
+                .select('*, pacientes(id, nome_completo)') \
+                .eq('clinica_id', clinica_id)
+            
+            if paciente_id:
+                prontuarios = prontuarios.eq('paciente_id', paciente_id)
+            
+            prontuarios = prontuarios.order('data_criacao', desc=True).execute()
+            
+            # Mapear para incluir paciente no formato esperado pelo frontend
+            prontuarios_data = []
+            for p in (prontuarios.data or []):
+                if 'pacientes' in p:
+                    p['paciente'] = p.pop('pacientes')
+                prontuarios_data.append(p)
         
         logger.info(f"✅ [PRONTUARIO] Retornando {len(prontuarios_data)} prontuários")
         return jsonify(prontuarios_data), 200

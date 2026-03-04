@@ -8,6 +8,7 @@ from flask import request, jsonify
 def create_token(user_data):
     """Cria um JWT token"""
     payload = {
+        'sub': user_data['id'],  # 'sub' é necessário para RLS do Supabase
         'user_id': user_data['id'],
         'email': user_data['email'],
         'clinica_id': user_data.get('clinica_id'),

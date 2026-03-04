@@ -1,6 +1,6 @@
 'use client'
 
-import { User, Phone, Mail, Calendar, Edit, UserX, UserCheck, FileText, Users } from 'lucide-react'
+import { User, Phone, Mail, Calendar, Edit, UserX, UserCheck, FileText, Users, Eye } from 'lucide-react'
 import Button from '@/components/common/Button'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -152,7 +152,17 @@ export default function PacienteCard({
         )}
       </div>
 
-      <div className="flex gap-2 mt-4 pt-4 border-t border-neutral-200">
+      <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-neutral-200">
+        <Link href={`/pacientes/${paciente.id}`}>
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<Eye className="w-4 h-4" />}
+          >
+            Ver Perfil
+          </Button>
+        </Link>
+
         <Link href={`/prontuarios?paciente_id=${paciente.id}`}>
           <Button
             size="sm"

@@ -1,14 +1,16 @@
 # filepath: backend/app/routes/financeiro_routes.py
 from flask import Blueprint, request, jsonify
-from app.utils.jwt_utils import require_auth, get_current_user
+from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.services.mensalidade_service import MensalidadeService
 from datetime import datetime, timedelta
+from app.utils.date_utils import today_brazil
 
 financeiro_bp = Blueprint('financeiro', __name__)
 
 @financeiro_bp.route('/lancamentos', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_lancamentos():
     """Lista todos os lançamentos financeiros da clínica"""
     try:
@@ -57,6 +59,7 @@ def get_lancamentos():
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_lancamento(lancamento_id):
     """Busca lançamento por ID"""
     try:
@@ -77,6 +80,7 @@ def get_lancamento(lancamento_id):
 
 @financeiro_bp.route('/lancamentos', methods=['POST'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def create_lancamento():
     """Cria novo lançamento financeiro"""
     try:
@@ -122,6 +126,7 @@ def create_lancamento():
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['PUT'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def update_lancamento(lancamento_id):
     """Atualiza lançamento financeiro"""
     try:
@@ -165,6 +170,7 @@ def update_lancamento(lancamento_id):
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['DELETE'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def delete_lancamento(lancamento_id):
     """Deleta lançamento financeiro"""
     try:
@@ -188,6 +194,7 @@ def delete_lancamento(lancamento_id):
 
 @financeiro_bp.route('/relatorio/resumo', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_resumo_financeiro():
     """Retorna resumo financeiro do período"""
     try:
@@ -287,6 +294,7 @@ def get_resumo_financeiro():
 
 @financeiro_bp.route('/pendencias', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_pendencias():
     """Retorna pagamentos de mensalidades pendentes (a vencer e vencidos)"""
     try:
@@ -296,7 +304,7 @@ def get_pendencias():
         service = MensalidadeService()
         pagamentos = service.listar_pagamentos(clinica_id, {'status': 'pendente'})
         
-        hoje = datetime.now().date()
+        hoje = today_brazil()
         
         vencidos = []
         a_vencer = []

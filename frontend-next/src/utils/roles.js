@@ -32,7 +32,7 @@ const PERMISSIONS = {
     delete: ['admin']
   },
   agenda: {
-    view: ['admin', 'recepcao'],
+    view: ['admin', 'recepcao', 'fono', 'medico'],
     create: ['admin', 'recepcao'],
     edit: ['admin', 'recepcao'],
     delete: ['admin', 'recepcao']

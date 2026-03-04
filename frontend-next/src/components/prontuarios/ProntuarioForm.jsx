@@ -24,8 +24,7 @@ export default function ProntuarioForm({
     diagnostico_preliminar: prontuario?.diagnostico_preliminar || '',
     historico_clinico: prontuario?.historico_clinico || '',
     alergias: prontuario?.alergias || '',
-    medicacoes: prontuario?.medicacoes || '',
-    visivel_para_paciente: prontuario?.visivel_para_paciente || false
+    medicacoes: prontuario?.medicacoes || ''
   })
 
   useEffect(() => {
@@ -205,23 +204,6 @@ export default function ProntuarioForm({
             placeholder="Medicações atuais do paciente..."
           />
         </div>
-      </div>
-
-      {/* Visibilidade */}
-      <div className="flex items-center gap-3 p-4 bg-neutral-50 rounded-lg">
-        <input
-          type="checkbox"
-          id="visivel"
-          checked={formData.visivel_para_paciente}
-          onChange={(e) => setFormData({ ...formData, visivel_para_paciente: e.target.checked })}
-          className="w-5 h-5 text-primary-600 border-neutral-300 rounded focus:ring-primary-500"
-        />
-        <label htmlFor="visivel" className="text-sm text-neutral-700 cursor-pointer">
-          <span className="font-medium">Tornar visível para o paciente</span>
-          <p className="text-xs text-neutral-500 mt-1">
-            O paciente poderá visualizar este prontuário através do portal
-          </p>
-        </label>
       </div>
 
       {/* Actions */}

@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from app.repositories.base_repository import BaseRepository
 from app.schemas.dashboard_schema import DashboardStatsResponse, ProximaConsulta
 from database.supabase_client import get_supabase_client
+from app.utils.date_utils import today_brazil, start_of_week_brazil, start_of_month_brazil, days_ago_brazil
 
 
 class DashboardService:
@@ -16,10 +17,11 @@ class DashboardService:
         
         client = get_supabase_client()
         
-        today = date.today().isoformat()
-        start_of_week = (date.today() - timedelta(days=date.today().weekday())).isoformat()
-        start_of_month = date.today().replace(day=1).isoformat()
-        thirty_days_ago = (date.today() - timedelta(days=30)).isoformat()
+        # Usando timezone do Brasil
+        today = today_brazil().isoformat()
+        start_of_week = start_of_week_brazil().isoformat()
+        start_of_month = start_of_month_brazil().isoformat()
+        thirty_days_ago = days_ago_brazil(30).isoformat()
 
         # Total de pacientes ativos
         total_pacientes_result = client.table("pacientes")\

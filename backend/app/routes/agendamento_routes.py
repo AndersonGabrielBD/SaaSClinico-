@@ -3,12 +3,13 @@ from flask import Blueprint, request, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from datetime import datetime
+from app.utils.date_utils import today_brazil
 
 agendamento_bp = Blueprint('agendamentos', __name__)
 
 @agendamento_bp.route('', methods=['GET'])
 @require_auth
-@require_roles(['admin', 'recepcao'])
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
 def get_agendamentos():
     """Lista agendamentos da clínica"""
     import logging
@@ -87,7 +88,7 @@ def get_agendamento(agendamento_id):
 
 @agendamento_bp.route('', methods=['POST'])
 @require_auth
-@require_roles(['admin', 'recepcao'])
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
 def create_agendamento():
     """Cria novo agendamento"""
     try:
@@ -96,11 +97,17 @@ def create_agendamento():
         
         data = request.get_json()
         
-        # Validações
+        # Validações de campos obrigatórios
         required_fields = ['paciente_id', 'profissional_id', 'data_agendamento', 'horario_inicio', 'horario_fim']
         for field in required_fields:
             if not data.get(field):
-                return jsonify({'error': f'Campo {field} é obrigatório'}), 400
+                return jsonify({'error': f'Campo obrigatório "{field}" não foi preenchido'}), 400
+        
+        # Validar data (não pode ser passada)
+        data_agendamento = data.get('data_agendamento')
+        hoje = today_brazil().isoformat()
+        if data_agendamento < hoje:
+            return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
         
         # Set padrões
         data['status'] = data.get('status', 'agendada')
@@ -111,7 +118,17 @@ def create_agendamento():
         return jsonify(agendamento), 201
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        error_str = str(e)
+        
+        # Interpretar erros de constraint
+        if 'data_futura' in error_str or '23514' in error_str:
+            return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
+        elif 'unique constraint' in error_str.lower():
+            return jsonify({'error': 'Este agendamento já existe'}), 400
+        elif 'foreign key' in error_str.lower():
+            return jsonify({'error': 'Paciente ou profissional inválido'}), 400
+        
+        return jsonify({'error': error_str}), 500
 
 
 @agendamento_bp.route('/<agendamento_id>', methods=['PUT'])
@@ -125,6 +142,13 @@ def update_agendamento(agendamento_id):
         
         data = request.get_json()
         
+        # Validar data se ela foi informada (não pode ser passada)
+        if data.get('data_agendamento'):
+            data_agendamento = data.get('data_agendamento')
+            hoje = today_brazil().isoformat()
+            if data_agendamento < hoje:
+                return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
+        
         repo = BaseRepository('agendamentos', clinica_id)
         
         # Verifica se existe
@@ -137,7 +161,17 @@ def update_agendamento(agendamento_id):
         return jsonify(agendamento), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        error_str = str(e)
+        
+        # Interpretar erros de constraint
+        if 'data_futura' in error_str or '23514' in error_str:
+            return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
+        elif 'unique constraint' in error_str.lower():
+            return jsonify({'error': 'Este agendamento já existe'}), 400
+        elif 'foreign key' in error_str.lower():
+            return jsonify({'error': 'Paciente ou profissional inválido'}), 400
+        
+        return jsonify({'error': error_str}), 500
 
 
 @agendamento_bp.route('/<agendamento_id>', methods=['DELETE'])

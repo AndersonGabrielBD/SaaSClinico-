@@ -4,6 +4,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Dict, Optional
 from database.supabase_client import get_supabase_client
+from app.utils.date_utils import today_brazil, start_of_month_brazil
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +239,7 @@ class MensalidadeService:
                 raise ValueError("Mensalidade não encontrada")
             
             m = mensalidade.data
-            mes_atual = date.today().replace(day=1)
+            mes_atual = start_of_month_brazil()
             
             # Verificar se já existe
             existente = self.supabase.table('pagamentos_mensalidades') \
@@ -381,8 +382,9 @@ class MensalidadeService:
     def calcular_proximos_vencimentos(self, clinica_id: str, dias: int = 3) -> List[Dict]:
         """Retorna pagamentos pendentes com vencimento próximo (2-3 dias)"""
         try:
-            hoje = date.today()
-            data_limite = date.today().replace(day=hoje.day + dias)
+            from datetime import timedelta
+            hoje = today_brazil()
+            data_limite = hoje + timedelta(days=dias)
             
             response = self.supabase.table('pagamentos_mensalidades') \
                 .select('*, pacientes(id, nome_completo, telefone_principal)') \
@@ -424,7 +426,7 @@ class MensalidadeService:
     def obter_estatisticas(self, clinica_id: str) -> Dict:
         """Calcula estatísticas do sistema de mensalidades"""
         try:
-            mes_atual = date.today().replace(day=1)
+            mes_atual = start_of_month_brazil()
             
             # Total mensalidades ativas
             total_ativas = len(self.listar_mensalidades(clinica_id, ativo=True))

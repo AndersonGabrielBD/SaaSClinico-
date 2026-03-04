@@ -9,10 +9,17 @@ import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
 import AgendamentoForm from '@/components/agenda/AgendamentoForm'
 import AgendamentoCard from '@/components/agenda/AgendamentoCard'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { getTodayBrazil } from '@/lib/dateUtils'
+import { useAuth } from '@/context/AuthContext'
+import { getUserRole } from '@/utils/auth'
 
 export default function AgendaPage() {
+  const { user } = useAuth()
+  const userRole = getUserRole()
+  const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
+  
   const [agendamentos, setAgendamentos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -20,7 +27,7 @@ export default function AgendaPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingAgendamento, setEditingAgendamento] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(getTodayBrazil())
   const [activeTab, setActiveTab] = useState('agendadas') // 'agendadas', 'concluidas', 'canceladas', 'todas'
 
   useEffect(() => {
@@ -32,29 +39,44 @@ export default function AgendaPage() {
       setLoading(true)
       setError(null)
 
+      console.log(`📅 [AGENDA] Carregando para: ${selectedDate}`)
       
       // Se estiver em concluídas, canceladas ou todas, não filtrar por data
       const filters = activeTab === 'agendadas' ? { data_agendamento: selectedDate } : {}
+      
+      // Se for profissional, adicionar filtro de profissional_id
+      if (isProfissional && user?.id) {
+        filters.profissional_id = user.id
+        console.log(`🔒 [AGENDA] Filtro de profissional aplicado: ${user.id}`)
+      }
       
       const result = await agendamentoService.getAll(filters)
       
       console.log('📅 [AGENDA PAGE] Resultado bruto:', result)
       const data = result.data || result || []
-      console.log('📅 [AGENDA PAGE] Dados processados:', data)
-      console.log('📅 [AGENDA PAGE] Quantidade:', data.length)
+      
+      // Filtrar por profissional se não for admin
+      let filteredData = data
+      if (isProfissional && user?.id) {
+        filteredData = data.filter(a => a.profissional_id === user.id)
+        console.log(`🔒 [AGENDA] Filtrados por profissional: ${data.length} → ${filteredData.length}`)
+      }
+      
+      console.log('📅 [AGENDA PAGE] Dados processados:', filteredData)
+      console.log('📅 [AGENDA PAGE] Quantidade:', filteredData.length)
       
       // Log da estrutura do primeiro agendamento
-      if (data.length > 0) {
-        console.log('📅 [AGENDA PAGE] Estrutura do primeiro agendamento:', data[0])
-        console.log('📅 [AGENDA PAGE] Tem paciente?', !!data[0].paciente)
-        console.log('📅 [AGENDA PAGE] Tem profissional?', !!data[0].profissional)
-        console.log('📅 [AGENDA PAGE] Chaves disponíveis:', Object.keys(data[0]))
+      if (filteredData.length > 0) {
+        console.log('📅 [AGENDA PAGE] Estrutura do primeiro agendamento:', filteredData[0])
+        console.log('📅 [AGENDA PAGE] Tem paciente?', !!filteredData[0].paciente)
+        console.log('📅 [AGENDA PAGE] Tem profissional?', !!filteredData[0].profissional)
+        console.log('📅 [AGENDA PAGE] Data:', filteredData[0].data_agendamento)
       }
       
       console.log('✅ [AGENDA PAGE] Agendamentos carregados')
       console.log('📅 [AGENDA PAGE] ====================')
       
-      setAgendamentos(data)
+      setAgendamentos(filteredData)
     } catch (error) {
       console.error('❌ [AGENDA PAGE] ====================')
       console.error('❌ [AGENDA PAGE] Erro ao carregar agendamentos:', error)
@@ -302,7 +324,7 @@ export default function AgendaPage() {
       ) : filteredAgendamentos.length === 0 ? (
         <EmptyState
           title="Nenhum agendamento encontrado"
-          description={`Não há agendamentos para ${format(new Date(selectedDate), "dd 'de' MMMM", { locale: ptBR })}`}
+          description={`Não há agendamentos para ${format(parseISO(selectedDate), "dd 'de' MMMM", { locale: ptBR })}`}
           icon={<CalendarIcon className="w-16 h-16" />}
           action={{
             label: 'Criar Agendamento',

@@ -13,8 +13,6 @@ import {
   Calendar, 
   Edit, 
   Trash2, 
-  Eye, 
-  EyeOff,
   AlertTriangle,
   Pill,
   Clock,
@@ -146,21 +144,6 @@ export default function ProntuarioDetailPage() {
         </div>
       </div>
 
-      {/* Status Badge */}
-      <div className="flex items-center gap-3">
-        {prontuario.visivel_para_paciente ? (
-          <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full flex items-center gap-1">
-            <Eye className="w-4 h-4" />
-            Visível para o paciente
-          </span>
-        ) : (
-          <span className="px-3 py-1 bg-neutral-200 text-neutral-700 text-sm font-medium rounded-full flex items-center gap-1">
-            <EyeOff className="w-4 h-4" />
-            Não visível para o paciente
-          </span>
-        )}
-      </div>
-
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Main Info */}
@@ -253,10 +236,11 @@ export default function ProntuarioDetailPage() {
                     <p className="text-sm text-neutral-700">{paciente.telefone_principal}</p>
                   </div>
                 )}
-                <Link href={`/pacientes/${paciente.id}`}>
-                  <Button variant="secondary" size="sm" className="w-full mt-2">
-                    Ver Perfil Completo
-                  </Button>
+                <Link 
+                  href={`/pacientes/${paciente.id}`}
+                  className="inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors duration-200 bg-neutral-200 text-neutral-900 hover:bg-neutral-300 active:bg-neutral-400 px-3 py-1.5 text-sm w-full mt-2"
+                >
+                  Ver Perfil Completo
                 </Link>
               </div>
             </div>

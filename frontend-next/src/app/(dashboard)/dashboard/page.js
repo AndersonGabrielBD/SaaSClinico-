@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { dashboardService } from '@/services/dashboardService'
 import { getResumoFinanceiro, getPendencias } from '@/lib/api'
+import { getUserRole } from '@/utils/auth'
+import { canAccessModule } from '@/utils/roles'
 import { 
   Users, 
   Calendar, 
@@ -11,7 +14,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  ShieldX
 } from 'lucide-react'
 import LoadingSpinner, { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import { format } from 'date-fns'
@@ -19,15 +23,35 @@ import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const [hasAccess, setHasAccess] = useState(null) // null = verificando
   const [stats, setStats] = useState(null)
   const [resumoFinanceiro, setResumoFinanceiro] = useState(null)
   const [pendencias, setPendencias] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // Verificar permissão de acesso
   useEffect(() => {
-    loadStats()
-  }, [])
+    const userRole = getUserRole()
+    const canAccess = canAccessModule(userRole, 'dashboard')
+    setHasAccess(canAccess)
+    
+    if (!canAccess && userRole) {
+      // Redirecionar após 2 segundos
+      const timeout = setTimeout(() => {
+        router.push('/pacientes')
+      }, 2000)
+      return () => clearTimeout(timeout)
+    }
+  }, [router])
+
+  useEffect(() => {
+    // Só carregar dados se tiver acesso
+    if (hasAccess === true) {
+      loadStats()
+    }
+  }, [hasAccess])
 
   const loadStats = async () => {
     try {
@@ -101,6 +125,29 @@ export default function DashboardPage() {
   const dadosPendencias = pendencias || {
     valor_vencido: 0,
     total_vencidos: 0
+  }
+
+  // Verificação de acesso - mostrar tela de erro se não autorizado
+  if (hasAccess === false) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-center">
+        <ShieldX className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-xl font-semibold text-neutral-900 mb-2">Acesso Negado</h2>
+        <p className="text-neutral-600 mb-4">
+          Você não tem permissão para acessar esta página.
+        </p>
+        <p className="text-sm text-neutral-500">Redirecionando...</p>
+      </div>
+    )
+  }
+
+  // Aguardando verificação de acesso
+  if (hasAccess === null) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
   }
 
   if (loading) {
