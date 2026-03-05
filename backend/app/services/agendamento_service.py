@@ -19,7 +19,7 @@ class AgendamentoService:
         self,
         clinica_id: str,
         profissional_id: str,
-        sala_id: str,
+        sala_id: Optional[str],
         data_agendamento: str,
         horario_inicio: str,
         horario_fim: str,

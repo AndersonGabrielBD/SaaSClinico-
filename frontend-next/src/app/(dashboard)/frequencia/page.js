@@ -18,6 +18,7 @@ import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function FrequenciaPage() {
   const [dados, setDados] = useState(null)
@@ -287,7 +288,10 @@ export default function FrequenciaPage() {
                                   className="inline-flex items-center gap-1 text-xs bg-neutral-100 text-neutral-600 px-2 py-1 rounded"
                                 >
                                   <Calendar className="w-3 h-3" />
-                                  {format(new Date(data), 'dd/MM/yyyy', { locale: ptBR })}
+                                  {(() => {
+                                    const date = parseDateSafe(data)
+                                    return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                                  })()}
                                 </span>
                               ))}
                             </div>
@@ -390,7 +394,10 @@ export default function FrequenciaPage() {
                                   className="inline-flex items-center gap-1 text-xs bg-neutral-100 text-neutral-600 px-2 py-1 rounded"
                                 >
                                   <Calendar className="w-3 h-3" />
-                                  {format(new Date(data), 'dd/MM/yyyy', { locale: ptBR })}
+                                  {(() => {
+                                    const date = parseDateSafe(data)
+                                    return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                                  })()}
                                 </span>
                               ))}
                             </div>

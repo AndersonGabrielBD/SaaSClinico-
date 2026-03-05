@@ -12,6 +12,7 @@ import EmptyState from '@/components/common/EmptyState'
 import ProntuarioCard from '@/components/prontuarios/ProntuarioCard'
 import ProntuarioForm from '@/components/prontuarios/ProntuarioForm'
 import { getUserRole } from '@/utils/auth'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function ProntuariosPage() {
   const [prontuarios, setProntuarios] = useState([])
@@ -126,7 +127,8 @@ export default function ProntuariosPage() {
               <p className="text-sm text-neutral-600">Este Mês</p>
               <p className="text-2xl font-bold text-blue-600">
                 {prontuarios.filter(p => {
-                  const date = new Date(p.data_criacao || p.created_at)
+                  const date = parseDateSafe(p.data_criacao || p.created_at)
+                  if (!date) return false
                   const now = new Date()
                   return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
                 }).length}

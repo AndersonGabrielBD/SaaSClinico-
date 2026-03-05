@@ -58,7 +58,7 @@ class FrequenciaService:
         """Lista frequência de um paciente, opcionalmente filtrado por profissional"""
         try:
             query = self.supabase.table('frequencia_atendimentos') \
-                .select('*, usuarios!profissional_id(nome_completo)') \
+                .select('*') \
                 .eq('paciente_id', paciente_id) \
                 .eq('clinica_id', clinica_id)
             
@@ -67,12 +67,29 @@ class FrequenciaService:
             
             response = query.order('data_atendimento', desc=True).execute()
             
-            # Formatar resposta
+            # Buscar nomes de profissionais e registradores
             frequencias = []
             for item in response.data:
-                profissional = item.pop('usuarios', None)
-                if profissional:
-                    item['profissional_nome'] = profissional.get('nome_completo')
+                # Buscar nome do profissional
+                if item.get('profissional_id'):
+                    prof_response = self.supabase.table('usuarios') \
+                        .select('nome_completo') \
+                        .eq('id', item['profissional_id']) \
+                        .maybe_single() \
+                        .execute()
+                    if prof_response.data:
+                        item['profissional_nome'] = prof_response.data.get('nome_completo')
+                
+                # Buscar nome de quem registrou
+                if item.get('registrado_por'):
+                    reg_response = self.supabase.table('usuarios') \
+                        .select('nome_completo') \
+                        .eq('id', item['registrado_por']) \
+                        .maybe_single() \
+                        .execute()
+                    if reg_response.data:
+                        item['registrado_por_nome'] = reg_response.data.get('nome_completo')
+                
                 frequencias.append(item)
             
             logger.info(f"✅ Listadas {len(frequencias)} frequências do paciente {paciente_id}")

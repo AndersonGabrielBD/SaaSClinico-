@@ -2,18 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { agendamentoService } from '@/services/agendamentoService'
-import { Plus, Calendar as CalendarIcon, List, Search } from 'lucide-react'
+import { Plus, Calendar as CalendarIcon, List, Search, FileDown } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
 import AgendamentoForm from '@/components/agenda/AgendamentoForm'
 import AgendamentoCard from '@/components/agenda/AgendamentoCard'
+import CalendarView from '@/components/agenda/CalendarView'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { getTodayBrazil } from '@/lib/dateUtils'
 import { useAuth } from '@/context/AuthContext'
 import { getUserRole } from '@/utils/auth'
+import { api } from '@/lib/api'
 
 export default function AgendaPage() {
   const { user } = useAuth()
@@ -29,10 +31,11 @@ export default function AgendaPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState(getTodayBrazil())
   const [activeTab, setActiveTab] = useState('agendadas') // 'agendadas', 'concluidas', 'canceladas', 'todas'
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   useEffect(() => {
     loadAgendamentos()
-  }, [selectedDate, activeTab])
+  }, [selectedDate, activeTab, viewMode])
 
   const loadAgendamentos = async () => {
     try {
@@ -41,8 +44,21 @@ export default function AgendaPage() {
 
       console.log(`📅 [AGENDA] Carregando para: ${selectedDate}`)
       
-      // Se estiver em concluídas, canceladas ou todas, não filtrar por data
-      const filters = activeTab === 'agendadas' ? { data_agendamento: selectedDate } : {}
+      // Construir filtros baseados no modo de visualização
+      let filters = {}
+      
+      if (viewMode === 'calendar') {
+        // No modo calendário, buscar todo o mês
+        const date = new Date(selectedDate)
+        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
+        const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+        
+        filters.data_inicio = format(startOfMonth, 'yyyy-MM-dd')
+        filters.data_fim = format(endOfMonth, 'yyyy-MM-dd')
+      } else if (activeTab === 'agendadas') {
+        // No modo lista, filtrar pela data selecionada apenas se for aba "agendadas"
+        filters.data_agendamento = selectedDate
+      }
       
       // Se for profissional, adicionar filtro de profissional_id
       if (isProfissional && user?.id) {
@@ -100,6 +116,7 @@ export default function AgendaPage() {
   }
 
   const handleCreate = () => {
+    if (isProfissional) return
     setEditingAgendamento(null)
     setModalOpen(true)
   }
@@ -124,6 +141,40 @@ export default function AgendaPage() {
   const handleSave = async () => {
     setModalOpen(false)
     await loadAgendamentos()
+  }
+
+  const handleExportPdf = async () => {
+    try {
+      setExportingPdf(true)
+      
+      // Construir parâmetros de filtro
+      const params = new URLSearchParams()
+      if (activeTab === 'agendadas') {
+        params.append('data_agendamento', selectedDate)
+      }
+      if (isProfissional && user?.id) {
+        params.append('profissional_id', user.id)
+      }
+      
+      // Fazer requisição para exportar PDF
+      const response = await api.download(`/agendamentos/export-pdf?${params.toString()}`)
+      
+      // Criar link para download
+      const url = window.URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `agenda_${selectedDate}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error)
+      alert('Erro ao exportar agenda em PDF')
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   const filteredAgendamentos = agendamentos.filter(a => {
@@ -173,9 +224,21 @@ export default function AgendaPage() {
             Gerencie os agendamentos da clínica
           </p>
         </div>
-        <Button onClick={handleCreate} icon={<Plus className="w-5 h-5" />}>
-          Novo Agendamento
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            onClick={handleExportPdf}
+            variant="outline"
+            icon={<FileDown className="w-5 h-5" />}
+            disabled={exportingPdf}
+          >
+            {exportingPdf ? 'Gerando...' : 'Exportar PDF'}
+          </Button>
+          {!isProfissional && (
+            <Button onClick={handleCreate} icon={<Plus className="w-5 h-5" />}>
+              Novo Agendamento
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -321,15 +384,22 @@ export default function AgendaPage() {
       {/* Content */}
       {loading ? (
         <LoadingSkeleton rows={5} />
+      ) : viewMode === 'calendar' ? (
+        <CalendarView
+          agendamentos={filteredAgendamentos}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          onAgendamentoClick={handleEdit}
+        />
       ) : filteredAgendamentos.length === 0 ? (
         <EmptyState
           title="Nenhum agendamento encontrado"
           description={`Não há agendamentos para ${format(parseISO(selectedDate), "dd 'de' MMMM", { locale: ptBR })}`}
           icon={<CalendarIcon className="w-16 h-16" />}
-          action={{
+          action={!isProfissional ? {
             label: 'Criar Agendamento',
             onClick: handleCreate
-          }}
+          } : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4">

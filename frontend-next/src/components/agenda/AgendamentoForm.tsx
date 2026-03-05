@@ -87,45 +87,23 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }: Ag
       return
     }
 
-    // Validar data
-    const hoje = getTodayBrazil()
-    if (formData.data_agendamento < hoje) {
-      setError('Não é possível agendar em datas passadas')
-      return
-    }
-
     try {
       setLoading(true)
 
+      const payload = {
+        ...formData,
+        sala_id: formData.sala_id || null
+      }
+
       if (agendamento) {
-        await agendamentoService.update(agendamento.id, formData)
+        await agendamentoService.update(agendamento.id, payload)
       } else {
-        await agendamentoService.create(formData)
+        await agendamentoService.create(payload)
       }
 
       onSuccess()
     } catch (err: any) {
-      // Interpretar diferentes tipos de erro
-      let mensagem = 'Erro ao salvar agendamento'
-      
-      // Se for erro de constraint de data
-      if (err.code === '23514' || err.message?.includes('data_futura') || err.message?.includes('check constraint')) {
-        mensagem = 'Data inválida. Não é possível agendar em datas passadas'
-      }
-      // Se for erro de campo obrigatório
-      else if (err.status === 400 || err.message?.includes('inválido') || err.message?.includes('obrigat')) {
-        mensagem = err.message || 'Por favor, preencha todos os campos obrigatórios'
-      }
-      // Se for erro de conflito de horário
-      else if (err.message?.includes('conflict') || err.message?.includes('Há conflito')) {
-        mensagem = 'Conflito de horário. Escolha outro horário'
-      }
-      // Erro genérico
-      else {
-        mensagem = err.message || mensagem
-      }
-      
-      setError(mensagem)
+      setError(err.message || 'Erro ao salvar agendamento')
     } finally {
       setLoading(false)
     }
@@ -187,20 +165,21 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }: Ag
         {/* Sala */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Sala
+            Sala (opcional)
           </label>
           <select
             value={formData.sala_id}
             onChange={(e) => setFormData({ ...formData, sala_id: e.target.value })}
             className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
           >
-            <option value="">Selecione uma sala</option>
+            <option value="">Sem sala definida</option>
             {salas.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nome}
               </option>
             ))}
           </select>
+          <p className="text-xs text-neutral-500 mt-1">Você pode criar o agendamento sem informar sala.</p>
         </div>
 
         {/* Tipo de Atendimento */}

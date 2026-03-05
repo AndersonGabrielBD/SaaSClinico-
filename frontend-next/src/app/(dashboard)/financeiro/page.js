@@ -7,7 +7,7 @@ import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule } from '@/utils/roles'
-import { getTodayBrazil, getFirstDayOfMonthBrazil, getCurrentYearMonthBrazil } from '@/lib/dateUtils'
+import { getTodayBrazil, getFirstDayOfMonthBrazil, getCurrentYearMonthBrazil, parseDateSafe } from '@/lib/dateUtils'
 import { 
   DollarSign, 
   Edit, 
@@ -509,7 +509,10 @@ export default function FinanceiroPage() {
                   <div className="flex-1">
                     <p className="font-semibold text-neutral-900">{venc.paciente_nome}</p>
                     <p className="text-sm text-neutral-600 mt-1">
-                      Vence em {venc.dias_ate_vencimento} dia{venc.dias_ate_vencimento !== 1 ? 's' : ''} • {new Date(venc.data_vencimento).toLocaleDateString('pt-BR')}
+                      Vence em {venc.dias_ate_vencimento} dia{venc.dias_ate_vencimento !== 1 ? 's' : ''} • {(() => {
+                        const date = parseDateSafe(venc.data_vencimento)
+                        return date ? date.toLocaleDateString('pt-BR') : 'Data inválida'
+                      })()}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -605,7 +608,10 @@ export default function FinanceiroPage() {
 
                       {abaAtiva === 'inativas' && mensalidade.data_inativacao && (
                         <div className="text-sm text-neutral-600">
-                          Inativada em {new Date(mensalidade.data_inativacao).toLocaleDateString('pt-BR')}
+                          Inativada em {(() => {
+                            const date = parseDateSafe(mensalidade.data_inativacao)
+                            return date ? date.toLocaleDateString('pt-BR') : 'Data inválida'
+                          })()}
                         </div>
                       )}
 
@@ -776,7 +782,10 @@ export default function FinanceiroPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-neutral-600">
                             {mensalidade.data_inativacao 
-                              ? new Date(mensalidade.data_inativacao).toLocaleDateString('pt-BR')
+                              ? (() => {
+                                const date = parseDateSafe(mensalidade.data_inativacao)
+                                return date ? date.toLocaleDateString('pt-BR') : 'Data inválida'
+                              })()
                               : '-'
                             }
                           </div>

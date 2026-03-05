@@ -1,38 +1,38 @@
 # filepath: backend/app/utils/exceptions.py
 
-class FonoFlowException(Exception):
-    """Exceção base para FonoFlow"""
+class ClinFlowException(Exception):
+    """Exceção base para ClinFlow"""
     def __init__(self, message, status_code=500):
         self.message = message
         self.status_code = status_code
         super().__init__(self.message)
 
 
-class UnauthorizedException(FonoFlowException):
+class UnauthorizedException(ClinFlowException):
     """Usuário não autenticado"""
     def __init__(self, message="Não autenticado"):
         super().__init__(message, 401)
 
 
-class ForbiddenException(FonoFlowException):
+class ForbiddenException(ClinFlowException):
     """Usuário sem permissão"""
     def __init__(self, message="Sem permissão"):
         super().__init__(message, 403)
 
 
-class NotFoundException(FonoFlowException):
+class NotFoundException(ClinFlowException):
     """Recurso não encontrado"""
     def __init__(self, message="Recurso não encontrado"):
         super().__init__(message, 404)
 
 
-class ConflictException(FonoFlowException):
+class ConflictException(ClinFlowException):
     """Conflito (ex: agendamento duplicado, CPF já existe)"""
     def __init__(self, message="Conflito"):
         super().__init__(message, 409)
 
 
-class ValidationException(FonoFlowException):
+class ValidationException(ClinFlowException):
     """Dados inválidos"""
     def __init__(self, message="Dados inválidos"):
         super().__init__(message, 400)

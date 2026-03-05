@@ -74,6 +74,48 @@ async function request(endpoint, options = {}) {
   }
 }
 
+// Helper para download de arquivos (blob)
+async function downloadFile(endpoint, options = {}) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  
+  console.log('📥 [API DOWNLOAD] ====================');
+  console.log('📥 [API DOWNLOAD] Endpoint:', endpoint);
+  console.log('📥 [API DOWNLOAD] Token presente:', !!token);
+  
+  const config = {
+    ...options,
+    headers: {
+      ...options.headers,
+    },
+  };
+  
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, config);
+    
+    console.log('📥 [API DOWNLOAD] Status:', response.status, response.statusText);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ [API DOWNLOAD ERROR]', response.status, errorText);
+      throw new Error(errorText || 'Erro ao baixar arquivo');
+    }
+    
+    const blob = await response.blob();
+    console.log('✅ [API DOWNLOAD] Success - Blob size:', blob.size);
+    console.log('📥 [API DOWNLOAD] ====================');
+    return { data: blob };
+    
+  } catch (error) {
+    console.error('❌ [API DOWNLOAD ERROR]', error.message);
+    console.log('📥 [API DOWNLOAD] ====================');
+    throw error;
+  }
+}
+
 // Helper para construir query string
 function buildQueryString(params) {
   if (!params || Object.keys(params).length === 0) return '';
@@ -109,6 +151,12 @@ export const api = {
   },
   delete: (endpoint, options = {}) => {
     return request(endpoint, { ...options, method: 'DELETE' });
+  },
+  // Download de arquivos (retorna blob)
+  download: (endpoint, options = {}) => {
+    const { params, ...restOptions } = options;
+    const queryString = params ? buildQueryString(params) : '';
+    return downloadFile(`${endpoint}${queryString}`, { ...restOptions, method: 'GET' });
   },
   // Auth methods
   login: (email, password) => {
@@ -307,7 +355,7 @@ export const deleteUsuario = (id) => {
 };
 
 export const getProfissionais = (filters = {}) => {
-  const params = new URLSearchParams({ ...filters, role: 'fono,medico' });
+  const params = new URLSearchParams({ ...filters, role: 'fono,medico,profissional' });
   return request(`/usuarios?${params}`);
 };
 

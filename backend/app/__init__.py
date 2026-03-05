@@ -1,5 +1,5 @@
 """
-FonoFlow Backend
+ClinFlow Backend
 Multi-tenant speech therapy clinic management system
 Built with Flask + Supabase
 """

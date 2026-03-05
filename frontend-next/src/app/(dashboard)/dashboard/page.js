@@ -21,6 +21,7 @@ import LoadingSpinner, { LoadingSkeleton } from '@/components/common/LoadingSpin
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -407,7 +408,10 @@ export default function DashboardPage() {
                       {agendamento.profissional?.nome_completo}
                     </p>
                     <p className="text-xs text-neutral-500 mt-1">
-                      {format(new Date(agendamento.data_agendamento), "dd 'de' MMMM", { locale: ptBR })} às {agendamento.horario_inicio}
+                      {(() => {
+                        const date = parseDateSafe(agendamento.data_agendamento)
+                        return date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : 'Data inválida'
+                      })()} às {agendamento.horario_inicio}
                     </p>
                   </div>
                   <span className={`

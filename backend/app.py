@@ -24,9 +24,12 @@ def create_app():
     app.config['JSON_SORT_KEYS'] = False
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
     
-    # CORS
-    allowed_origins = os.getenv('CORS_ORIGINS', '*')
-    CORS(app, origins=allowed_origins.split(','), supports_credentials=True)
+    # CORS Configuration - Simples e eficaz
+    CORS(app, 
+         origins="*",
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+         allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+         supports_credentials=False)
     
     # Register blueprints
     from app.routes.auth_routes import auth_bp
@@ -42,6 +45,7 @@ def create_app():
     from app.routes.relatorios_routes import relatorios_bp
     from app.routes.frequencia_routes import frequencia_bp
     from app.routes.profissional_routes import profissional_bp
+    from app.routes.senha_routes import senha_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(usuario_bp, url_prefix='/usuarios')
@@ -56,6 +60,7 @@ def create_app():
     app.register_blueprint(relatorios_bp, url_prefix='/relatorios')
     app.register_blueprint(frequencia_bp, url_prefix='/frequencia')
     app.register_blueprint(profissional_bp, url_prefix='/profissionais')
+    app.register_blueprint(senha_bp, url_prefix='/senha')
     
     # Health check
     @app.route('/health')
@@ -70,7 +75,7 @@ def create_app():
     @app.route('/')
     def root():
         return jsonify({
-            'name': 'FonoFlow API',
+            'name': 'ClinFlow API',
             'version': '1.0.0',
             'endpoints': {
                 'auth': '/auth',
@@ -112,7 +117,7 @@ def create_app():
         logger.error(f'Internal Server Error: {str(error)}')
         return jsonify({'error': 'Internal Server Error', 'message': 'Erro interno do servidor'}), 500
     
-    logger.info('🚀 FonoFlow Backend iniciado')
+    logger.info('🚀 ClinFlow Backend iniciado')
     logger.info(f'📊 Ambiente: {os.getenv("ENVIRONMENT", "development")}')
     
     return app

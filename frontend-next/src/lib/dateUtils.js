@@ -76,3 +76,30 @@ export function getCurrentYearMonthBrazil() {
     month: parseInt(parts.find(p => p.type === 'month').value)
   }
 }
+
+/**
+ * Parse seguro de data que evita problemas de timezone
+ * Para datas no formato YYYY-MM-DD (sem hora), adiciona T12:00:00 para evitar shift de timezone
+ * Para datas com hora (ISO), faz parse normal
+ */
+export function parseDateSafe(dateStr) {
+  if (!dateStr) return null
+  
+  try {
+    // Se for uma string de data sem hora (YYYY-MM-DD)
+    if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return new Date(dateStr + 'T12:00:00')
+    }
+    
+    // Se tiver espaço em vez de T, substituir
+    if (typeof dateStr === 'string' && dateStr.includes(' ')) {
+      return new Date(dateStr.replace(' ', 'T'))
+    }
+    
+    // Caso contrário, parse normal
+    return new Date(dateStr)
+  } catch (e) {
+    console.error('Erro ao parsear data:', dateStr, e)
+    return null
+  }
+}

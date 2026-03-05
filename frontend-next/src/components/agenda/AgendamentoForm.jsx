@@ -71,7 +71,7 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
     } catch (error) {
       console.error('Erro ao carregar opções:', error)
     }
-  }}
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -99,24 +99,15 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
     try {
       setLoading(true)
 
-      // Verificar conflitos
-      const hasConflict = await agendamentoService.checkConflict({
-        profissional_id: formData.profissional_id,
-        sala_id: formData.sala_id,
-        data_agendamento: formData.data_agendamento,
-        horario_inicio: formData.horario_inicio,
-        horario_fim: formData.horario_fim
-      })
-
-      if (hasConflict) {
-        setError('Há conflito de horário com outro agendamento')
-        return
+      const payload = {
+        ...formData,
+        sala_id: formData.sala_id || null
       }
 
       if (agendamento) {
-        await agendamentoService.update(agendamento.id, formData)
+        await agendamentoService.update(agendamento.id, payload)
       } else {
-        await agendamentoService.create(formData)
+        await agendamentoService.create(payload)
       }
 
       onSuccess()
@@ -203,20 +194,21 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
         {/* Sala */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Sala
+            Sala (opcional)
           </label>
           <select
             value={formData.sala_id}
             onChange={(e) => setFormData({ ...formData, sala_id: e.target.value })}
             className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
           >
-            <option value="">Selecione uma sala</option>
+            <option value="">Sem sala definida</option>
             {salas.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nome}
               </option>
             ))}
           </select>
+          <p className="text-xs text-neutral-500 mt-1">Você pode criar o agendamento sem informar sala.</p>
         </div>
 
         {/* Tipo de Atendimento */}
@@ -305,3 +297,4 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
       </div>
     </form>
   )
+}

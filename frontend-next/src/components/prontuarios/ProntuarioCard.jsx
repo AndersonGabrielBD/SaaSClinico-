@@ -5,6 +5,7 @@ import Button from '@/components/common/Button'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function ProntuarioCard({
   prontuario,
@@ -52,7 +53,10 @@ export default function ProntuarioCard({
             <div className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               <span>
-                Criado em {format(new Date(prontuario.data_criacao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                Criado em {(() => {
+                  const date = parseDateSafe(prontuario.data_criacao)
+                  return date ? format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Data inválida'
+                })()}
               </span>
             </div>
             {prontuario.criado_por_usuario && (

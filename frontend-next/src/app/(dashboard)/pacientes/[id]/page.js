@@ -27,6 +27,7 @@ import RelatoriosList from '@/components/relatorios/RelatoriosList'
 import FrequenciaCard from '@/components/frequencia/FrequenciaCard'
 import { format, differenceInYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function PacienteDetailPage() {
   const params = useParams()
@@ -194,7 +195,10 @@ export default function PacienteDetailPage() {
                 <div>
                   <p className="text-xs text-neutral-500 mb-1">Data de Nascimento</p>
                   <p className="text-sm text-neutral-700">
-                    {format(new Date(paciente.data_nascimento), 'dd/MM/yyyy', { locale: ptBR })}
+                    {(() => {
+                      const date = parseDateSafe(paciente.data_nascimento)
+                      return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                    })()}
                     {idade && ` (${idade} anos)`}
                   </p>
                 </div>
@@ -313,7 +317,10 @@ export default function PacienteDetailPage() {
                   >
                     <p className="text-sm font-medium text-neutral-900">{p.titulo}</p>
                     <p className="text-xs text-neutral-500 mt-1">
-                      {format(new Date(p.data_criacao), 'dd/MM/yyyy', { locale: ptBR })}
+                      {(() => {
+                        const date = parseDateSafe(p.data_criacao)
+                        return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                      })()}
                     </p>
                   </Link>
                 ))}
@@ -344,14 +351,20 @@ export default function PacienteDetailPage() {
               <div>
                 <p className="text-xs text-neutral-500 mb-1">Cadastrado em</p>
                 <p className="text-sm text-neutral-700">
-                  {paciente.created_at && format(new Date(paciente.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  {paciente.created_at && (() => {
+                    const date = parseDateSafe(paciente.created_at)
+                    return date ? format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Data inválida'
+                  })()}
                 </p>
               </div>
               {paciente.updated_at && paciente.updated_at !== paciente.created_at && (
                 <div>
                   <p className="text-xs text-neutral-500 mb-1">Última atualização</p>
                   <p className="text-sm text-neutral-700">
-                    {format(new Date(paciente.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    {(() => {
+                      const date = parseDateSafe(paciente.updated_at)
+                      return date ? format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Data inválida'
+                    })()}
                   </p>
                 </div>
               )}

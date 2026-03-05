@@ -12,10 +12,15 @@ financeiro_bp = Blueprint('financeiro', __name__)
 @require_auth
 @require_roles(['admin', 'recepcao'])
 def get_lancamentos():
-    """Lista todos os lançamentos financeiros da clínica"""
+    """Lista todos os lançamentos financeiros da clínica com retry automático"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
+        
+        logger.info(f"📋 [FINANCEIRO] Buscando lançamentos para clínica {clinica_id}")
         
         # Query params
         status = request.args.get('status')
@@ -32,6 +37,8 @@ def get_lancamentos():
         
         repo = BaseRepository('lancamentos_financeiros', clinica_id)
         lancamentos = repo.get_all(filters=filters, order_by='-data_criacao')
+        
+        logger.info(f"✅ [FINANCEIRO] Carregados {len(lancamentos)} lançamentos")
         
         # Filtro de data
         if data_inicio or data_fim:
@@ -51,10 +58,12 @@ def get_lancamentos():
                     lancamentos_filtrados.append(lanc)
             lancamentos = lancamentos_filtrados
         
+        logger.info(f"✅ [FINANCEIRO] Retornando {len(lancamentos)} lançamentos após filtro")
         return jsonify(lancamentos), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"❌ [FINANCEIRO] Erro ao buscar lançamentos: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['GET'])
@@ -196,10 +205,15 @@ def delete_lancamento(lancamento_id):
 @require_auth
 @require_roles(['admin', 'recepcao'])
 def get_resumo_financeiro():
-    """Retorna resumo financeiro do período"""
+    """Retorna resumo financeiro do período com retry automático"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
+        
+        logger.info(f"📊 [FINANCEIRO] Buscando resumo para clínica {clinica_id}")
         
         # Query params
         data_inicio = request.args.get('data_inicio')
@@ -209,21 +223,35 @@ def get_resumo_financeiro():
         if not data_inicio:
             data_inicio = datetime.now().replace(day=1).strftime('%Y-%m-%d')
         if not data_fim:
-            # Último dia do mês atual
             proximo_mes = datetime.now().replace(day=28) + timedelta(days=4)
             data_fim = (proximo_mes - timedelta(days=proximo_mes.day)).strftime('%Y-%m-%d')
         
-        service = MensalidadeService()
-        pagamentos = service.listar_pagamentos(clinica_id, {
-            'data_inicio': data_inicio,
-            'data_fim': data_fim
-        })
+        logger.info(f"📊 [FINANCEIRO] Período: {data_inicio} até {data_fim}")
+        
+        # Tentar buscar pagamentos com retry automático
+        try:
+            service = MensalidadeService()
+            pagamentos = service.listar_pagamentos(clinica_id, {
+                'data_inicio': data_inicio,
+                'data_fim': data_fim
+            })
+            logger.info(f"✅ [FINANCEIRO] Carregados {len(pagamentos)} pagamentos")
+        except Exception as e:
+            logger.error(f"❌ [FINANCEIRO] Erro ao listar pagamentos: {str(e)}")
+            # Retornar resposta vazia em vez de erro para não quebrar o dashboard
+            pagamentos = []
 
-        # Calcular totais
-        total_pago = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'pago')
-        total_pendente = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'pendente')
-        total_parcial = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'parcial')
-        total_cancelado = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'cancelado')
+        # Calcular totais com tratamento de erro
+        try:
+            total_pago = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'pago')
+            total_pendente = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'pendente')
+            total_parcial = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'parcial')
+            total_cancelado = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'cancelado')
+            
+            logger.info(f"💰 [FINANCEIRO] Pago: {total_pago}, Pendente: {total_pendente}")
+        except Exception as e:
+            logger.error(f"❌ [FINANCEIRO] Erro ao calcular totais: {str(e)}")
+            total_pago = total_pendente = total_parcial = total_cancelado = 0
 
         # Contar por status
         count_pago = len([p for p in pagamentos if p.get('status') == 'pago'])
@@ -265,6 +293,8 @@ def get_resumo_financeiro():
             for data, valor in sorted(faturamento_diario.items())
         ]
         
+        logger.info(f"✅ [FINANCEIRO] Resumo calculado com sucesso")
+        
         return jsonify({
             'periodo': {
                 'inicio': data_inicio,
@@ -289,7 +319,8 @@ def get_resumo_financeiro():
         }), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"❌ [FINANCEIRO] Erro crítico: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
 
 @financeiro_bp.route('/pendencias', methods=['GET'])

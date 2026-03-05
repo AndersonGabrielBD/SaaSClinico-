@@ -442,3 +442,179 @@ class PdfService:
         doc.build(story)
         buffer.seek(0)
         return buffer
+    
+    def generate_agenda_pdf(self, agendamentos_data, filtros=None):
+        """Gera PDF da agenda com agendamentos filtrados"""
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+        story = []
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER))
+        
+        clinica_id = agendamentos_data[0].get('clinica_id') if agendamentos_data else None
+        clinica_data = self._get_clinica_data(clinica_id) if clinica_id else {}
+        
+        self._create_header(story, clinica_data, styles)
+        
+        # Título
+        titulo = "AGENDA DE ATENDIMENTOS"
+        if filtros:
+            if filtros.get('data_inicio') and filtros.get('data_fim'):
+                titulo += f"<br/>{filtros['data_inicio']} a {filtros['data_fim']}"
+            elif filtros.get('data_agendamento'):
+                titulo += f"<br/>{filtros['data_agendamento']}"
+        
+        story.append(Paragraph(f"<b>{titulo}</b>", styles['Title']))
+        story.append(Spacer(1, 0.5*cm))
+        
+        if not agendamentos_data:
+            story.append(Paragraph("Nenhum agendamento encontrado.", styles['Normal']))
+        else:
+            # Agrupar por data
+            agendamentos_por_data = {}
+            for ag in agendamentos_data:
+                data = ag.get('data_agendamento', 'Sem data')
+                if data not in agendamentos_por_data:
+                    agendamentos_por_data[data] = []
+                agendamentos_por_data[data].append(ag)
+            
+            # Renderizar cada dia
+            for data in sorted(agendamentos_por_data.keys()):
+                story.append(Paragraph(f"<b>{self._format_date(data)}</b>", styles['Heading2']))
+                story.append(Spacer(1, 0.3*cm))
+                
+                # Tabela de agendamentos do dia
+                table_data = [['Horário', 'Paciente', 'Profissional', 'Status']]
+                
+                for ag in sorted(agendamentos_por_data[data], key=lambda x: x.get('horario_inicio', '')):
+                    horario = f"{ag.get('horario_inicio', '')} - {ag.get('horario_fim', '')}"
+                    paciente = ag.get('paciente_nome', ag.get('paciente', {}).get('nome_completo', 'N/A'))
+                    profissional = ag.get('profissional_nome', ag.get('profissional', {}).get('nome_completo', 'N/A'))
+                    status = ag.get('status', 'N/A').upper()
+                    
+                    table_data.append([horario, paciente, profissional, status])
+                
+                table = Table(table_data, colWidths=[3*cm, 6*cm, 5*cm, 3*cm])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D6A4F')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+                ]))
+                
+                story.append(table)
+                story.append(Spacer(1, 0.8*cm))
+        
+        # Rodapé com estatísticas
+        story.append(Spacer(1, 1*cm))
+        story.append(Paragraph(f"<b>Total de agendamentos:</b> {len(agendamentos_data)}", styles['Normal']))
+        story.append(Paragraph(f"<b>Gerado em:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
+        
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+    
+    def generate_prontuario_pdf(self, prontuario_data):
+        """Gera PDF completo do prontuário com todas as evoluções"""
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+        story = []
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER))
+        styles.add(ParagraphStyle(name='Justify', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12))
+        
+        clinica_data = self._get_clinica_data(prontuario_data.get('clinica_id'))
+        
+        self._create_header(story, clinica_data, styles)
+        
+        # Título
+        story.append(Paragraph("<b>PRONTUÁRIO</b>", styles['Title']))
+        story.append(Spacer(1, 0.5*cm))
+        
+        # Dados do paciente
+        paciente = prontuario_data.get('paciente', {})
+        if isinstance(paciente, str):
+            story.append(Paragraph(f"<b>Paciente:</b> {paciente}", styles['Normal']))
+        else:
+            story.append(Paragraph(f"<b>Paciente:</b> {paciente.get('nome_completo', 'N/A')}", styles['Normal']))
+        
+        story.append(Paragraph(f"<b>Prontuário:</b> {prontuario_data.get('titulo', 'N/A')}", styles['Normal']))
+        story.append(Paragraph(f"<b>Data de Abertura:</b> {self._format_date(prontuario_data.get('data_criacao', ''))}", styles['Normal']))
+        story.append(Spacer(1, 0.5*cm))
+        
+        # Dados clínicos principais
+        if prontuario_data.get('diagnostico_preliminar'):
+            story.append(Paragraph("<b>Diagnóstico Preliminar:</b>", styles['Heading3']))
+            story.append(Paragraph(prontuario_data['diagnostico_preliminar'], styles['Justify']))
+            story.append(Spacer(1, 0.3*cm))
+        
+        if prontuario_data.get('historico_clinico'):
+            story.append(Paragraph("<b>Histórico Clínico:</b>", styles['Heading3']))
+            story.append(Paragraph(prontuario_data['historico_clinico'], styles['Justify']))
+            story.append(Spacer(1, 0.3*cm))
+        
+        if prontuario_data.get('alergias'):
+            story.append(Paragraph("<b>Alergias:</b>", styles['Heading3']))
+            story.append(Paragraph(prontuario_data['alergias'], styles['Justify']))
+            story.append(Spacer(1, 0.3*cm))
+        
+        if prontuario_data.get('medicacoes'):
+            story.append(Paragraph("<b>Medicações:</b>", styles['Heading3']))
+            story.append(Paragraph(prontuario_data['medicacoes'], styles['Justify']))
+            story.append(Spacer(1, 0.3*cm))
+        
+        # Evoluções
+        evolucoes = prontuario_data.get('evolucoes', [])
+        if evolucoes:
+            story.append(Spacer(1, 0.5*cm))
+            story.append(Paragraph("<b>EVOLUÇÕES</b>", styles['Heading2']))
+            story.append(Spacer(1, 0.3*cm))
+            
+            for i, evolucao in enumerate(evolucoes, 1):
+                story.append(Paragraph(f"<b>Evolução {i} - {self._format_date(evolucao.get('data_criacao', ''))}</b>", styles['Heading3']))
+                
+                if evolucao.get('titulo_resumo'):
+                    story.append(Paragraph(f"<i>{evolucao['titulo_resumo']}</i>", styles['Normal']))
+                
+                if evolucao.get('conteudo'):
+                    story.append(Paragraph(evolucao['conteudo'], styles['Justify']))
+                
+                story.append(Spacer(1, 0.5*cm))
+        
+        # Rodapé
+        story.append(Spacer(1, 1*cm))
+        story.append(Paragraph(f"<b>Documento gerado em:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
+        story.append(Paragraph("<i>Este documento é confidencial e de uso exclusivo profissional.</i>", styles['Center']))
+        
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+    
+    def _format_date(self, date_str):
+        """Formata data para exibição em português"""
+        if not date_str:
+            return 'N/A'
+        
+        try:
+            if isinstance(date_str, str):
+                # Tentar diferentes formatos
+                if 'T' in date_str:
+                    dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                else:
+                    dt = datetime.strptime(date_str[:10], '%Y-%m-%d')
+            else:
+                dt = date_str
+            
+            # Formatação em português
+            meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+                    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+            
+            return f"{dt.day} de {meses[dt.month - 1]} de {dt.year}"
+        except:
+            return str(date_str)

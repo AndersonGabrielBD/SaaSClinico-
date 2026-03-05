@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { relatorioService } from '@/services/relatorioService'
 import { FileText, Download, Plus, Trash2, Upload } from 'lucide-react'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function RelatoriosList({ pacienteId }) {
   const [relatorios, setRelatorios] = useState([])
@@ -179,8 +180,11 @@ export default function RelatoriosList({ pacienteId }) {
                       </p>
                     )}
                     <p className="text-xs text-neutral-400 mt-2">
-                      Enviado em {new Date(relatorio.data_upload).toLocaleDateString('pt-BR')} às{' '}
-                      {new Date(relatorio.data_upload).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      Enviado em {(() => {
+                        const date = parseDateSafe(relatorio.data_upload)
+                        if (!date) return 'Data inválida'
+                        return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                      })()}
                     </p>
                     <p className="text-xs text-neutral-400">
                       Arquivo: {relatorio.nome_arquivo_original}

@@ -2,13 +2,46 @@
 
 import { User, Phone, Mail, Calendar, Edit, UserX, UserCheck, FileText, Users, Eye } from 'lucide-react'
 import Button from '@/components/common/Button'
-import { format } from 'date-fns'
+import { format, isValid, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { getUserRole } from '@/utils/auth'
 import { canPerformAction } from '@/utils/roles'
 import { useState, useEffect } from 'react'
 import { pacienteService } from '@/services/pacienteService'
+
+// Helper function to safely parse dates
+const safeParseDate = (dateValue) => {
+  if (!dateValue) return null
+  
+  try {
+    let date
+    if (typeof dateValue === 'string') {
+      // Se tem espaço, substituir por T para ISO format
+      const isoString = dateValue.includes(' ') ? dateValue.replace(' ', 'T') : dateValue
+      // Se não tem horário, adicionar
+      const fullIsoString = isoString.includes('T') ? isoString : `${isoString}T00:00:00`
+      date = parseISO(fullIsoString)
+    } else {
+      date = new Date(dateValue)
+    }
+    
+    return isValid(date) ? date : null
+  } catch (error) {
+    console.error('Erro ao fazer parse da data:', dateValue, error)
+    return null
+  }
+}
+
+// Helper function to calculate age
+const calculateAge = (birthDate) => {
+  const date = safeParseDate(birthDate)
+  if (!date) return null
+  
+  const today = new Date()
+  const age = Math.floor((today.getTime() - date.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+  return age >= 0 ? age : null
+}
 
 export default function PacienteCard({
   paciente,
@@ -78,15 +111,22 @@ export default function PacienteCard({
       </div>
 
       <div className="space-y-2 text-sm">
-        {paciente.data_nascimento && (
-          <div className="flex items-center gap-2 text-neutral-600">
-            <Calendar className="w-4 h-4" />
-            <span>
-              {format(new Date(paciente.data_nascimento), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              {' '}({Math.floor((new Date().getTime() - new Date(paciente.data_nascimento).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} anos)
-            </span>
-          </div>
-        )}
+        {paciente.data_nascimento && (() => {
+          const birthDate = safeParseDate(paciente.data_nascimento)
+          const age = calculateAge(paciente.data_nascimento)
+          
+          if (!birthDate) return null
+          
+          return (
+            <div className="flex items-center gap-2 text-neutral-600">
+              <Calendar className="w-4 h-4" />
+              <span>
+                {format(birthDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                {age !== null && ` (${age} anos)`}
+              </span>
+            </div>
+          )
+        })()}
 
         {paciente.telefone_principal && (
           <div className="flex items-center gap-2 text-neutral-600">

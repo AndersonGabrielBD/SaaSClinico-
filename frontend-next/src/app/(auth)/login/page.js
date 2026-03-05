@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { LogIn, AlertCircle, Mail, Lock } from 'lucide-react'
+import { LogIn, AlertCircle, Mail } from 'lucide-react'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import PasswordInput from '@/components/common/PasswordInput'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -39,7 +41,7 @@ export default function LoginPage() {
       setFieldErrors({ email: true, password: false })
       return
     }
-
+    
     try {
       await signIn(email, password)
       // Se chegou aqui, login foi bem-sucedido e o router.replace foi chamado
@@ -66,6 +68,12 @@ export default function LoginPage() {
     }
   }
 
+  const Redirect = () => {
+    redirect('/login')
+  }
+
+  
+
   const handleEmailChange = (e) => {
     setEmail(e.target.value)
     // Apenas remove o estilo de erro visual, mas mantém a mensagem até o próximo submit
@@ -91,7 +99,7 @@ export default function LoginPage() {
             <span className="text-white font-bold text-2xl">FF</span>
           </div>
           <h1 className="text-3xl font-bold text-primary-700 mb-2">
-            FonoFlow
+            ClinFlow
           </h1>
           <p className="text-neutral-600">
             Sistema de Gestão para Clínicas de Fonoaudiologia
@@ -136,34 +144,15 @@ export default function LoginPage() {
             </div>
 
             {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Senha
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className={`w-5 h-5 ${fieldErrors.password ? 'text-red-500' : 'text-neutral-400'}`} />
-                </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  autoComplete="current-password"
-                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:border-transparent outline-none transition ${
-                    fieldErrors.password
-                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
-                      : 'border-neutral-300 focus:ring-primary-500'
-                  }`}
-                  placeholder="••••••••"
-                  disabled={loading}
-                />
-                {fieldErrors.password && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                    <AlertCircle className="w-5 h-5 text-red-500" />
-                  </div>
-                )}
-              </div>
-            </div>
+            <PasswordInput
+              label="Senha"
+              value={password}
+              onChange={handlePasswordChange}
+              placeholder="••••••••"
+              hasError={fieldErrors.password}
+              disabled={loading}
+              errorIcon={AlertCircle}
+            />
 
             {/* Error Message */}
             {error && (
@@ -197,9 +186,9 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="mt-6 text-center text-sm text-neutral-500">
-            <a href="#" className="text-primary-600 hover:text-primary-700 font-medium">
+            <Link href="/forgot-password" className="text-primary-600 hover:text-primary-700 font-medium">
               Esqueceu sua senha?
-            </a>
+            </Link>
           </div>
         </div>
 

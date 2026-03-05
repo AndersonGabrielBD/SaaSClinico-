@@ -3,17 +3,64 @@ import logging
 from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Dict, Optional
-from database.supabase_client import get_supabase_client
+from database.supabase_client import get_supabase_client, reset_supabase_client
 from app.utils.date_utils import today_brazil, start_of_month_brazil
+import time
 
 logger = logging.getLogger(__name__)
 
 
 class MensalidadeService:
-    """Serviço para gerenciar mensalidades e pagamentos"""
+    """Serviço para gerenciar mensalidades e pagamentos com retry automático"""
     
     def __init__(self):
         self.supabase = get_supabase_client()
+        self.max_retries = 2
+        self.retry_delay = 0.5
+    
+    def _execute_with_retry(self, operation_name, operation_func):
+        """Executa operação com retry automático"""
+        last_error = None
+        
+        for attempt in range(self.max_retries + 1):
+            try:
+                if attempt > 0:
+                    logger.info(f"🔄 [SERVICE] {operation_name} - Tentativa {attempt + 1}/{self.max_retries + 1}")
+                
+                if attempt > 0:
+                    reset_supabase_client()
+                    self.supabase = get_supabase_client()
+                
+                result = operation_func()
+                
+                if attempt > 0:
+                    logger.info(f"✅ [SERVICE] {operation_name} - Sucesso após retry")
+                
+                return result
+                
+            except Exception as e:
+                last_error = e
+                error_msg = str(e).lower()
+                
+                should_retry = any([
+                    'connection' in error_msg,
+                    'timeout' in error_msg,
+                    'temporary' in error_msg,
+                    'unavailable' in error_msg,
+                    'network' in error_msg,
+                    '500' in error_msg,
+                    '502' in error_msg,
+                    '503' in error_msg,
+                ])
+                
+                if should_retry and attempt < self.max_retries:
+                    logger.warning(f"⚠️ [SERVICE] {operation_name} - Erro (tentativa {attempt + 1}): {str(e)}")
+                    time.sleep(self.retry_delay)
+                else:
+                    logger.error(f"❌ [SERVICE] {operation_name} - Erro final: {str(e)}")
+                    break
+        
+        raise last_error if last_error else Exception(f"Erro desconhecido em {operation_name}")
     
     # ========================================================================
     # MENSALIDADES
@@ -21,7 +68,7 @@ class MensalidadeService:
     
     def listar_mensalidades(self, clinica_id: str, ativo: Optional[bool] = None) -> List[Dict]:
         """Lista mensalidades da clínica com dados do paciente"""
-        try:
+        def operation():
             query = self.supabase.table('mensalidades_pacientes') \
                 .select('*, pacientes(id, nome_completo, cpf)') \
                 .eq('clinica_id', clinica_id) \
@@ -40,12 +87,10 @@ class MensalidadeService:
                     item['paciente_nome'] = paciente.get('nome_completo')
                 mensalidades.append(item)
             
-            logger.info(f"✅ Listadas {len(mensalidades)} mensalidades da clínica {clinica_id}")
+            logger.info(f"✅ Listadas {len(mensalidades)} mensalidades")
             return mensalidades
-            
-        except Exception as e:
-            logger.error(f"❌ Erro ao listar mensalidades: {str(e)}")
-            raise
+        
+        return self._execute_with_retry(f"LISTAR_MENSALIDADES:{clinica_id}", operation)
     
     def buscar_mensalidade(self, mensalidade_id: str, clinica_id: str) -> Dict:
         """Busca uma mensalidade específica"""
@@ -159,13 +204,14 @@ class MensalidadeService:
     # ========================================================================
     
     def listar_pagamentos(self, clinica_id: str, filters: Optional[Dict] = None) -> List[Dict]:
-        """Lista pagamentos com filtros opcionais"""
-        try:
+        """Lista pagamentos com filtros opcionais e retry automático"""
+        def operation():
             query = self.supabase.table('pagamentos_mensalidades') \
                 .select('''
                     *,
                     pacientes(id, nome_completo),
-                    mensalidades_pacientes(valor_mensalidade)
+                    mensalidades_pacientes(valor_mensalidade),
+                    registrador:usuarios!registrado_por(nome_completo)
                 ''') \
                 .eq('clinica_id', clinica_id)
             
@@ -188,20 +234,21 @@ class MensalidadeService:
             for item in response.data:
                 paciente = item.pop('pacientes', None)
                 mensalidade = item.pop('mensalidades_pacientes', None)
+                registrador = item.pop('registrador', None)
                 
                 if paciente:
                     item['paciente_nome'] = paciente.get('nome_completo')
                 if mensalidade:
                     item['valor_mensalidade'] = mensalidade.get('valor_mensalidade')
+                if registrador:
+                    item['registrado_por_nome'] = registrador.get('nome_completo')
                 
                 pagamentos.append(item)
             
             logger.info(f"✅ Listados {len(pagamentos)} pagamentos")
             return pagamentos
-            
-        except Exception as e:
-            logger.error(f"❌ Erro ao listar pagamentos: {str(e)}")
-            raise
+        
+        return self._execute_with_retry(f"LISTAR_PAGAMENTOS:{clinica_id}", operation)
     
     def buscar_pagamento(self, pagamento_id: str, clinica_id: str) -> Dict:
         """Busca um pagamento específico"""

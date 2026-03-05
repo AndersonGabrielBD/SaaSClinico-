@@ -14,6 +14,7 @@ import {
 import Toast from '@/components/common/Toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function FrequenciaLista({ pacienteId, pacienteNome, user: userProp }) {
   const { user: userContext } = useAuth()
@@ -119,7 +120,10 @@ export default function FrequenciaLista({ pacienteId, pacienteNome, user: userPr
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-neutral-400" />
-                    {format(new Date(freq.data_atendimento), 'dd/MM/yyyy', { locale: ptBR })}
+                    {(() => {
+                      const date = parseDateSafe(freq.data_atendimento)
+                      return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                    })()}
                   </div>
                 </td>
                 <td className="px-4 py-3">
@@ -151,7 +155,7 @@ export default function FrequenciaLista({ pacienteId, pacienteNome, user: userPr
                   )}
                 </td>
                 <td className="px-4 py-3 text-neutral-600 text-xs">
-                  {freq.usuario_nome || 'Desconhecido'}
+                  {freq.registrado_por_nome || freq.usuario_nome || 'Desconhecido'}
                 </td>
                 {isAdminOrRecepcao && (
                   <td className="px-4 py-3 text-center">
@@ -184,7 +188,10 @@ export default function FrequenciaLista({ pacienteId, pacienteNome, user: userPr
               <p className="text-sm text-neutral-700">
                 Tem certeza que deseja <strong>deletar</strong> a frequência registrada em{' '}
                 <strong>
-                  {format(new Date(frequenciaToDelete.data_atendimento), 'dd/MM/yyyy', { locale: ptBR })}
+                  {(() => {
+                    const date = parseDateSafe(frequenciaToDelete.data_atendimento)
+                    return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                  })()}
                 </strong>
                 {frequenciaToDelete.profissional_nome && (
                   <> com <strong>{frequenciaToDelete.profissional_nome}</strong></>
