@@ -1,7 +1,7 @@
 # Documentação Técnica - SaaSClinico
 
 **Versão:** 1.0.0  
-**Data:** 2 de Março de 2026  
+**Data:** 6 de Março de 2026    
 **Descrição:** Documentação completa da arquitetura técnica, endpoints, fluxo de dados e componentes do SaaSClinico
 
 ---
