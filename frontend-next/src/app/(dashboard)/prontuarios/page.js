@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { prontuarioService } from '@/services/prontuarioService'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
-import { Plus, Search, FileText, Filter } from 'lucide-react'
+import { Plus, Search, FileText, Filter, AlertTriangle } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
@@ -26,6 +26,7 @@ export default function ProntuariosPage() {
   const userRole = getUserRole()
   const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null })
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
@@ -76,12 +77,16 @@ export default function ProntuariosPage() {
     setModalOpen(true)
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Deseja realmente excluir este prontuário?')) return
+  const handleDelete = (id) => {
+    setDeleteConfirm({ open: true, id })
+  }
 
+  const confirmDelete = async () => {
     try {
-      await prontuarioService.delete(id)
+      await prontuarioService.delete(deleteConfirm.id)
+      setDeleteConfirm({ open: false, id: null })
       await loadData()
+      showToast('Prontuário excluído com sucesso', 'success')
     } catch (error) {
       console.error('Erro ao excluir prontuário:', error)
       showToast('Erro ao excluir prontuário', 'error')
@@ -229,6 +234,40 @@ export default function ProntuariosPage() {
           onSuccess={handleSave}
           onCancel={() => setModalOpen(false)}
         />
+      </Modal>
+
+      {/* Confirm Delete Modal */}
+      <Modal
+        isOpen={deleteConfirm.open}
+        onClose={() => setDeleteConfirm({ open: false, id: null })}
+        title="Excluir Prontuário"
+        size="sm"
+      >
+        <div className="flex flex-col items-center text-center gap-4 py-2">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-900">Tem certeza que deseja excluir este prontuário?</p>
+            <p className="text-sm text-neutral-500 mt-1">Esta ação não pode ser desfeita.</p>
+          </div>
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setDeleteConfirm({ open: false, id: null })}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={confirmDelete}
+            >
+              Excluir
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Toast
