@@ -129,7 +129,7 @@ export default function PacientesPage() {
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white rounded-xl p-4 border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <p className="text-xs text-neutral-500 mb-1">{label}</p>
-            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+            <p className={`text-xl font-bold ${color}`}>{value}</p>
           </div>
         ))}
       </div>

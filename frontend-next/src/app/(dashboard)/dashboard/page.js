@@ -189,7 +189,7 @@ export default function DashboardPage() {
               <Users className="w-4 h-4 text-primary-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900">{stats?.total_pacientes || 0}</p>
+          <p className="text-xl md:text-2xl font-bold text-neutral-900">{stats?.total_pacientes || 0}</p>
           <p className="text-xs text-neutral-400 mt-1">{stats?.pacientes_ativos || 0} ativos</p>
         </div>
 
@@ -200,7 +200,7 @@ export default function DashboardPage() {
               <Calendar className="w-4 h-4 text-blue-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900">{stats?.consultas_hoje || 0}</p>
+          <p className="text-xl md:text-2xl font-bold text-neutral-900">{stats?.consultas_hoje || 0}</p>
           <p className="text-xs text-neutral-400 mt-1">{stats?.consultas_semana || 0} esta semana</p>
         </div>
 
@@ -211,7 +211,7 @@ export default function DashboardPage() {
               <DollarSign className="w-4 h-4 text-green-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900">
+          <p className="text-base md:text-xl font-bold text-neutral-900 truncate">
             {semDadosFinanceiros ? formatarValor(stats?.faturamento_mes || 0) : formatarValor(resumoTotais.pago)}
           </p>
           {semDadosFinanceiros ? (
@@ -230,7 +230,7 @@ export default function DashboardPage() {
               <TrendingUp className="w-4 h-4 text-purple-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900">{stats?.taxa_comparecimento?.toFixed(1) || 0}%</p>
+          <p className="text-xl md:text-2xl font-bold text-neutral-900">{stats?.taxa_comparecimento?.toFixed(1) || 0}%</p>
           <p className="text-xs text-neutral-400 mt-1">Últimos 30 dias</p>
         </div>
       </div>

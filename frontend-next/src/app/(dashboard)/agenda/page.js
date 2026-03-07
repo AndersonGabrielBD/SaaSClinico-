@@ -48,8 +48,6 @@ export default function AgendaPage() {
       setLoading(true)
       setError(null)
 
-      console.log(`📅 [AGENDA] Carregando para: ${selectedDate}`)
-      
       // Construir filtros baseados no modo de visualização
       let filters = {}
       
@@ -69,43 +67,20 @@ export default function AgendaPage() {
       // Se for profissional, adicionar filtro de profissional_id
       if (isProfissional && user?.id) {
         filters.profissional_id = user.id
-        console.log(`🔒 [AGENDA] Filtro de profissional aplicado: ${user.id}`)
       }
       
       const result = await agendamentoService.getAll(filters)
       
-      console.log('📅 [AGENDA PAGE] Resultado bruto:', result)
       const data = result.data || result || []
       
       // Filtrar por profissional se não for admin
       let filteredData = data
       if (isProfissional && user?.id) {
         filteredData = data.filter(a => a.profissional_id === user.id)
-        console.log(`🔒 [AGENDA] Filtrados por profissional: ${data.length} → ${filteredData.length}`)
       }
-      
-      console.log('📅 [AGENDA PAGE] Dados processados:', filteredData)
-      console.log('📅 [AGENDA PAGE] Quantidade:', filteredData.length)
-      
-      // Log da estrutura do primeiro agendamento
-      if (filteredData.length > 0) {
-        console.log('📅 [AGENDA PAGE] Estrutura do primeiro agendamento:', filteredData[0])
-        console.log('📅 [AGENDA PAGE] Tem paciente?', !!filteredData[0].paciente)
-        console.log('📅 [AGENDA PAGE] Tem profissional?', !!filteredData[0].profissional)
-        console.log('📅 [AGENDA PAGE] Data:', filteredData[0].data_agendamento)
-      }
-      
-      console.log('✅ [AGENDA PAGE] Agendamentos carregados')
-      console.log('📅 [AGENDA PAGE] ====================')
       
       setAgendamentos(filteredData)
     } catch (error) {
-      console.error('❌ [AGENDA PAGE] ====================')
-      console.error('❌ [AGENDA PAGE] Erro ao carregar agendamentos:', error)
-      console.error('❌ [AGENDA PAGE] Message:', error.message)
-      console.error('❌ [AGENDA PAGE] Response:', error.response)
-      console.error('❌ [AGENDA PAGE] ====================')
-      
       // Identifica o tipo de erro
       if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
         setError('Backend não está respondendo. Verifique se o servidor está rodando em http://localhost:5000')
@@ -215,11 +190,6 @@ export default function AgendaPage() {
   const countConcluidas = agendamentos.filter(a => a.status === 'concluida').length
   const countCanceladas = agendamentos.filter(a => a.status === 'cancelada').length
   
-  console.log('📅 [FILTRO] Total agendamentos:', agendamentos.length)
-  console.log('📅 [FILTRO] Após filtro:', filteredAgendamentos.length)
-  console.log('📅 [FILTRO] SearchTerm:', searchTerm)
-  console.log('📅 [FILTRO] ActiveTab:', activeTab)
-
   return (
     <div className="space-y-4">
       {/* Header */}

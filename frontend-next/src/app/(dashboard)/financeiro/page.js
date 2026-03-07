@@ -349,25 +349,24 @@ export default function FinanceiroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900">Financeiro</h1>
-            <p className="text-sm text-neutral-600 mt-1">Gerencie mensalidades e pagamentos</p>
-          </div>
-          <button
-            onClick={() => {
-              setSelectedMensalidade(null)
-              setShowModal(true)
-            }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-5 h-5" />
-            <span className="font-medium">Nova Mensalidade</span>
-          </button>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-neutral-900">Financeiro</h1>
+          <p className="text-sm text-neutral-500 mt-0.5">Gerencie mensalidades e pagamentos</p>
         </div>
+        <button
+          onClick={() => {
+            setSelectedMensalidade(null)
+            setShowModal(true)
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors shadow-sm self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4" />
+          Nova Mensalidade
+        </button>
+      </div>
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm p-1 flex gap-1 overflow-x-auto">
@@ -403,53 +402,53 @@ export default function FinanceiroPage() {
 
         {/* Estatísticas - Apenas para aba ativas */}
         {abaAtiva === 'ativas' && estatisticas && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <Users className="w-6 h-6 text-blue-600" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-50 rounded-lg flex-shrink-0">
+                  <Users className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Mensalidades Ativas</p>
-                  <p className="text-2xl font-bold text-neutral-900">{estatisticas.total_mensalidades_ativas}</p>
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Ativas</p>
+                  <p className="text-xl font-bold text-neutral-900">{estatisticas.total_mensalidades_ativas}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-yellow-50 rounded-lg">
-                  <Clock className="w-6 h-6 text-yellow-600" />
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-yellow-50 rounded-lg flex-shrink-0">
+                  <Clock className="w-4 h-4 text-yellow-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Pendentes</p>
-                  <p className="text-2xl font-bold text-neutral-900">{estatisticas.total_pagamentos_pendentes}</p>
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Pendentes</p>
+                  <p className="text-xl font-bold text-neutral-900">{estatisticas.total_pagamentos_pendentes}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-red-50 rounded-lg">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-red-50 rounded-lg flex-shrink-0">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Valor Pendente</p>
-                  <p className="text-xl font-bold text-neutral-900">
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Pendente R$</p>
+                  <p className="text-sm font-bold text-neutral-900 truncate">
                     {formatCurrency(estatisticas.valor_total_pendente)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-green-600" />
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-green-50 rounded-lg flex-shrink-0">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Recebido no Mês</p>
-                  <p className="text-xl font-bold text-neutral-900">
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Recebido Mês</p>
+                  <p className="text-sm font-bold text-neutral-900 truncate">
                     {formatCurrency(estatisticas.valor_total_recebido_mes)}
                   </p>
                 </div>
@@ -882,7 +881,7 @@ export default function FinanceiroPage() {
                   <div className="p-2 bg-primary-50 rounded-lg">
                     <DollarSign className="w-5 h-5 text-primary-600" />
                   </div>
-                  <h2 className="text-xl font-bold text-neutral-900">
+                  <h2 className="text-base font-semibold text-neutral-900">
                     {selectedMensalidade ? 'Editar Mensalidade' : 'Nova Mensalidade'}
                   </h2>
                 </div>
@@ -1010,7 +1009,7 @@ export default function FinanceiroPage() {
                   <div className="p-2 bg-yellow-50 rounded-lg">
                     <Calendar className="w-5 h-5 text-yellow-600" />
                   </div>
-                  <h2 className="text-xl font-bold text-neutral-900">
+                  <h2 className="text-base font-semibold text-neutral-900">
                     Alterar Vencimento
                   </h2>
                 </div>
@@ -1148,6 +1147,5 @@ export default function FinanceiroPage() {
           </div>
         )}
       </div>
-    </div>
   )
 }
