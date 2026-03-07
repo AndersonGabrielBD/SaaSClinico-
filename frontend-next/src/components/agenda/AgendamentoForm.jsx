@@ -9,12 +9,15 @@ import * as api from '@/lib/api'
 import Button from '@/components/common/Button'
 import { getTodayBrazil } from '@/lib/dateUtils'
 
+const TIPOS_PADRAO = ['Avaliação', 'Reavaliação', 'Seguimento', 'Terapia', 'Retorno']
+
 export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pacientes, setPacientes] = useState([])
   const [profissionais, setProfissionais] = useState([])
   const [salas, setSalas] = useState([])
+  const [tiposAtendimento, setTiposAtendimento] = useState(TIPOS_PADRAO)
 
   const [formData, setFormData] = useState({
     paciente_id: agendamento?.paciente_id || '',
@@ -68,6 +71,17 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
       // Carregar salas
       const salasData = await api.getSalas({ ativo: true })
       setSalas(salasData?.data || salasData || [])
+
+      // Carregar tipos de atendimento
+      try {
+        const tiposData = await api.getTiposAtendimento({ ativo: true })
+        const tiposArr = tiposData?.data || tiposData || []
+        if (tiposArr.length > 0) {
+          setTiposAtendimento(tiposArr.map(t => t.nome || t))
+        }
+      } catch {
+        // mantém os tipos padrão
+      }
     } catch (error) {
       console.error('Erro ao carregar opções:', error)
     }
@@ -221,11 +235,9 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
             onChange={(e) => setFormData({ ...formData, tipo_atendimento: e.target.value })}
             className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
           >
-            <option>Avaliação</option>
-            <option>Reavaliação</option>
-            <option>Seguimento</option>
-            <option>Terapia</option>
-            <option>Retorno</option>
+            {tiposAtendimento.map((tipo) => (
+              <option key={tipo} value={tipo}>{tipo}</option>
+            ))}
           </select>
         </div>
 

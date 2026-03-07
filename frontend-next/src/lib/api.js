@@ -357,6 +357,35 @@ export const deleteSala = (id) => {
 };
 
 // ============================================================================
+// TIPOS DE ATENDIMENTO
+// ============================================================================
+
+export const getTiposAtendimento = (filters = {}) => {
+  const params = new URLSearchParams(filters);
+  return request(`/tipos-atendimento?${params}`);
+};
+
+export const createTipoAtendimento = (data) => {
+  return request('/tipos-atendimento', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const updateTipoAtendimento = (id, data) => {
+  return request(`/tipos-atendimento/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+};
+
+export const deleteTipoAtendimento = (id) => {
+  return request(`/tipos-atendimento/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+// ============================================================================
 // DASHBOARD
 // ============================================================================
 
@@ -477,6 +506,10 @@ export default {
   createSala,
   updateSala,
   deleteSala,
+  getTiposAtendimento,
+  createTipoAtendimento,
+  updateTipoAtendimento,
+  deleteTipoAtendimento,
   getDashboardStats,
   getRecentActivity,
   getEstatisticas,

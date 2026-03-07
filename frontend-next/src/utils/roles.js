@@ -73,6 +73,12 @@ const PERMISSIONS = {
     edit: ['admin', 'recepcao'],
     delete: ['admin']
   },
+  tipos_atendimento: {
+    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
+    create: ['admin', 'recepcao'],
+    edit: ['admin', 'recepcao'],
+    delete: ['admin', 'recepcao']
+  },
   configuracoes: ['admin']
 };
 

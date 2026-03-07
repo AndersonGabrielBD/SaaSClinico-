@@ -115,7 +115,7 @@ def update_sala(sala_id):
 @require_auth
 @require_roles(['admin'])
 def delete_sala(sala_id):
-    """Deleta sala (soft delete)"""
+    """Deleta sala permanentemente"""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
@@ -127,10 +127,10 @@ def delete_sala(sala_id):
         if not sala:
             return jsonify({'error': 'Sala não encontrada'}), 404
         
-        # Soft delete - apenas marca como inativo
-        repo.update(sala_id, {'ativo': False})
+        # Hard delete
+        repo.delete(sala_id)
         
-        return jsonify({'message': 'Sala desativada com sucesso'}), 200
+        return jsonify({'message': 'Sala removida com sucesso'}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
