@@ -165,7 +165,7 @@ export default function RelatoriosList({ pacienteId }) {
           <FileText className="w-12 h-12 text-neutral-400 mx-auto mb-2" />
           <p className="text-neutral-600">Nenhum relatório cadastrado</p>
           <p className="text-sm text-neutral-500 mt-1">
-            Clique em "Upload Relatório" para adicionar documentos
+            Clique em &quot;Upload Relatório&quot; para adicionar documentos
           </p>
         </div>
       ) : (
