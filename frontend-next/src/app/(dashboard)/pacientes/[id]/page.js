@@ -25,6 +25,7 @@ import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import PacienteForm from '@/components/pacientes/PacienteForm'
 import RelatoriosList from '@/components/relatorios/RelatoriosList'
 import FrequenciaCard from '@/components/frequencia/FrequenciaCard'
+import Toast from '@/components/common/Toast'
 import { format, differenceInYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { parseDateSafe } from '@/lib/dateUtils'
@@ -39,6 +40,11 @@ export default function PacienteDetailPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type })
+  }
 
   useEffect(() => {
     if (pacienteId) {
@@ -63,7 +69,7 @@ export default function PacienteDetailPage() {
       setStats(statsData)
     } catch (error) {
       console.error('Erro ao carregar paciente:', error)
-      alert('Erro ao carregar dados do paciente')
+      showToast('Erro ao carregar dados do paciente', 'error')
     } finally {
       setLoading(false)
     }
@@ -434,6 +440,13 @@ export default function PacienteDetailPage() {
           />
         </Modal>
       )}
+
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(prev => ({ ...prev, show: false }))}
+      />
     </div>
   )
 }

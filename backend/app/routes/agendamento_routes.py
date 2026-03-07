@@ -12,10 +12,7 @@ agendamento_bp = Blueprint('agendamentos', __name__)
 @require_auth
 @require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
 def get_agendamentos():
-    """Lista agendamentos da clínica"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
+    """Lista agendamentos da clínica com filtros empurrados ao banco (sem carregamento total)."""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
@@ -28,92 +25,49 @@ def get_agendamentos():
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
         
-        logger.info(f"📅 [AGENDAMENTO] Listando agendamentos para clinica_id={clinica_id}")
-        logger.info(f"📅 [AGENDAMENTO] Filtros: paciente={paciente_id}, prof={profissional_id}, status={status}, data={data_agendamento}")
-        
-        # Filtros
-        filters = {}
+        # Monta query diretamente no banco com todos os filtros via SQL
+        client = get_supabase_client()
+        query = client.table('agendamentos')\
+            .select('''
+                id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento,
+                observacoes, paciente_id, profissional_id, sala_id, clinica_id,
+                paciente:pacientes(id, nome_completo, telefone_principal),
+                profissional:usuarios!profissional_id(id, nome_completo, especialidade),
+                sala:salas(id, nome)
+            ''')\
+            .eq('clinica_id', clinica_id)\
+            .order('data_agendamento', desc=False)\
+            .order('horario_inicio', desc=False)
+
         if paciente_id:
-            filters['paciente_id'] = paciente_id
+            query = query.eq('paciente_id', paciente_id)
         if profissional_id:
-            filters['profissional_id'] = profissional_id
+            query = query.eq('profissional_id', profissional_id)
         if status:
-            filters['status'] = status
+            query = query.eq('status', status)
         if data_agendamento:
-            filters['data_agendamento'] = data_agendamento
-        
-        repo = BaseRepository('agendamentos', clinica_id)
-        agendamentos = repo.get_all(filters=filters, order_by='data_agendamento')
-        
-        logger.info(f"📅 [AGENDAMENTO] Retornados {len(agendamentos)} agendamentos do banco")
-        
-        # Filtro de data manual (se não usou data_agendamento exata)
-        if not data_agendamento:
+            query = query.eq('data_agendamento', data_agendamento)
+        elif data_inicio or data_fim:
             if data_inicio:
-                agendamentos = [a for a in agendamentos if a.get('data_agendamento', '') >= data_inicio]
-                logger.info(f"📅 [AGENDAMENTO] Após filtro data_inicio: {len(agendamentos)} agendamentos")
+                query = query.gte('data_agendamento', data_inicio)
             if data_fim:
-                agendamentos = [a for a in agendamentos if a.get('data_agendamento', '') <= data_fim]
-                logger.info(f"📅 [AGENDAMENTO] Após filtro data_fim: {len(agendamentos)} agendamentos")
+                query = query.lte('data_agendamento', data_fim)
 
-        # Enriquecer nomes quando a listagem vier apenas com IDs
-        if agendamentos:
-            client = get_supabase_client()
+        result = query.execute()
+        agendamentos = result.data or []
 
-            paciente_ids = list({a.get('paciente_id') for a in agendamentos if a.get('paciente_id')})
-            profissional_ids = list({a.get('profissional_id') for a in agendamentos if a.get('profissional_id')})
+        # Normaliza campos de nome para compatibilidade com frontend
+        for ag in agendamentos:
+            if isinstance(ag.get('paciente'), dict):
+                ag['paciente_nome'] = ag['paciente'].get('nome_completo')
+            if isinstance(ag.get('profissional'), dict):
+                ag['profissional_nome'] = ag['profissional'].get('nome_completo')
 
-            pacientes_map = {}
-            profissionais_map = {}
-
-            if paciente_ids:
-                try:
-                    pacientes_resp = client.table('pacientes') \
-                        .select('id, nome_completo') \
-                        .eq('clinica_id', clinica_id) \
-                        .in_('id', paciente_ids) \
-                        .execute()
-                    for p in (pacientes_resp.data or []):
-                        pacientes_map[p['id']] = p.get('nome_completo')
-                except Exception as e:
-                    logger.warning(f"⚠️ [AGENDAMENTO] Falha ao carregar nomes de pacientes: {str(e)}")
-
-            if profissional_ids:
-                try:
-                    profissionais_resp = client.table('usuarios') \
-                        .select('id, nome_completo') \
-                        .eq('clinica_id', clinica_id) \
-                        .in_('id', profissional_ids) \
-                        .execute()
-                    for p in (profissionais_resp.data or []):
-                        profissionais_map[p['id']] = p.get('nome_completo')
-                except Exception as e:
-                    logger.warning(f"⚠️ [AGENDAMENTO] Falha ao carregar nomes de profissionais: {str(e)}")
-
-            for ag in agendamentos:
-                paciente_nome = ag.get('paciente', {}).get('nome_completo') if isinstance(ag.get('paciente'), dict) else None
-                profissional_nome = ag.get('profissional', {}).get('nome_completo') if isinstance(ag.get('profissional'), dict) else None
-
-                if not paciente_nome:
-                    paciente_nome = pacientes_map.get(ag.get('paciente_id'))
-                if not profissional_nome:
-                    profissional_nome = profissionais_map.get(ag.get('profissional_id'))
-
-                ag['paciente_nome'] = paciente_nome
-                ag['profissional_nome'] = profissional_nome
-
-                if not ag.get('paciente') and paciente_nome:
-                    ag['paciente'] = {'id': ag.get('paciente_id'), 'nome_completo': paciente_nome}
-                if not ag.get('profissional') and profissional_nome:
-                    ag['profissional'] = {'id': ag.get('profissional_id'), 'nome_completo': profissional_nome}
-        
-        logger.info(f"✅ [AGENDAMENTO] Retornando {len(agendamentos)} agendamentos")
         return jsonify(agendamentos), 200
-        
+
     except Exception as e:
-        logger.error(f"❌ [AGENDAMENTO] Erro ao listar: {str(e)}")
-        import traceback
-        logger.error(f"❌ [AGENDAMENTO] Traceback: {traceback.format_exc()}")
+        import logging, traceback
+        logging.getLogger(__name__).error(f"[AGENDAMENTO] Erro ao listar: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 

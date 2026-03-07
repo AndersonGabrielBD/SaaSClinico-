@@ -1,4 +1,4 @@
-from database.supabase_client import get_supabase_client, reset_supabase_client
+from database.supabase_client import get_supabase_client
 import logging
 import time
 
@@ -14,11 +14,12 @@ class BaseRepository:
     """
     
     def __init__(self, table_name, clinica_id):
-        self.client = get_supabase_client()
         self.table_name = table_name
         self.clinica_id = clinica_id
         self.max_retries = 2  # Tentar até 2 vezes em caso de erro
         self.retry_delay = 0.5  # Aguardar 500ms antes de retry
+        # Cria um novo cliente por instância para evitar conexões keepalive stale
+        self.client = get_supabase_client()
         
         # Mapear table_name para function_name de RPC
         self.function_map = {
@@ -44,19 +45,10 @@ class BaseRepository:
         for attempt in range(self.max_retries + 1):
             try:
                 if attempt > 0:
-                    logger.info(f"🔄 [REPO] {operation_name} - Tentativa {attempt + 1}/{self.max_retries + 1}")
-                
-                # Refresh cliente antes de tentar
-                if attempt > 0:
-                    reset_supabase_client()
+                    # Cria novo cliente a cada retry
                     self.client = get_supabase_client()
-                
-                result = operation_func()
-                
-                if attempt > 0:
-                    logger.info(f"✅ [REPO] {operation_name} - Sucesso após retry")
-                
-                return result
+
+                return operation_func()
                 
             except Exception as e:
                 last_error = e
@@ -78,12 +70,10 @@ class BaseRepository:
                 ])
                 
                 if should_retry and attempt < self.max_retries:
-                    logger.warning(f"⚠️ [REPO] {operation_name} - Erro (tentativa {attempt + 1}): {str(e)}")
-                    logger.info(f"⏳ [REPO] {operation_name} - Aguardando {self.retry_delay}s antes de retry...")
+                    logger.warning(f"[REPO] {operation_name} retry {attempt + 1}: {e}")
                     time.sleep(self.retry_delay)
                 else:
-                    # Último erro ou erro que não justifica retry
-                    logger.error(f"❌ [REPO] {operation_name} - Erro final: {str(e)}")
+                    logger.error(f"[REPO] {operation_name} falhou: {e}")
                     break
         
         # Se chegou aqui, todas as tentativas falharam
@@ -93,16 +83,8 @@ class BaseRepository:
         """Cria novo registro (com clinica_id automático)"""
         def operation():
             data['clinica_id'] = self.clinica_id
-            logger.info(f"💾 [REPO] Criando registro em {self.table_name}")
-            
             response = self.client.table(self.table_name).insert(data).execute()
-            
-            if response.data:
-                logger.info(f"✅ [REPO] Registro criado com sucesso em {self.table_name}")
-                return response.data[0]
-            else:
-                logger.warning(f"⚠️ [REPO] Resposta vazia - retornando dados enviados")
-                return data
+            return response.data[0] if response.data else data
         
         return self._execute_with_retry(f"CREATE:{self.table_name}", operation)
     
@@ -185,7 +167,6 @@ class BaseRepository:
     
     def _get_all_fallback(self, filters=None, order_by=None, limit=None):
         """Fallback para query direta quando RPC não está disponível"""
-        logger.info(f"🔄 [REPO FALLBACK] Query direta para {self.table_name}")
         
         # Query especial para agendamentos com JOIN
         if self.table_name == 'agendamentos':
@@ -221,12 +202,10 @@ class BaseRepository:
             query = query.limit(limit)
         
         response = query.execute()
-        logger.info(f"✅ [REPO FALLBACK] {len(response.data or [])} registros")
         return response.data or []
     
     def _get_agendamentos_com_joins(self, filters=None, order_by=None, limit=None):
         """Query especial para agendamentos com dados relacionados"""
-        logger.info("🔗 [REPO] Buscando agendamentos com JOINs")
         
         query = self.client.table('agendamentos')\
             .select("""
@@ -257,15 +236,13 @@ class BaseRepository:
         
         try:
             response = query.execute()
-            logger.info(f"✅ [REPO] Agendamentos com JOINs: {len(response.data or [])} registros")
             return response.data or []
         except Exception as e:
-            logger.error(f"❌ [REPO] Erro no JOIN: {str(e)}")
+            logger.warning(f"[REPO] JOIN falhou, usando query simples: {e}")
             return self._get_agendamentos_simples(filters, order_by, limit)
     
     def _get_agendamentos_simples(self, filters=None, order_by=None, limit=None):
         """Fallback sem JOINs"""
-        logger.warning("⚠️ [REPO] Usando query simples sem JOINs")
         
         query = self.client.table('agendamentos')\
             .select("*")\

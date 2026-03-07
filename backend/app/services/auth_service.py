@@ -56,7 +56,7 @@ class AuthService:
             
             # Gerar código aleatório
             reset_code = AuthService.generate_reset_code()
-            
+            print(f"Código de reset gerado para {email}: {reset_code}")  # Log para desenvolvimento (remover em produção)
             # Definir expiração em 24 horas
             expires_at = datetime.utcnow() + timedelta(hours=24)
             

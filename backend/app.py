@@ -9,8 +9,9 @@ import logging
 load_dotenv()
 
 # Configure logging
+_log_level = logging.WARNING if os.getenv('ENVIRONMENT', 'development') == 'production' else logging.INFO
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)

@@ -77,11 +77,12 @@ def buscar_relatorio(relatorio_id):
 
 @relatorios_bp.route('', methods=['POST'])
 @require_auth
-@require_roles(['admin', 'profissional'])
+@require_roles(['admin', 'recepcao', 'profissional', 'fono', 'medico'])
 def criar_relatorio():
     """
     Cria novo relatório com upload de arquivo.
-    Profissionais podem criar apenas para si mesmos.
+    Profissional/fono/medico criam apenas para si mesmos.
+    Admin e recepcao podem criar para qualquer profissional.
     """
     try:
         user = get_current_user()
@@ -114,8 +115,8 @@ def criar_relatorio():
         if not titulo:
             return jsonify({'error': 'titulo é obrigatório'}), 400
         
-        # Profissionais só podem criar relatórios para si mesmos
-        if user_role == 'profissional' and profissional_id != user_id:
+        # Profissionais/fono/medico só podem criar relatórios para si mesmos
+        if user_role in ('profissional', 'fono', 'medico') and profissional_id != user_id:
             return jsonify({'error': 'Você só pode criar relatórios para si mesmo'}), 403
         
         # Ler conteúdo do arquivo

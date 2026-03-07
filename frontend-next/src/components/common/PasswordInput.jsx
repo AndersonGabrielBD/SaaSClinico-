@@ -28,7 +28,7 @@ export default function PasswordInput({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-neutral-700 mb-2">
+      <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1.5">
         {label}
       </label>
       <div className="relative">

@@ -11,6 +11,7 @@ import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
 import ProntuarioCard from '@/components/prontuarios/ProntuarioCard'
 import ProntuarioForm from '@/components/prontuarios/ProntuarioForm'
+import Toast from '@/components/common/Toast'
 import { getUserRole } from '@/utils/auth'
 import { parseDateSafe } from '@/lib/dateUtils'
 
@@ -24,6 +25,11 @@ export default function ProntuariosPage() {
   const [selectedPaciente, setSelectedPaciente] = useState('')
   const userRole = getUserRole()
   const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type })
+  }
 
   useEffect(() => {
     loadData()
@@ -78,7 +84,7 @@ export default function ProntuariosPage() {
       await loadData()
     } catch (error) {
       console.error('Erro ao excluir prontuário:', error)
-      alert('Erro ao excluir prontuário')
+      showToast('Erro ao excluir prontuário', 'error')
     }
   }
 
@@ -224,6 +230,13 @@ export default function ProntuariosPage() {
           onCancel={() => setModalOpen(false)}
         />
       </Modal>
+
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(prev => ({ ...prev, show: false }))}
+      />
     </div>
   )
 }

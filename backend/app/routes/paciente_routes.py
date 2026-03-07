@@ -10,35 +10,32 @@ paciente_bp = Blueprint('pacientes', __name__)
 @require_auth
 @require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
 def get_pacientes():
-    """Lista todos os pacientes da clínica"""
+    """Lista pacientes da clínica com filtros no banco (sem carregamento total)."""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        
-        # Query params
+
         search = request.args.get('search')
         ativo = request.args.get('ativo')
-        
-        # Filtros
-        filters = {}
+
+        from database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+
+        query = client.table('pacientes')\
+            .select('id, nome_completo, cpf, telefone_principal, data_nascimento, email, ativo, data_criacao')\
+            .eq('clinica_id', clinica_id)\
+            .order('nome_completo', desc=False)
+
         if ativo is not None:
-            filters['ativo'] = ativo.lower() == 'true'
-        
-        repo = BaseRepository('pacientes', clinica_id)
-        pacientes = repo.get_all(filters=filters, order_by='-created_at')
-        
-        # Filtro de busca (nome, CPF, telefone)
+            query = query.eq('ativo', ativo.lower() == 'true')
+
         if search:
-            search_lower = search.lower()
-            pacientes = [
-                p for p in pacientes
-                if search_lower in p.get('nome_completo', '').lower() or
-                   search_lower in p.get('cpf', '').lower() or
-                   search_lower in p.get('telefone_principal', '').lower()
-            ]
-        
-        return jsonify(pacientes), 200
-        
+            # Busca por nome via ilike (índice gin/trigram no banco)
+            query = query.ilike('nome_completo', f'%{search}%')
+
+        response = query.execute()
+        return jsonify(response.data or []), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { relatorioService } from '@/services/relatorioService'
 import { FileText, Download, Plus, Trash2, Upload } from 'lucide-react'
 import { parseDateSafe } from '@/lib/dateUtils'
+import Toast from '@/components/common/Toast'
 
 export default function RelatoriosList({ pacienteId }) {
   const [relatorios, setRelatorios] = useState([])
@@ -15,6 +16,11 @@ export default function RelatoriosList({ pacienteId }) {
     observacoes: '',
     arquivo: null
   })
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type })
+  }
 
   useEffect(() => {
     if (pacienteId) {
@@ -47,14 +53,14 @@ export default function RelatoriosList({ pacienteId }) {
       ]
       
       if (!allowedTypes.includes(file.type)) {
-        alert('Tipo de arquivo não permitido. Use PDF, DOC ou DOCX')
+        showToast('Tipo de arquivo não permitido. Use PDF, DOC ou DOCX', 'error')
         e.target.value = ''
         return
       }
       
       // Verificar tamanho (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
-        alert('Arquivo muito grande. Tamanho máximo: 10MB')
+        showToast('Arquivo muito grande. Tamanho máximo: 10MB', 'error')
         e.target.value = ''
         return
       }
@@ -67,12 +73,12 @@ export default function RelatoriosList({ pacienteId }) {
     e.preventDefault()
     
     if (!formData.arquivo) {
-      alert('Selecione um arquivo')
+      showToast('Selecione um arquivo', 'error')
       return
     }
     
     if (!formData.titulo.trim()) {
-      alert('Digite um título para o relatório')
+      showToast('Digite um título para o relatório', 'error')
       return
     }
     
@@ -89,13 +95,13 @@ export default function RelatoriosList({ pacienteId }) {
       
       await relatorioService.upload(uploadData)
       
-      alert('Relatório enviado com sucesso!')
+      showToast('Relatório enviado com sucesso!')
       setShowModal(false)
       setFormData({ titulo: '', observacoes: '', arquivo: null })
       loadRelatorios()
     } catch (error) {
       console.error('Erro ao enviar relatório:', error)
-      alert('Erro ao enviar relatório: ' + (error.message || 'Erro desconhecido'))
+      showToast('Erro ao enviar relatório: ' + (error.message || 'Erro desconhecido'), 'error')
     } finally {
       setUploading(false)
     }
@@ -114,7 +120,7 @@ export default function RelatoriosList({ pacienteId }) {
       document.body.removeChild(a)
     } catch (error) {
       console.error('Erro ao baixar relatório:', error)
-      alert('Erro ao baixar relatório')
+      showToast('Erro ao baixar relatório', 'error')
     }
   }
 
@@ -123,11 +129,11 @@ export default function RelatoriosList({ pacienteId }) {
     
     try {
       await relatorioService.delete(relatorioId)
-      alert('Relatório excluído com sucesso!')
+      showToast('Relatório excluído com sucesso!')
       loadRelatorios()
     } catch (error) {
       console.error('Erro ao excluir relatório:', error)
-      alert('Erro ao excluir relatório')
+      showToast('Erro ao excluir relatório', 'error')
     }
   }
 
@@ -312,6 +318,13 @@ export default function RelatoriosList({ pacienteId }) {
           </div>
         </div>
       )}
+
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(prev => ({ ...prev, show: false }))}
+      />
     </div>
   )
 }

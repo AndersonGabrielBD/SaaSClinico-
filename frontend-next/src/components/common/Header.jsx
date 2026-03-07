@@ -1,63 +1,73 @@
 'use client'
 
 import { useAuth } from '@/context/AuthContext'
-import { LogOut, User, Menu } from 'lucide-react'
+import { LogOut, User, Menu, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
 
 export default function Header({ onMenuClick }) {
   const { user, signOut } = useAuth()
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+
+  const displayName = user?.nome || user?.email?.split('@')[0] || 'Usuário'
+  const displayRole = user?.role === 'admin' ? 'Administrador'
+    : user?.role === 'recepcao' ? 'Recepção'
+    : user?.role === 'fono' ? 'Fonoaudiólogo'
+    : user?.role || 'Profissional'
 
   return (
-    <header className="bg-white border-b border-neutral-200 h-16 md:h-20 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between sticky top-0 z-40">
-      {/* Left - Menu Button */}
+    <header className="bg-white border-b border-neutral-100 h-16 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30">
+      {/* Left — mobile hamburger */}
       <button
         onClick={onMenuClick}
-        className="lg:hidden inline-flex items-center justify-center p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+        className="lg:hidden p-2 hover:bg-neutral-100 rounded-lg text-neutral-500"
         aria-label="Abrir menu"
       >
-        <Menu className="w-6 h-6 text-neutral-700" />
+        <Menu className="w-5 h-5" />
       </button>
 
-      {/* Center/Left - Logo (desktop only) */}
-      <div className="hidden lg:block">
-        <h1 className="text-xl font-bold text-primary-600">
-          ClinFlow
-        </h1>
-        <p className="text-xs text-neutral-500">
-          Gestão de Clínicas
-        </p>
+      {/* Mobile logo */}
+      <div className="lg:hidden absolute left-1/2 -translate-x-1/2 font-bold text-sm text-neutral-900 tracking-tight">
+        ClinFlow
       </div>
 
-      {/* Logo on mobile - centered */}
-      <div className="lg:hidden absolute left-1/2 transform -translate-x-1/2">
-        <h1 className="text-lg font-bold text-primary-600">
-          ClinFlow
-        </h1>
-      </div>
+      {/* Desktop — empty left filler so user section stays right */}
+      <div className="hidden lg:block" />
 
-      {/* Right - User Menu */}
-      <div className="flex items-center gap-3 md:gap-4">
-        <div className="hidden md:flex items-center gap-3 pr-4 border-r border-neutral-200">
-          <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-            <User className="w-5 h-5 text-primary-600" />
-          </div>
-          <div className="hidden lg:block">
-            <p className="text-sm font-medium text-neutral-900">
-              {user?.nome || user?.email || 'Usuário'}
-            </p>
-            <p className="text-xs text-neutral-500">
-              {user?.role || 'Profissional'}
-            </p>
-          </div>
-        </div>
-
+      {/* Right — user section */}
+      <div className="relative">
         <button
-          onClick={signOut}
-          className="p-2 md:p-0 md:px-3 md:py-2 text-neutral-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
-          title="Sair"
+          onClick={() => setUserMenuOpen(!userMenuOpen)}
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-neutral-50 transition-colors"
         >
-          <LogOut className="w-5 h-5 md:w-4 md:h-4" />
-          <span className="hidden md:inline text-sm">Sair</span>
+          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+            <User className="w-4 h-4 text-primary-600" />
+          </div>
+          <div className="hidden md:block text-left">
+            <p className="text-sm font-medium text-neutral-800 leading-tight">{displayName}</p>
+            <p className="text-xs text-neutral-400 leading-tight">{displayRole}</p>
+          </div>
+          <ChevronDown className={`hidden md:block w-3.5 h-3.5 text-neutral-400 transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`} />
         </button>
+
+        {/* Dropdown */}
+        {userMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-neutral-100 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-neutral-50">
+                <p className="text-sm font-medium text-neutral-800 truncate">{displayName}</p>
+                <p className="text-xs text-neutral-400 truncate">{user?.email}</p>
+              </div>
+              <button
+                onClick={() => { setUserMenuOpen(false); signOut() }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sair do sistema
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </header>
   )

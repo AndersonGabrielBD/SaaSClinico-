@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Dict, Optional
-from database.supabase_client import get_supabase_client, reset_supabase_client
+from database.supabase_client import get_supabase_client
 from app.utils.date_utils import today_brazil, start_of_month_brazil
 import time
 
@@ -14,9 +14,14 @@ class MensalidadeService:
     """Serviço para gerenciar mensalidades e pagamentos com retry automático"""
     
     def __init__(self):
+        # Cria um cliente fresco na instanciação (cada route cria um serviço novo por request)
         self.supabase = get_supabase_client()
         self.max_retries = 2
         self.retry_delay = 0.5
+
+    def _get_client(self):
+        """Retorna um cliente Supabase fresco para cada operação."""
+        return get_supabase_client()
     
     def _execute_with_retry(self, operation_name, operation_func):
         """Executa operação com retry automático"""
@@ -26,11 +31,9 @@ class MensalidadeService:
             try:
                 if attempt > 0:
                     logger.info(f"🔄 [SERVICE] {operation_name} - Tentativa {attempt + 1}/{self.max_retries + 1}")
-                
-                if attempt > 0:
-                    reset_supabase_client()
-                    self.supabase = get_supabase_client()
-                
+                # Sempre cria cliente fresco para cada tentativa
+                self.supabase = self._get_client()
+
                 result = operation_func()
                 
                 if attempt > 0:
@@ -79,7 +82,6 @@ class MensalidadeService:
             
             response = query.execute()
             
-            # Formatar resposta
             mensalidades = []
             for item in response.data:
                 paciente = item.pop('pacientes', None)
@@ -87,7 +89,7 @@ class MensalidadeService:
                     item['paciente_nome'] = paciente.get('nome_completo')
                 mensalidades.append(item)
             
-            logger.info(f"✅ Listadas {len(mensalidades)} mensalidades")
+            logger.info(f"✅ Listadas {len(mensalidades)} mensalidades (filtro ativo={ativo})")
             return mensalidades
         
         return self._execute_with_retry(f"LISTAR_MENSALIDADES:{clinica_id}", operation)
@@ -204,7 +206,11 @@ class MensalidadeService:
     # ========================================================================
     
     def listar_pagamentos(self, clinica_id: str, filters: Optional[Dict] = None) -> List[Dict]:
-        """Lista pagamentos com filtros opcionais e retry automático"""
+        """Lista pagamentos com filtros opcionais e retry automático.
+        
+        Quando filtrado por mes_referencia e não houver resultado, verifica se há
+        mensalidades ativas e auto-gera os pagamentos do mês antes de retornar.
+        """
         def operation():
             query = self.supabase.table('pagamentos_mensalidades') \
                 .select('''
@@ -245,10 +251,38 @@ class MensalidadeService:
                 
                 pagamentos.append(item)
             
-            logger.info(f"✅ Listados {len(pagamentos)} pagamentos")
+            logger.info(f"✅ Listados {len(pagamentos)} pagamentos (filtros={filters})")
             return pagamentos
         
-        return self._execute_with_retry(f"LISTAR_PAGAMENTOS:{clinica_id}", operation)
+        pagamentos = self._execute_with_retry(f"LISTAR_PAGAMENTOS:{clinica_id}", operation)
+
+        # Auto-geração: se filtrou por mes_referencia e não encontrou nada,
+        # verifica se há mensalidades ativas e gera os pagamentos do mês.
+        mes_referencia_filtrado = filters.get('mes_referencia') if filters else None
+        if not pagamentos and mes_referencia_filtrado:
+            mes_atual = start_of_month_brazil().isoformat()
+            if mes_referencia_filtrado == mes_atual:
+                try:
+                    conta = self.supabase.table('mensalidades_pacientes') \
+                        .select('id', count='exact') \
+                        .eq('clinica_id', clinica_id) \
+                        .eq('ativo', True) \
+                        .execute()
+                    qtd_ativas = conta.count or 0
+                    if qtd_ativas > 0:
+                        logger.info(
+                            f"🔄 Nenhum pagamento encontrado para {mes_referencia_filtrado} "
+                            f"mas há {qtd_ativas} mensalidades ativas — gerando pagamentos do mês..."
+                        )
+                        self.gerar_pagamentos_mes_corrente(clinica_id)
+                        # Re-executa a query agora que os pagamentos foram gerados
+                        pagamentos = self._execute_with_retry(
+                            f"LISTAR_PAGAMENTOS_RETRY:{clinica_id}", operation
+                        )
+                except Exception as e:
+                    logger.warning(f"⚠️ Auto-geração de pagamentos ignorada: {e}")
+
+        return pagamentos
     
     def buscar_pagamento(self, pagamento_id: str, clinica_id: str) -> Dict:
         """Busca um pagamento específico"""
@@ -333,22 +367,20 @@ class MensalidadeService:
             raise
     
     def gerar_pagamentos_mes_corrente(self, clinica_id: str) -> int:
-        """Gera pagamentos do mês atual para todas as mensalidades ativas"""
+        """Gera pagamentos do mês atual via RPC batch — INSERT ON CONFLICT DO NOTHING.
+        
+        Antes: 1 fetch + 2 queries por mensalidade ativa = 1 + 2N roundtrips.
+        Depois: 1 chamada RPC fixa independente do número de mensalidades.
+        """
         try:
-            mensalidades = self.listar_mensalidades(clinica_id, ativo=True)
-            contador = 0
-            
-            for mensalidade in mensalidades:
-                try:
-                    self.gerar_pagamento_individual(mensalidade['id'], clinica_id)
-                    contador += 1
-                except Exception as e:
-                    logger.warning(f"⚠️ Erro ao gerar pagamento para {mensalidade['id']}: {str(e)}")
-                    continue
-            
-            logger.info(f"✅ {contador} pagamentos gerados para o mês corrente")
+            mes_atual = start_of_month_brazil()
+            result = self.supabase.rpc('gerar_pagamentos_mes_corrente_batch', {
+                'p_clinica_id': clinica_id,
+                'p_mes_referencia': mes_atual.isoformat()
+            }).execute()
+            contador = result.data or 0
+            logger.info(f"✅ {contador} pagamentos gerados para o mês corrente (batch RPC)")
             return contador
-            
         except Exception as e:
             logger.error(f"❌ Erro ao gerar pagamentos do mês: {str(e)}")
             raise
@@ -471,36 +503,23 @@ class MensalidadeService:
             raise
     
     def obter_estatisticas(self, clinica_id: str) -> Dict:
-        """Calcula estatísticas do sistema de mensalidades"""
+        """Calcula estatísticas via RPC — COUNT/SUM feito no banco, sem fetches completos."""
         try:
             mes_atual = start_of_month_brazil()
-            
-            # Total mensalidades ativas
-            total_ativas = len(self.listar_mensalidades(clinica_id, ativo=True))
-            
-            # Pagamentos do mês atual
-            pagamentos_mes = self.listar_pagamentos(clinica_id, {
-                'mes_referencia': mes_atual.isoformat()
-            })
-            
-            total_pagamentos_mes = len(pagamentos_mes)
-            pendentes = [p for p in pagamentos_mes if p['status'] == 'pendente']
-            pagos = [p for p in pagamentos_mes if p['status'] == 'pago']
-            
-            valor_pendente = sum(Decimal(str(p.get('valor_pago', 0))) for p in pendentes)
-            valor_recebido = sum(Decimal(str(p.get('valor_pago', 0))) for p in pagos)
-            
-            taxa_inadimplencia = (len(pendentes) / total_pagamentos_mes * 100) if total_pagamentos_mes > 0 else 0
-            
+            result = self.supabase.rpc('get_estatisticas_mensalidades', {
+                'p_clinica_id': clinica_id,
+                'p_mes_referencia': mes_atual.isoformat()
+            }).execute()
+            stats = result.data or {}
+            # Garante tipos numéricos corretos
             return {
-                'total_mensalidades_ativas': total_ativas,
-                'total_pagamentos_pendentes': len(pendentes),
-                'total_pagamentos_mes_atual': total_pagamentos_mes,
-                'valor_total_pendente': float(valor_pendente),
-                'valor_total_recebido_mes': float(valor_recebido),
-                'taxa_inadimplencia': round(taxa_inadimplencia, 2)
+                'total_mensalidades_ativas':  int(stats.get('total_mensalidades_ativas', 0)),
+                'total_pagamentos_pendentes': int(stats.get('total_pagamentos_pendentes', 0)),
+                'total_pagamentos_mes_atual': int(stats.get('total_pagamentos_mes_atual', 0)),
+                'valor_total_pendente':       float(stats.get('valor_total_pendente', 0)),
+                'valor_total_recebido_mes':   float(stats.get('valor_total_recebido_mes', 0)),
+                'taxa_inadimplencia':         float(stats.get('taxa_inadimplencia', 0)),
             }
-            
         except Exception as e:
             logger.error(f"❌ Erro ao calcular estatísticas: {str(e)}")
             raise

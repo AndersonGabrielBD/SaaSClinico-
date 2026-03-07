@@ -17,13 +17,11 @@ export default function DashboardLayout({ children }) {
         <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
         
         {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header/Navbar */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
           
-          {/* Page Content */}
           <main className="flex-1 overflow-y-auto">
-            <div className="w-full h-full">
+            <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6">
               {children}
             </div>
           </main>

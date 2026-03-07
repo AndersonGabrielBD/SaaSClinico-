@@ -50,44 +50,26 @@ def get_access_token():
 
 def require_auth(f):
     """Decorator para proteger rotas autenticadas"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
     @wraps(f)
     def decorated_function(*args, **kwargs):
         token = get_token_from_header()
-        logger.info(f"🔐 [AUTH] Token presente: {bool(token)}")
-        
         if not token:
-            logger.error("❌ [AUTH] Token não fornecido")
             return jsonify({'error': 'Token não fornecido'}), 401
-        
         try:
             payload = decode_token(token)
-            logger.info(f"🔐 [AUTH] Token decodificado: {payload}")
-            request.user = payload  # Adiciona dados do usuário ao request
+            request.user = payload
             return f(*args, **kwargs)
         except ValueError as e:
-            logger.error(f"❌ [AUTH] Erro ao decodificar token: {str(e)}")
+            import logging
+            logging.getLogger(__name__).warning(f"[AUTH] Token inválido: {e}")
             return jsonify({'error': str(e)}), 401
-    
     return decorated_function
 
 def get_current_user():
     """Retorna o usuário atual da requisição"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
     user = getattr(request, 'user', None)
-    logger.info(f"👤 [GET_USER] User do request: {user}")
-    
-    if user:
-        # Garantir que 'id' esteja presente
-        if 'user_id' in user and 'id' not in user:
-            user['id'] = user['user_id']
-            logger.info(f"👤 [GET_USER] Adicionado 'id' a partir de 'user_id': {user['id']}")
-    
-    logger.info(f"👤 [GET_USER] User final retornado: {user}")
+    if user and 'user_id' in user and 'id' not in user:
+        user['id'] = user['user_id']
     return user
 
 
@@ -106,29 +88,16 @@ def require_roles(allowed_roles):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            import logging
-            logger = logging.getLogger(__name__)
-            
-            # Primeiro verifica se está autenticado
             user = get_current_user()
             if not user:
-                logger.error("❌ [ROLES] Usuário não autenticado")
                 return jsonify({'error': 'Autenticação necessária'}), 401
-            
-            # Verifica se o usuário tem permissão
             user_role = user.get('role', '').lower()
             allowed_roles_lower = [role.lower() for role in allowed_roles]
-            
-            logger.info(f"🔐 [ROLES] User role: {user_role}, Permitidas: {allowed_roles_lower}")
-            
             if user_role not in allowed_roles_lower:
-                logger.error(f"❌ [ROLES] Acesso negado. Role '{user_role}' não autorizada")
                 return jsonify({
                     'error': 'Acesso negado',
                     'message': f'Esta ação requer uma das seguintes permissões: {", ".join(allowed_roles)}'
                 }), 403
-            
-            logger.info(f"✅ [ROLES] Acesso autorizado para role '{user_role}'")
             return f(*args, **kwargs)
         
         return decorated_function

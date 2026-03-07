@@ -23,6 +23,7 @@ import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import ProntuarioForm from '@/components/prontuarios/ProntuarioForm'
+import Toast from '@/components/common/Toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
@@ -39,6 +40,11 @@ export default function ProntuarioDetailPage() {
   const [loading, setLoading] = useState(true)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type })
+  }
 
   useEffect(() => {
     if (prontuarioId) {
@@ -64,7 +70,7 @@ export default function ProntuarioDetailPage() {
       }
     } catch (error) {
       console.error('❌ [PRONTUARIO DETAIL] Erro ao carregar prontuário:', error)
-      alert('Erro ao carregar prontuário')
+      showToast('Erro ao carregar prontuário', 'error')
     } finally {
       setLoading(false)
     }
@@ -82,7 +88,7 @@ export default function ProntuarioDetailPage() {
       router.push('/prontuarios')
     } catch (error) {
       console.error('❌ Erro ao excluir prontuário:', error)
-      alert('Erro ao excluir prontuário')
+      showToast('Erro ao excluir prontuário', 'error')
     }
   }
 
@@ -111,7 +117,7 @@ export default function ProntuarioDetailPage() {
       
     } catch (error) {
       console.error('Erro ao exportar PDF:', error)
-      alert('Erro ao exportar prontuário em PDF')
+      showToast('Erro ao exportar prontuário em PDF', 'error')
     } finally {
       setExportingPdf(false)
     }
@@ -372,6 +378,13 @@ export default function ProntuarioDetailPage() {
           />
         </Modal>
       )}
+
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(prev => ({ ...prev, show: false }))}
+      />
     </div>
   )
 }

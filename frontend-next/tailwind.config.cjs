@@ -9,16 +9,16 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          50: '#E8F5E9',
-          100: '#C8E6C9',
-          200: '#A5D6A7',
-          300: '#81C784',
-          400: '#66BB6A',
+          50: '#f0faf5',
+          100: '#dcf2e8',
+          200: '#b9e5d1',
+          300: '#87d0b2',
+          400: '#52b58d',
           500: '#2D6A4F',
           600: '#256347',
-          700: '#1D5139',
-          800: '#163F2C',
-          900: '#0E2D1E',
+          700: '#1f5540',
+          800: '#1a4534',
+          900: '#123224',
         },
         neutral: {
           50: '#F8F9FA',
@@ -32,6 +32,19 @@ module.exports = {
           800: '#343A40',
           900: '#212529',
         },
+      },
+      fontFamily: {
+        sans: ['var(--font-inter)', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+      },
+      borderRadius: {
+        'xl': '12px',
+        '2xl': '16px',
+        '3xl': '20px',
+      },
+      boxShadow: {
+        'card': '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+        'card-hover': '0 4px 12px rgba(0,0,0,0.08)',
+        'modal': '0 20px 60px rgba(0,0,0,0.15)',
       },
     },
   },
