@@ -1,5 +1,5 @@
 'use client'
-
+ 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { mensalidadeService } from '@/services/mensalidadeService'
@@ -1146,6 +1146,6 @@ export default function FinanceiroPage() {
             </div>
           </div>
         )}
-      </div>
+    </div>
   )
 }
