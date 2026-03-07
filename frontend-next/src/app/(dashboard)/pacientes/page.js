@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
-import { Plus, Search, Users } from 'lucide-react'
+import { Plus, Search, Users, AlertTriangle } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
@@ -25,6 +25,7 @@ export default function PacientesPage() {
   const canCreate = canPerformAction(userRole, 'pacientes', 'create')
   const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+  const [deactivateConfirm, setDeactivateConfirm] = useState({ open: false, id: null })
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
@@ -69,12 +70,16 @@ export default function PacientesPage() {
     setModalOpen(true)
   }
 
-  const handleDeactivate = async (id) => {
-    if (!confirm('Deseja realmente desativar este paciente?')) return
+  const handleDeactivate = (id) => {
+    setDeactivateConfirm({ open: true, id })
+  }
 
+  const confirmDeactivate = async () => {
     try {
-      await pacienteService.deactivate(id)
+      await pacienteService.deactivate(deactivateConfirm.id)
+      setDeactivateConfirm({ open: false, id: null })
       await loadPacientes()
+      showToast('Paciente desativado com sucesso', 'success')
     } catch (error) {
       console.error('Erro ao desativar paciente:', error)
       showToast('Erro ao desativar paciente', 'error')
@@ -194,6 +199,40 @@ export default function PacientesPage() {
           onSuccess={handleSave}
           onCancel={() => setModalOpen(false)}
         />
+      </Modal>
+
+      {/* Confirm Deactivate Modal */}
+      <Modal
+        isOpen={deactivateConfirm.open}
+        onClose={() => setDeactivateConfirm({ open: false, id: null })}
+        title="Desativar Paciente"
+        size="sm"
+      >
+        <div className="flex flex-col items-center text-center gap-4 py-2">
+          <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-yellow-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-900">Tem certeza que deseja desativar este paciente?</p>
+            <p className="text-sm text-neutral-500 mt-1">O paciente ficará inativo e não aparecerá nas listagens padrão.</p>
+          </div>
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setDeactivateConfirm({ open: false, id: null })}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={confirmDeactivate}
+            >
+              Desativar
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Toast

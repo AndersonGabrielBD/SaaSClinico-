@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { agendamentoService } from '@/services/agendamentoService'
-import { Plus, Calendar as CalendarIcon, List, Search, FileDown } from 'lucide-react'
+import { Plus, Calendar as CalendarIcon, List, Search, FileDown, AlertTriangle } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
@@ -34,6 +34,7 @@ export default function AgendaPage() {
   const [activeTab, setActiveTab] = useState('agendadas') // 'agendadas', 'concluidas', 'canceladas', 'todas'
   const [exportingPdf, setExportingPdf] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+  const [cancelConfirm, setCancelConfirm] = useState({ open: false, id: null })
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
@@ -107,12 +108,16 @@ export default function AgendaPage() {
     setModalOpen(true)
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Deseja realmente cancelar este agendamento?')) return
+  const handleDelete = (id) => {
+    setCancelConfirm({ open: true, id })
+  }
 
+  const confirmCancel = async () => {
     try {
-      await agendamentoService.cancel(id)
+      await agendamentoService.cancel(cancelConfirm.id)
+      setCancelConfirm({ open: false, id: null })
       await loadAgendamentos()
+      showToast('Agendamento cancelado com sucesso', 'success')
     } catch (error) {
       console.error('Erro ao cancelar agendamento:', error)
       showToast('Erro ao cancelar agendamento', 'error')
@@ -363,6 +368,40 @@ export default function AgendaPage() {
           onSuccess={handleSave}
           onCancel={() => setModalOpen(false)}
         />
+      </Modal>
+
+      {/* Confirm Cancel Modal */}
+      <Modal
+        isOpen={cancelConfirm.open}
+        onClose={() => setCancelConfirm({ open: false, id: null })}
+        title="Cancelar Agendamento"
+        size="sm"
+      >
+        <div className="flex flex-col items-center text-center gap-4 py-2">
+          <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-yellow-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-900">Tem certeza que deseja cancelar este agendamento?</p>
+            <p className="text-sm text-neutral-500 mt-1">Esta ação não pode ser desfeita.</p>
+          </div>
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setCancelConfirm({ open: false, id: null })}
+            >
+              Voltar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={confirmCancel}
+            >
+              Cancelar Agendamento
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Toast

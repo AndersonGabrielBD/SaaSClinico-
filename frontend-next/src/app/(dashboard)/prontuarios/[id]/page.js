@@ -40,6 +40,7 @@ export default function ProntuarioDetailPage() {
   const [loading, setLoading] = useState(true)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
 
   const showToast = (message, type = 'success') => {
@@ -80,9 +81,11 @@ export default function ProntuarioDetailPage() {
     setEditModalOpen(true)
   }
 
-  const handleDelete = async () => {
-    if (!confirm('Deseja realmente excluir este prontuário?')) return
+  const handleDelete = () => {
+    setDeleteConfirm(true)
+  }
 
+  const confirmDelete = async () => {
     try {
       await prontuarioService.delete(prontuarioId)
       router.push('/prontuarios')
@@ -378,6 +381,40 @@ export default function ProntuarioDetailPage() {
           />
         </Modal>
       )}
+
+      {/* Confirm Delete Modal */}
+      <Modal
+        isOpen={deleteConfirm}
+        onClose={() => setDeleteConfirm(false)}
+        title="Excluir Prontuário"
+        size="sm"
+      >
+        <div className="flex flex-col items-center text-center gap-4 py-2">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-900">Tem certeza que deseja excluir este prontuário?</p>
+            <p className="text-sm text-neutral-500 mt-1">Esta ação não pode ser desfeita.</p>
+          </div>
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setDeleteConfirm(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={confirmDelete}
+            >
+              Excluir
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Toast
         show={toast.show}

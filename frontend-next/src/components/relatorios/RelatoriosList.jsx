@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { relatorioService } from '@/services/relatorioService'
-import { FileText, Download, Plus, Trash2, Upload } from 'lucide-react'
+import { FileText, Download, Plus, Trash2, Upload, AlertTriangle } from 'lucide-react'
 import { parseDateSafe } from '@/lib/dateUtils'
 import Toast from '@/components/common/Toast'
+import Modal from '@/components/common/Modal'
+import Button from '@/components/common/Button'
 
 export default function RelatoriosList({ pacienteId }) {
   const [relatorios, setRelatorios] = useState([])
@@ -17,6 +19,7 @@ export default function RelatoriosList({ pacienteId }) {
     arquivo: null
   })
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null })
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
@@ -124,11 +127,14 @@ export default function RelatoriosList({ pacienteId }) {
     }
   }
 
-  const handleDelete = async (relatorioId) => {
-    if (!confirm('Deseja realmente excluir este relatório?')) return
-    
+  const handleDelete = (relatorioId) => {
+    setDeleteConfirm({ open: true, id: relatorioId })
+  }
+
+  const confirmDelete = async () => {
     try {
-      await relatorioService.delete(relatorioId)
+      await relatorioService.delete(deleteConfirm.id)
+      setDeleteConfirm({ open: false, id: null })
       showToast('Relatório excluído com sucesso!')
       loadRelatorios()
     } catch (error) {
@@ -318,6 +324,40 @@ export default function RelatoriosList({ pacienteId }) {
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Modal */}
+      <Modal
+        isOpen={deleteConfirm.open}
+        onClose={() => setDeleteConfirm({ open: false, id: null })}
+        title="Excluir Relatório"
+        size="sm"
+      >
+        <div className="flex flex-col items-center text-center gap-4 py-2">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-900">Tem certeza que deseja excluir este relatório?</p>
+            <p className="text-sm text-neutral-500 mt-1">Esta ação não pode ser desfeita.</p>
+          </div>
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setDeleteConfirm({ open: false, id: null })}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={confirmDelete}
+            >
+              Excluir
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Toast
         show={toast.show}
