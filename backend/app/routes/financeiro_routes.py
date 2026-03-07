@@ -1,62 +1,114 @@
 # filepath: backend/app/routes/financeiro_routes.py
 from flask import Blueprint, request, jsonify
-from app.utils.jwt_utils import require_auth, get_current_user
+from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.services.mensalidade_service import MensalidadeService
 from datetime import datetime, timedelta
+from app.utils.date_utils import today_brazil
 
 financeiro_bp = Blueprint('financeiro', __name__)
 
-@financeiro_bp.route('/lancamentos', methods=['GET'])
+
+@financeiro_bp.route('/diagnostico', methods=['GET'])
 @require_auth
-def get_lancamentos():
-    """Lista todos os lançamentos financeiros da clínica"""
+@require_roles(['admin', 'recepcao'])
+def diagnostico_financeiro():
+    """Diagnóstico: conta registros nas tabelas financeiras sem filtros para detectar problemas de dados"""
+    import logging
+    logger = logging.getLogger(__name__)
+    from database.supabase_client import get_supabase_client
+    from app.utils.date_utils import start_of_month_brazil
+
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        
-        # Query params
+        client = get_supabase_client()
+        mes_atual = start_of_month_brazil().isoformat()
+
+        # Conta mensalidades sem filtro de ativo
+        m_total = client.table('mensalidades_pacientes').select('id', count='exact').eq('clinica_id', clinica_id).execute()
+        m_ativas = client.table('mensalidades_pacientes').select('id', count='exact').eq('clinica_id', clinica_id).eq('ativo', True).execute()
+
+        # Conta pagamentos sem filtro de mes
+        p_total = client.table('pagamentos_mensalidades').select('id', count='exact').eq('clinica_id', clinica_id).execute()
+        p_mes = client.table('pagamentos_mensalidades').select('id', count='exact').eq('clinica_id', clinica_id).eq('mes_referencia', mes_atual).execute()
+
+        # Amostra de mes_referencia existentes (distinct via Python)
+        p_sample = client.table('pagamentos_mensalidades').select('mes_referencia').eq('clinica_id', clinica_id).limit(20).execute()
+        meses_existentes = list({p['mes_referencia'] for p in (p_sample.data or [])})
+
+        result = {
+            'clinica_id': clinica_id,
+            'mes_atual_filtrado': mes_atual,
+            'mensalidades': {
+                'total': m_total.count or 0,
+                'ativas': m_ativas.count or 0,
+            },
+            'pagamentos': {
+                'total': p_total.count or 0,
+                'mes_atual': p_mes.count or 0,
+                'meses_existentes_no_banco': sorted(meses_existentes),
+            }
+        }
+
+        logger.info(f"🔍 [DIAG] {result}")
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"❌ [DIAG] {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@financeiro_bp.route('/lancamentos', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao'])
+def get_lancamentos():
+    """Lista lançamentos financeiros com todos os filtros empurrados ao banco."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+
         status = request.args.get('status')
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
         paciente_id = request.args.get('paciente_id')
-        
-        # Filtros
-        filters = {}
+
+        from database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+
+        # Monta query com todos os filtros direto no banco (sem carregamento total)
+        query = client.table('lancamentos_financeiros') \
+            .select('*') \
+            .eq('clinica_id', clinica_id) \
+            .order('data_criacao', desc=True)
+
         if status:
-            filters['status'] = status
+            query = query.eq('status', status)
         if paciente_id:
-            filters['paciente_id'] = paciente_id
-        
-        repo = BaseRepository('lancamentos_financeiros', clinica_id)
-        lancamentos = repo.get_all(filters=filters, order_by='-data_criacao')
-        
-        # Filtro de data
-        if data_inicio or data_fim:
-            lancamentos_filtrados = []
-            for lanc in lancamentos:
-                data_criacao = lanc.get('data_criacao', '')
-                if data_criacao:
-                    if isinstance(data_criacao, str):
-                        data_criacao = data_criacao[:10]  # YYYY-MM-DD
-                    else:
-                        data_criacao = data_criacao.strftime('%Y-%m-%d')
-                    
-                    if data_inicio and data_criacao < data_inicio:
-                        continue
-                    if data_fim and data_criacao > data_fim:
-                        continue
-                    lancamentos_filtrados.append(lanc)
-            lancamentos = lancamentos_filtrados
-        
+            query = query.eq('paciente_id', paciente_id)
+        if data_inicio:
+            query = query.gte('data_criacao', data_inicio)
+        if data_fim:
+            # Inclui o dia inteiro somando 1 dia ao fim
+            query = query.lt('data_criacao', data_fim + 'T23:59:59')
+
+        result = query.execute()
+        lancamentos = result.data or []
+
+        logger.info(f"✅ [FINANCEIRO] Retornando {len(lancamentos)} lançamentos")
         return jsonify(lancamentos), 200
-        
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"❌ [FINANCEIRO] Erro ao buscar lançamentos: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_lancamento(lancamento_id):
     """Busca lançamento por ID"""
     try:
@@ -77,6 +129,7 @@ def get_lancamento(lancamento_id):
 
 @financeiro_bp.route('/lancamentos', methods=['POST'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def create_lancamento():
     """Cria novo lançamento financeiro"""
     try:
@@ -122,6 +175,7 @@ def create_lancamento():
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['PUT'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def update_lancamento(lancamento_id):
     """Atualiza lançamento financeiro"""
     try:
@@ -165,6 +219,7 @@ def update_lancamento(lancamento_id):
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['DELETE'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def delete_lancamento(lancamento_id):
     """Deleta lançamento financeiro"""
     try:
@@ -188,130 +243,85 @@ def delete_lancamento(lancamento_id):
 
 @financeiro_bp.route('/relatorio/resumo', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_resumo_financeiro():
-    """Retorna resumo financeiro do período"""
+    """Retorna resumo financeiro via RPC — todo SUM/COUNT/GROUP BY feito no banco."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        
-        # Query params
+
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
-        
-        # Se não fornecido, usa mês atual
+
         if not data_inicio:
             data_inicio = datetime.now().replace(day=1).strftime('%Y-%m-%d')
         if not data_fim:
-            # Último dia do mês atual
             proximo_mes = datetime.now().replace(day=28) + timedelta(days=4)
             data_fim = (proximo_mes - timedelta(days=proximo_mes.day)).strftime('%Y-%m-%d')
-        
-        service = MensalidadeService()
-        pagamentos = service.listar_pagamentos(clinica_id, {
-            'data_inicio': data_inicio,
-            'data_fim': data_fim
-        })
 
-        # Calcular totais
-        total_pago = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'pago')
-        total_pendente = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'pendente')
-        total_parcial = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'parcial')
-        total_cancelado = sum(float(p.get('valor_pago', 0)) for p in pagamentos if p.get('status') == 'cancelado')
+        from database.supabase_client import get_supabase_client
+        client = get_supabase_client()
 
-        # Contar por status
-        count_pago = len([p for p in pagamentos if p.get('status') == 'pago'])
-        count_pendente = len([p for p in pagamentos if p.get('status') == 'pendente'])
-        count_parcial = len([p for p in pagamentos if p.get('status') == 'parcial'])
-        count_cancelado = len([p for p in pagamentos if p.get('status') == 'cancelado'])
+        # Uma única chamada RPC faz todos os SUM/COUNT/GROUP BY no banco
+        result = client.rpc('get_resumo_financeiro', {
+            'p_clinica_id': clinica_id,
+            'p_data_inicio': data_inicio,
+            'p_data_fim': data_fim
+        }).execute()
 
-        # Por método de pagamento
-        metodos = {}
-        for pagamento in pagamentos:
-            if pagamento.get('status') == 'pago':
-                metodo = pagamento.get('metodo_pagamento', 'Não informado') or 'Não informado'
-                if metodo not in metodos:
-                    metodos[metodo] = {'total': 0, 'count': 0}
-                metodos[metodo]['total'] += float(pagamento.get('valor_pago', 0))
-                metodos[metodo]['count'] += 1
-        
-        # Faturamento por dia (últimos 30 dias para gráfico)
-        hoje = datetime.now()
-        faturamento_diario = {}
-        for i in range(30):
-            data = (hoje - timedelta(days=i)).strftime('%Y-%m-%d')
-            faturamento_diario[data] = 0
-        
-        for pagamento in pagamentos:
-            if pagamento.get('status') == 'pago' and pagamento.get('data_pagamento'):
-                data_pag = pagamento.get('data_pagamento', '')
-                if isinstance(data_pag, str):
-                    data_pag = data_pag[:10]
-                else:
-                    data_pag = data_pag.strftime('%Y-%m-%d')
-                
-                if data_pag in faturamento_diario:
-                    faturamento_diario[data_pag] += float(pagamento.get('valor_pago', 0))
-        
-        # Converter para array ordenado
-        faturamento_diario_array = [
-            {'data': data, 'valor': valor}
-            for data, valor in sorted(faturamento_diario.items())
-        ]
-        
-        return jsonify({
-            'periodo': {
-                'inicio': data_inicio,
-                'fim': data_fim
-            },
-            'totais': {
-                'pago': round(total_pago, 2),
-                'pendente': round(total_pendente, 2),
-                'parcial': round(total_parcial, 2),
-                'cancelado': round(total_cancelado, 2),
-                'total': round(total_pago + total_pendente + total_parcial, 2)
-            },
-            'contadores': {
-                'pago': count_pago,
-                'pendente': count_pendente,
-                'parcial': count_parcial,
-                'cancelado': count_cancelado,
-                'total': len(pagamentos)
-            },
-            'por_metodo': metodos,
-            'faturamento_diario': faturamento_diario_array
-        }), 200
-        
+        resumo = result.data or {}
+        resumo['periodo'] = {'inicio': data_inicio, 'fim': data_fim}
+
+        logger.info(f"✅ [FINANCEIRO] Resumo via RPC calculado")
+        return jsonify(resumo), 200
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"❌ [FINANCEIRO] Erro crítico: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
 
 @financeiro_bp.route('/pendencias', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def get_pendencias():
-    """Retorna pagamentos de mensalidades pendentes (a vencer e vencidos)"""
+    """Retorna pagamentos pendentes segmentados por SQL (vencidos / a vencer)."""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        
-        service = MensalidadeService()
-        pagamentos = service.listar_pagamentos(clinica_id, {'status': 'pendente'})
-        
-        hoje = datetime.now().date()
-        
-        vencidos = []
-        a_vencer = []
-        
-        for pagamento in pagamentos:
-            data_venc = pagamento.get('data_vencimento')
-            if data_venc:
-                if isinstance(data_venc, str):
-                    data_venc = datetime.fromisoformat(data_venc.replace('Z', '+00:00')).date()
-                
-                if data_venc < hoje:
-                    vencidos.append(pagamento)
-                else:
-                    a_vencer.append(pagamento)
-        
+
+        hoje = today_brazil().isoformat()
+
+        from database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+
+        base_query = (
+            client.table('pagamentos_mensalidades')
+            .select('*, pacientes(id, nome_completo, telefone_principal), mensalidades_pacientes(valor_mensalidade)')
+            .eq('clinica_id', clinica_id)
+            .eq('status', 'pendente')
+        )
+
+        # Duas queries com filtro de data no banco — sem carregamento total
+        vencidos_res = base_query.lt('data_vencimento', hoje).order('data_vencimento').execute()
+        a_vencer_res = base_query.gte('data_vencimento', hoje).order('data_vencimento').execute()
+
+        def formatar(rows):
+            result = []
+            for item in (rows or []):
+                paciente = item.pop('pacientes', None) or {}
+                mens = item.pop('mensalidades_pacientes', None) or {}
+                item['paciente_nome'] = paciente.get('nome_completo')
+                item['paciente_telefone'] = paciente.get('telefone_principal')
+                item['valor_mensalidade'] = mens.get('valor_mensalidade')
+                result.append(item)
+            return result
+
+        vencidos = formatar(vencidos_res.data)
+        a_vencer = formatar(a_vencer_res.data)
+
         return jsonify({
             'vencidos': vencidos,
             'a_vencer': a_vencer,
@@ -320,6 +330,6 @@ def get_pendencias():
             'valor_vencido': sum(float(p.get('valor_pago', 0)) for p in vencidos),
             'valor_a_vencer': sum(float(p.get('valor_pago', 0)) for p in a_vencer)
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500

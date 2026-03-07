@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react'
 import { frequenciaService } from '@/services/frequenciaService'
 import { useAuth } from '@/context/AuthContext'
-import { Calendar, CheckCircle, XCircle, TrendingUp, User } from 'lucide-react'
+import { Calendar, CheckCircle, XCircle, TrendingUp, User, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
+import Toast from '@/components/common/Toast'
+import FrequenciaLista from './FrequenciaLista'
+import { getTodayBrazil } from '@/lib/dateUtils'
 
 export default function FrequenciaCard({ pacienteId }) {
   const { user } = useAuth()
@@ -12,10 +16,11 @@ export default function FrequenciaCard({ pacienteId }) {
   const [loading, setLoading] = useState(true)
   const [showRegistroModal, setShowRegistroModal] = useState(false)
   const [formData, setFormData] = useState({
-    data_atendimento: new Date().toISOString().split('T')[0],
+    data_atendimento: getTodayBrazil(),
     compareceu: true,
     observacoes: ''
   })
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
 
   useEffect(() => {
     loadEstatisticas()
@@ -25,7 +30,7 @@ export default function FrequenciaCard({ pacienteId }) {
     try {
       setLoading(true)
       const [stats, statsPorProf] = await Promise.all([
-        frequenciaService.getEstatisticas({ paciente_id: pacienteId }),
+        frequenciaService.getEstatisticasPaciente(pacienteId),
         frequenciaService.getEstatisticasPorProfissional(pacienteId)
       ])
       setEstatisticas(stats)
@@ -41,7 +46,7 @@ export default function FrequenciaCard({ pacienteId }) {
     e.preventDefault()
     
     if (!user?.id) {
-      alert('Erro: Usuário não autenticado')
+      setToast({ show: true, message: 'Erro: Usuário não autenticado', type: 'error' })
       return
     }
     
@@ -54,17 +59,17 @@ export default function FrequenciaCard({ pacienteId }) {
         observacoes: formData.observacoes || null
       })
       
-      alert('Frequência registrada com sucesso!')
       setShowRegistroModal(false)
       setFormData({
-        data_atendimento: new Date().toISOString().split('T')[0],
+        data_atendimento: getTodayBrazil(),
         compareceu: true,
         observacoes: ''
       })
+      setToast({ show: true, message: 'Frequência registrada com sucesso!', type: 'success' })
       loadEstatisticas()
     } catch (error) {
       console.error('Erro:', error)
-      alert('Erro ao registrar frequência')
+      setToast({ show: true, message: 'Erro ao registrar frequência', type: 'error' })
     }
   }
 
@@ -76,12 +81,21 @@ export default function FrequenciaCard({ pacienteId }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-semibold">Frequência de Atendimentos</h3>
-        <button
-          onClick={() => setShowRegistroModal(true)}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-        >
-          Registrar Frequência
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/frequencia"
+            className="px-4 py-2 border border-primary-600 text-primary-600 rounded-lg hover:bg-primary-50 flex items-center gap-2 transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Ver Resumo
+          </Link>
+          <button
+            onClick={() => setShowRegistroModal(true)}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            Registrar Frequência
+          </button>
+        </div>
       </div>
 
       {/* Estatísticas Gerais */}
@@ -94,7 +108,7 @@ export default function FrequenciaCard({ pacienteId }) {
               </div>
               <div>
                 <p className="text-sm text-neutral-600">Total de Consultas</p>
-                <p className="text-2xl font-bold">{estatisticas.total_consultas}</p>
+                <p className="text-2xl font-bold">{estatisticas.total_atendimentos}</p>
               </div>
             </div>
           </div>
@@ -118,12 +132,17 @@ export default function FrequenciaCard({ pacienteId }) {
               </div>
               <div>
                 <p className="text-sm text-neutral-600">Taxa de Presença</p>
-                <p className="text-2xl font-bold">{estatisticas.taxa_presenca}%</p>
+                <p className="text-2xl font-bold">{estatisticas.percentual_presenca}%</p>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Lista de Frequências com opção de deletar */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <FrequenciaLista pacienteId={pacienteId} user={user} />
+      </div>
 
       {/* Estatísticas por Profissional */}
       {estatisticasPorProfissional.length > 0 && (
@@ -138,13 +157,13 @@ export default function FrequenciaCard({ pacienteId }) {
                 <div className="flex justify-between items-center mb-2">
                   <p className="font-medium">{prof.profissional_nome}</p>
                   <span className="text-sm font-semibold text-primary-600">
-                    {prof.taxa_presenca}%
+                    {prof.percentual_presenca}%
                   </span>
                 </div>
                 <div className="flex gap-4 text-sm text-neutral-600">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
-                    {prof.total_consultas} consultas
+                    {prof.total_atendimentos} consultas
                   </span>
                   <span className="flex items-center gap-1">
                     <CheckCircle className="w-4 h-4 text-green-600" />
@@ -158,7 +177,7 @@ export default function FrequenciaCard({ pacienteId }) {
                 <div className="mt-2 bg-neutral-200 rounded-full h-2 overflow-hidden">
                   <div 
                     className="bg-green-600 h-full" 
-                    style={{ width: `${prof.taxa_presenca}%` }}
+                    style={{ width: `${prof.percentual_presenca}%` }}
                   />
                 </div>
               </div>
@@ -194,7 +213,7 @@ export default function FrequenciaCard({ pacienteId }) {
                   value={formData.data_atendimento}
                   onChange={(e) => setFormData({ ...formData, data_atendimento: e.target.value })}
                   required
-                  max={new Date().toISOString().split('T')[0]}
+                  max={getTodayBrazil()}
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <p className="text-xs text-neutral-500 mt-1">
@@ -236,7 +255,7 @@ export default function FrequenciaCard({ pacienteId }) {
                   onClick={() => {
                     setShowRegistroModal(false)
                     setFormData({
-                      data_atendimento: new Date().toISOString().split('T')[0],
+                      data_atendimento: getTodayBrazil(),
                       compareceu: true,
                       observacoes: ''
                     })
@@ -256,6 +275,14 @@ export default function FrequenciaCard({ pacienteId }) {
           </div>
         </div>
       )}
+
+      {/* Toast Notification */}
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, show: false })}
+      />
     </div>
   )
 }

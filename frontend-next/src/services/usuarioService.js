@@ -11,12 +11,12 @@ export const usuarioService = {
     return api.getUsuarioById(id)
   },
 
-  // Listar apenas profissionais (fono/medico)
+  // Listar apenas profissionais (fono/medico/profissional)
   async getProfissionais() {
     try {
       const usuarios = await this.getAll()
       return usuarios.filter(u => 
-        u.role === 'fono' || u.role === 'medico'
+        u.role === 'fono' || u.role === 'medico' || u.role === 'profissional'
       )
     } catch (error) {
       console.error('Erro ao buscar profissionais:', error)

@@ -8,7 +8,7 @@ class AgendamentoBase(BaseModel):
     """Schema base de agendamento"""
     paciente_id: str = Field(..., description="ID do paciente")
     profissional_id: str = Field(..., description="ID do profissional")
-    sala_id: str = Field(..., description="ID da sala")
+    sala_id: Optional[str] = Field(None, description="ID da sala (opcional)")
     data_agendamento: str = Field(..., description="Data (YYYY-MM-DD)")
     horario_inicio: str = Field(..., description="Horário início (HH:MM)")
     horario_fim: str = Field(..., description="Horário fim (HH:MM)")
@@ -44,7 +44,7 @@ class AgendamentoResponse(AgendamentoBase):
 class AgendamentoConflictCheck(BaseModel):
     """Schema para verificar conflitos"""
     profissional_id: str
-    sala_id: str
+    sala_id: Optional[str] = None
     data_agendamento: str
     horario_inicio: str
     horario_fim: str

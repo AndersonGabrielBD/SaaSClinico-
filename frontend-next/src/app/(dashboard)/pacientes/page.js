@@ -10,6 +10,7 @@ import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
 import PacienteCard from '@/components/pacientes/PacienteCard'
 import PacienteForm from '@/components/pacientes/PacienteForm'
+import Toast from '@/components/common/Toast'
 import { getUserRole } from '@/utils/auth'
 import { canPerformAction } from '@/utils/roles'
 
@@ -23,6 +24,11 @@ export default function PacientesPage() {
   const userRole = getUserRole()
   const canCreate = canPerformAction(userRole, 'pacientes', 'create')
   const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type })
+  }
 
   useEffect(() => {
     loadPacientes()
@@ -71,7 +77,7 @@ export default function PacientesPage() {
       await loadPacientes()
     } catch (error) {
       console.error('Erro ao desativar paciente:', error)
-      alert('Erro ao desativar paciente')
+      showToast('Erro ao desativar paciente', 'error')
     }
   }
 
@@ -81,7 +87,7 @@ export default function PacientesPage() {
       await loadPacientes()
     } catch (error) {
       console.error('Erro ao reativar paciente:', error)
-      alert('Erro ao reativar paciente')
+      showToast('Erro ao reativar paciente', 'error')
     }
   }
 
@@ -100,87 +106,55 @@ export default function PacientesPage() {
     : pacientes
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Pacientes</h1>
-          <p className="text-neutral-600 mt-1">
-            Gerencie o cadastro de pacientes
-          </p>
+          <h1 className="text-xl font-bold text-neutral-900">Pacientes</h1>
+          <p className="text-sm text-neutral-500 mt-0.5">Gerencie o cadastro de pacientes</p>
         </div>
         {canCreate && (
-          <Button onClick={handleCreate} icon={<Plus className="w-5 h-5" />}>
+          <Button onClick={handleCreate} icon={<Plus className="w-4 h-4" />}>
             Novo Paciente
           </Button>
         )}
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-neutral-600">Total de Pacientes</p>
-              <p className="text-2xl font-bold text-neutral-900">{pacientes.length}</p>
-            </div>
-            <Users className="w-8 h-8 text-primary-500" />
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Total', value: pacientes.length, color: 'text-neutral-900' },
+          { label: 'Ativos', value: pacientes.filter(p => p.ativo).length, color: 'text-green-600' },
+          { label: 'Inativos', value: pacientes.filter(p => !p.ativo).length, color: 'text-neutral-400' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-white rounded-xl p-4 border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            <p className="text-xs text-neutral-500 mb-1">{label}</p>
+            <p className={`text-xl font-bold ${color}`}>{value}</p>
           </div>
-        </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-neutral-600">Ativos</p>
-              <p className="text-2xl font-bold text-green-600">
-                {pacientes.filter(p => p.ativo).length}
-              </p>
-            </div>
-            <Users className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-neutral-600">Inativos</p>
-              <p className="text-2xl font-bold text-neutral-400">
-                {pacientes.filter(p => !p.ativo).length}
-              </p>
-            </div>
-            <Users className="w-8 h-8 text-neutral-400" />
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nome, CPF, email ou telefone..."
-                className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-              />
-            </div>
-          </div>
-
-          {/* Show Inactive Toggle */}
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-                className="w-4 h-4 text-primary-600 border-neutral-300 rounded focus:ring-primary-500"
-              />
-              <span className="text-sm text-neutral-700">Mostrar inativos</span>
-            </label>
-          </div>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por nome, CPF, email ou telefone..."
+            className="w-full pl-9 pr-4 py-2 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-white"
+          />
         </div>
+        <label className="flex items-center gap-2 cursor-pointer bg-white border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50 transition-colors">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+            className="w-3.5 h-3.5 text-primary-600 border-neutral-300 rounded focus:ring-primary-500"
+          />
+          <span className="text-xs font-medium text-neutral-600 whitespace-nowrap">Mostrar inativos</span>
+        </label>
       </div>
 
       {/* Content */}
@@ -190,14 +164,12 @@ export default function PacientesPage() {
         <EmptyState
           title="Nenhum paciente encontrado"
           description={searchTerm ? 'Tente buscar com outros termos' : 'Cadastre o primeiro paciente da clínica'}
-          icon={<Users className="w-16 h-16" />}
-          action={!searchTerm && canCreate ? {
-            label: 'Cadastrar Paciente',
-            onClick: handleCreate
-          } : undefined}
+          icon={<Users className="w-10 h-10" />}
+          action={!searchTerm && canCreate ? handleCreate : undefined}
+          actionLabel={!searchTerm && canCreate ? 'Cadastrar Paciente' : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {filteredPacientes.map((paciente) => (
             <PacienteCard
               key={paciente.id}
@@ -223,6 +195,13 @@ export default function PacientesPage() {
           onCancel={() => setModalOpen(false)}
         />
       </Modal>
+
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(prev => ({ ...prev, show: false }))}
+      />
     </div>
   )
 }

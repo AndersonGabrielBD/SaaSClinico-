@@ -2,6 +2,8 @@
 from flask import Blueprint, request, jsonify
 from database.supabase_client import get_supabase_client
 from app.utils.jwt_utils import create_token
+from app.services.auth_service import AuthService
+from app.schemas.auth_schema import ResetPasswordRequest, ResetPasswordWithCode
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -186,3 +188,75 @@ def get_current_user():
         return jsonify({'user': user}), 200
     
     return _get_user()
+
+@auth_bp.route('/reset-password-request', methods=['POST'])
+def reset_password_request():
+    """
+    Solicita um código de reset de senha
+    
+    Body:
+    {
+        "email": "user@example.com" ou "12345678900"
+    }
+    
+    Response:
+    {
+        "sucesso": true,
+        "mensagem": "Código gerado com sucesso",
+        "reset_code": "ABC123XY" (apenas em desenvolvimento)
+    }
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email ou CPF é obrigatório'}), 400
+        
+        # Gerar código de reset
+        result = AuthService.generate_reset_code_for_user(email)
+        
+        status_code = 200 if result.get('sucesso') else 400
+        return jsonify(result), status_code
+        
+    except Exception as e:
+        print(f"Erro ao solicitar reset de senha: {str(e)}")
+        return jsonify({'error': f'Erro ao processar solicitação: {str(e)}'}), 500
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Reseta a senha usando código de reset
+    
+    Body:
+    {
+        "email": "user@example.com" ou "12345678900",
+        "reset_code": "ABC123XY",
+        "nova_senha": "novaSenha123"
+    }
+    
+    Response:
+    {
+        "sucesso": true,
+        "mensagem": "Senha alterada com sucesso"
+    }
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        reset_code = data.get('reset_code')
+        nova_senha = data.get('nova_senha')
+        
+        if not all([email, reset_code, nova_senha]):
+            return jsonify({'error': 'Email, código e nova senha são obrigatórios'}), 400
+        
+        # Validar e resetar senha
+        result = AuthService.validate_and_reset_password(email, reset_code, nova_senha)
+        
+        status_code = 200 if result.get('sucesso') else 400
+        return jsonify(result), status_code
+        
+    except Exception as e:
+        print(f"Erro ao resetar senha: {str(e)}")
+        return jsonify({'error': f'Erro ao alterar senha: {str(e)}'}), 500

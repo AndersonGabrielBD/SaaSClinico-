@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { mensalidadeService } from '@/services/mensalidadeService'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
 import { getUserRole } from '@/utils/auth'
+import { canAccessModule } from '@/utils/roles'
+import { getTodayBrazil, getFirstDayOfMonthBrazil, getCurrentYearMonthBrazil, parseDateSafe } from '@/lib/dateUtils'
 import { 
   DollarSign, 
   Edit, 
@@ -17,7 +20,8 @@ import {
   Archive,
   X,
   Clock,
-  CreditCard
+  CreditCard,
+  ShieldX
 } from 'lucide-react'
 
 // Função para formatar moeda no padrão brasileiro
@@ -30,6 +34,8 @@ const formatCurrency = (value) => {
 }
 
 export default function FinanceiroPage() {
+  const router = useRouter()
+  const [hasAccess, setHasAccess] = useState(null) // null = verificando, true = tem acesso, false = sem acesso
   const [mensalidades, setMensalidades] = useState([])
   const [mensalidadesInativas, setMensalidadesInativas] = useState([])
   const [pagamentosMesMap, setPagamentosMesMap] = useState({})
@@ -47,6 +53,21 @@ export default function FinanceiroPage() {
   // Novos estados para melhor UX
   const [toast, setToast] = useState({ show: false, message: '', type: '' })
   const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null })
+
+  // Verificar permissão de acesso
+  useEffect(() => {
+    const userRole = getUserRole()
+    const canAccess = canAccessModule(userRole, 'financeiro')
+    setHasAccess(canAccess)
+    
+    if (!canAccess && userRole) {
+      // Redirecionar após 2 segundos para mostrar a mensagem de erro
+      const timeout = setTimeout(() => {
+        router.push('/pacientes')
+      }, 2000)
+      return () => clearTimeout(timeout)
+    }
+  }, [router])
 
   // Função para mostrar toast
   const showToast = (message, type = 'success') => {
@@ -93,14 +114,17 @@ export default function FinanceiroPage() {
   }
 
   useEffect(() => {
-    loadData()
-    loadPacientes()
-  }, [])
+    // Só carregar dados se o usuário tiver acesso
+    if (hasAccess === true) {
+      loadData()
+      loadPacientes()
+    }
+  }, [hasAccess])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const mesReferencia = new Date().toISOString().slice(0, 7) + '-01'
+      const mesReferencia = getFirstDayOfMonthBrazil()
 
       const [mensalidadesAtivasData, mensalidadesInativasData, vencimentosData, statsData, pagamentosMes] = await Promise.all([
         mensalidadeService.getAll(true),
@@ -194,13 +218,11 @@ export default function FinanceiroPage() {
   }
 
   const handleAlterarVencimento = async (mensalidade) => {
-    const hoje = new Date()
-    const ano = hoje.getFullYear()
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0')
+    const { year: ano, month: mes } = getCurrentYearMonthBrazil()
     const dia = String(mensalidade.dia_vencimento || 1).padStart(2, '0')
 
     setMensalidadeParaVencimento(mensalidade)
-    setNovaDataVencimento(`${ano}-${mes}-${dia}`)
+    setNovaDataVencimento(`${ano}-${String(mes).padStart(2, '0')}-${dia}`)
     setShowVencimentoModal(true)
   }
 
@@ -221,7 +243,7 @@ export default function FinanceiroPage() {
       // Pegar o pagamento do mês atual
       const pagamentos = await mensalidadeService.getPagamentos({
         paciente_id: mensalidadeParaVencimento.paciente_id,
-        mes_referencia: new Date().toISOString().slice(0, 7) + '-01'
+        mes_referencia: getFirstDayOfMonthBrazil()
       })
 
       if (pagamentos.length > 0) {
@@ -295,6 +317,29 @@ export default function FinanceiroPage() {
     )
   }
 
+  // Verificação de acesso - mostrar tela de erro se não autorizado
+  if (hasAccess === false) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-center">
+        <ShieldX className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-xl font-semibold text-neutral-900 mb-2">Acesso Negado</h2>
+        <p className="text-neutral-600 mb-4">
+          Você não tem permissão para acessar esta página.
+        </p>
+        <p className="text-sm text-neutral-500">Redirecionando...</p>
+      </div>
+    )
+  }
+
+  // Aguardando verificação de acesso
+  if (hasAccess === null) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -304,25 +349,24 @@ export default function FinanceiroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900">Financeiro</h1>
-            <p className="text-sm text-neutral-600 mt-1">Gerencie mensalidades e pagamentos</p>
-          </div>
-          <button
-            onClick={() => {
-              setSelectedMensalidade(null)
-              setShowModal(true)
-            }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-5 h-5" />
-            <span className="font-medium">Nova Mensalidade</span>
-          </button>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-neutral-900">Financeiro</h1>
+          <p className="text-sm text-neutral-500 mt-0.5">Gerencie mensalidades e pagamentos</p>
         </div>
+        <button
+          onClick={() => {
+            setSelectedMensalidade(null)
+            setShowModal(true)
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors shadow-sm self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4" />
+          Nova Mensalidade
+        </button>
+      </div>
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm p-1 flex gap-1 overflow-x-auto">
@@ -358,53 +402,53 @@ export default function FinanceiroPage() {
 
         {/* Estatísticas - Apenas para aba ativas */}
         {abaAtiva === 'ativas' && estatisticas && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <Users className="w-6 h-6 text-blue-600" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-50 rounded-lg flex-shrink-0">
+                  <Users className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Mensalidades Ativas</p>
-                  <p className="text-2xl font-bold text-neutral-900">{estatisticas.total_mensalidades_ativas}</p>
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Ativas</p>
+                  <p className="text-xl font-bold text-neutral-900">{estatisticas.total_mensalidades_ativas}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-yellow-50 rounded-lg">
-                  <Clock className="w-6 h-6 text-yellow-600" />
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-yellow-50 rounded-lg flex-shrink-0">
+                  <Clock className="w-4 h-4 text-yellow-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Pendentes</p>
-                  <p className="text-2xl font-bold text-neutral-900">{estatisticas.total_pagamentos_pendentes}</p>
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Pendentes</p>
+                  <p className="text-xl font-bold text-neutral-900">{estatisticas.total_pagamentos_pendentes}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-red-50 rounded-lg">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-red-50 rounded-lg flex-shrink-0">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Valor Pendente</p>
-                  <p className="text-xl font-bold text-neutral-900">
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Pendente R$</p>
+                  <p className="text-sm font-bold text-neutral-900 truncate">
                     {formatCurrency(estatisticas.valor_total_pendente)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-neutral-100">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-green-600" />
+            <div className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-green-50 rounded-lg flex-shrink-0">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 font-medium mb-0.5">Recebido no Mês</p>
-                  <p className="text-xl font-bold text-neutral-900">
+                  <p className="text-xs text-neutral-500 mb-0.5 truncate">Recebido Mês</p>
+                  <p className="text-sm font-bold text-neutral-900 truncate">
                     {formatCurrency(estatisticas.valor_total_recebido_mes)}
                   </p>
                 </div>
@@ -464,7 +508,10 @@ export default function FinanceiroPage() {
                   <div className="flex-1">
                     <p className="font-semibold text-neutral-900">{venc.paciente_nome}</p>
                     <p className="text-sm text-neutral-600 mt-1">
-                      Vence em {venc.dias_ate_vencimento} dia{venc.dias_ate_vencimento !== 1 ? 's' : ''} • {new Date(venc.data_vencimento).toLocaleDateString('pt-BR')}
+                      Vence em {venc.dias_ate_vencimento} dia{venc.dias_ate_vencimento !== 1 ? 's' : ''} • {(() => {
+                        const date = parseDateSafe(venc.data_vencimento)
+                        return date ? date.toLocaleDateString('pt-BR') : 'Data inválida'
+                      })()}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -560,7 +607,10 @@ export default function FinanceiroPage() {
 
                       {abaAtiva === 'inativas' && mensalidade.data_inativacao && (
                         <div className="text-sm text-neutral-600">
-                          Inativada em {new Date(mensalidade.data_inativacao).toLocaleDateString('pt-BR')}
+                          Inativada em {(() => {
+                            const date = parseDateSafe(mensalidade.data_inativacao)
+                            return date ? date.toLocaleDateString('pt-BR') : 'Data inválida'
+                          })()}
                         </div>
                       )}
 
@@ -731,7 +781,10 @@ export default function FinanceiroPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-neutral-600">
                             {mensalidade.data_inativacao 
-                              ? new Date(mensalidade.data_inativacao).toLocaleDateString('pt-BR')
+                              ? (() => {
+                                const date = parseDateSafe(mensalidade.data_inativacao)
+                                return date ? date.toLocaleDateString('pt-BR') : 'Data inválida'
+                              })()
                               : '-'
                             }
                           </div>
@@ -828,7 +881,7 @@ export default function FinanceiroPage() {
                   <div className="p-2 bg-primary-50 rounded-lg">
                     <DollarSign className="w-5 h-5 text-primary-600" />
                   </div>
-                  <h2 className="text-xl font-bold text-neutral-900">
+                  <h2 className="text-base font-semibold text-neutral-900">
                     {selectedMensalidade ? 'Editar Mensalidade' : 'Nova Mensalidade'}
                   </h2>
                 </div>
@@ -956,7 +1009,7 @@ export default function FinanceiroPage() {
                   <div className="p-2 bg-yellow-50 rounded-lg">
                     <Calendar className="w-5 h-5 text-yellow-600" />
                   </div>
-                  <h2 className="text-xl font-bold text-neutral-900">
+                  <h2 className="text-base font-semibold text-neutral-900">
                     Alterar Vencimento
                   </h2>
                 </div>
@@ -1094,6 +1147,5 @@ export default function FinanceiroPage() {
           </div>
         )}
       </div>
-    </div>
   )
 }

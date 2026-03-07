@@ -26,28 +26,28 @@ export const ROLE_NAMES = {
 const PERMISSIONS = {
   dashboard: ['admin', 'recepcao'],
   pacientes: {
-    view: ['admin', 'recepcao', 'fono', 'medico'],
+    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
     create: ['admin', 'recepcao'],
     edit: ['admin', 'recepcao'],
     delete: ['admin']
   },
   agenda: {
-    view: ['admin', 'recepcao'],
+    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
     create: ['admin', 'recepcao'],
     edit: ['admin', 'recepcao'],
     delete: ['admin', 'recepcao']
   },
   prontuarios: {
-    view: ['admin', 'recepcao', 'fono', 'medico'],
-    create: ['fono', 'medico'],
-    edit: ['fono', 'medico'],
-    delete: ['admin', 'fono', 'medico']
+    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
+    create: ['fono', 'medico', 'profissional'],
+    edit: ['fono', 'medico', 'profissional'],
+    delete: ['admin', 'fono', 'medico', 'profissional']
   },
   relatorios: {
-    view: ['admin', 'recepcao', 'fono', 'medico'],
-    create: ['fono', 'medico'],
-    edit: ['fono', 'medico'],
-    delete: ['fono', 'medico']
+    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
+    create: ['fono', 'medico', 'profissional'],
+    edit: ['fono', 'medico', 'profissional'],
+    delete: ['fono', 'medico', 'profissional']
   },
   financeiro: {
     view: ['admin', 'recepcao'],
@@ -56,9 +56,9 @@ const PERMISSIONS = {
     delete: ['admin']
   },
   frequencia: {
-    view: ['admin', 'recepcao', 'fono', 'medico'],
-    create: ['fono', 'medico'],
-    edit: ['fono', 'medico'],
+    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
+    create: ['fono', 'medico', 'profissional'],
+    edit: ['fono', 'medico', 'profissional'],
     delete: ['admin']
   },
   usuarios: {

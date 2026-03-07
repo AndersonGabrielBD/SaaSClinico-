@@ -8,16 +8,22 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute'
 export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  const closeSidebar = () => setSidebarOpen(false)
+
   return (
     <ProtectedRoute>
       <div className="flex h-screen overflow-hidden bg-neutral-50">
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        {/* Sidebar */}
+        <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
         
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header onMenuClick={() => setSidebarOpen(true)} />
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
           
-          <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-            {children}
+          <main className="flex-1 overflow-y-auto">
+            <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6">
+              {children}
+            </div>
           </main>
         </div>
       </div>

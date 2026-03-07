@@ -80,8 +80,14 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true)
         setUser(response.user)
         
-        // Redirecionar apenas após sucesso completo
-        router.replace('/dashboard')
+        // Redirecionar baseado no role do usuário
+        const userRole = response.user.role?.toLowerCase()
+        if (userRole === 'admin' || userRole === 'recepcao') {
+          router.replace('/dashboard')
+        } else {
+          // Profissionais vão para a lista de pacientes
+          router.replace('/pacientes')
+        }
         return response
       } else {
         throw new Error('Resposta inválida do servidor')
@@ -134,17 +140,21 @@ export function AuthProvider({ children }) {
     try {
       setLoading(true)
       
-      // Limpar localStorage
+      // Limpar todo o localStorage para evitar estados residuais
       if (typeof window !== 'undefined') {
-        localStorage.removeItem(TOKEN_KEY)
-        localStorage.removeItem(USER_KEY)
+        localStorage.clear()
+        sessionStorage.clear()
       }
 
       setIsAuthenticated(false)
       setUser(null)
-      router.replace('/login')
+      
+      // Forçar recarregamento completo para limpar qualquer estado em memória
+      window.location.href = '/login'
     } catch (error) {
       console.error('Erro ao fazer logout:', error)
+      // Em caso de erro, ainda tentar redirecionar
+      window.location.href = '/login'
     } finally {
       setLoading(false)
     }

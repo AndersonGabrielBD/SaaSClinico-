@@ -3,9 +3,16 @@
 @import "tailwindcss/utilities";
 
 :root {
-  --primary-color: #2D6A4F;
-  --secondary-color: #F8F9FA;
-  --neutral-color: #E9ECEF;
+  --primary-50: #f0faf5;
+  --primary-100: #dcf2e8;
+  --primary-500: #2D6A4F;
+  --primary-600: #256347;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-card-hover: 0 4px 12px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-modal: 0 20px 60px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.1);
 }
 
 * {
@@ -14,69 +21,68 @@
   box-sizing: border-box;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: var(--secondary-color);
+html {
+  scroll-behavior: smooth;
 }
 
-/* Custom Scrollbar */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8F9FA;
+  color: #212529;
+}
+
+/* Refined Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+  background: #DEE2E6;
+  border-radius: 99px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #ADB5BD;
 }
 
-/* Loading Animation */
-@keyframes spin {
-  to { transform: rotate(360deg); }
+/* Focus ring for accessibility */
+*:focus-visible {
+  outline: 2px solid #2D6A4F;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-.animate-spin {
-  animation: spin 1s linear infinite;
+/* Smooth transitions globally */
+a, button {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 
-/* Card Shadow */
-.card-shadow {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+/* Card pattern */
+.card {
+  background: #fff;
+  border-radius: var(--radius-md);
+  border: 1px solid #E9ECEF;
+  box-shadow: var(--shadow-card);
 }
 
-.card-shadow-lg {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-/* Mobile First - Bottom Sheet Animation */
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-.bottom-sheet {
-  animation: slideUp 0.3s ease-out;
+.card:hover {
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* Skeleton Loading */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 .skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s ease-in-out infinite;
 }

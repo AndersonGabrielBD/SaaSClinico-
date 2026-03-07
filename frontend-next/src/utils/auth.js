@@ -100,11 +100,12 @@ export function hasPermission(requiredRole) {
   const role = getUserRole();
   if (!role) return false;
   
-  // Hierarquia de permissões: admin > fono > medico > recepcao
+  // Hierarquia de permissões: admin > fono/medico/profissional > recepcao
   const roleHierarchy = {
     'admin': 4,
     'fono': 3,
-    'medico': 2,
+    'medico': 3,
+    'profissional': 3,
     'recepcao': 1,
   };
   
@@ -124,6 +125,11 @@ export function isFono() {
 
 export function isMedico() {
   return getUserRole() === 'medico';
+}
+
+export function isProfissional() {
+  const role = getUserRole();
+  return role === 'fono' || role === 'medico' || role === 'profissional';
 }
 
 export function isRecepcao() {

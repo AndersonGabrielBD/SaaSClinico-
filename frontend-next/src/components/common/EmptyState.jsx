@@ -6,19 +6,19 @@ export default function EmptyState({
   actionLabel 
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       {icon && (
-        <div className="mb-4 text-neutral-400">
+        <div className="mb-4 p-4 rounded-2xl bg-neutral-100 text-neutral-400">
           {icon}
         </div>
       )}
       
-      <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+      <h3 className="text-base font-semibold text-neutral-800 mb-1.5">
         {title}
       </h3>
       
       {description && (
-        <p className="text-neutral-600 mb-6 max-w-md">
+        <p className="text-sm text-neutral-500 mb-6 max-w-sm">
           {description}
         </p>
       )}
@@ -26,7 +26,7 @@ export default function EmptyState({
       {action && actionLabel && (
         <button
           onClick={action}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
         >
           {actionLabel}
         </button>

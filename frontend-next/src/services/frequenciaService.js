@@ -59,5 +59,23 @@ export const frequenciaService = {
    */
   async delete(id) {
     return await api.delete(`/frequencia/${id}`);
+  },
+
+  /**
+   * Lista estatísticas de frequência de todos os pacientes
+   * Admin/Recepcao: todos os pacientes
+   * Profissionais: apenas seus pacientes vinculados
+   */
+  async getEstatisticasTodosPacientes() {
+    return await api.get('/frequencia/todos-pacientes');
+  },
+
+  /**
+   * Busca resumo mensal de consultas para cálculo de pagamento
+   * @param {string} ano - Ex: "2026"
+   * @param {string} mes - Ex: "02"
+   */
+  async getResumoMensal(ano, mes) {
+    return await api.get(`/frequencia/resumo-mensal?ano=${ano}&mes=${mes}`);
   }
 };

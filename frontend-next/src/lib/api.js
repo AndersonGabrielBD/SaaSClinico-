@@ -5,12 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 // Helper para fazer requisições
 async function request(endpoint, options = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  
-  console.log('🌐 [API REQUEST] ====================');
-  console.log('🌐 [API REQUEST] Endpoint:', endpoint);
-  console.log('🌐 [API REQUEST] Method:', options.method || 'GET');
-  console.log('🌐 [API REQUEST] Token presente:', !!token);
-  
+
   const config = {
     ...options,
     headers: {
@@ -18,58 +13,69 @@ async function request(endpoint, options = {}) {
       ...options.headers,
     },
   };
-  
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
-  if (options.body) {
-    console.log('🌐 [API REQUEST] Body:', options.body);
-  }
-  
-  console.log('🌐 [API REQUEST] URL completa:', `${API_URL}${endpoint}`);
-  console.log('🌐 [API REQUEST] Headers:', config.headers);
-  
+
   try {
     const response = await fetch(`${API_URL}${endpoint}`, config);
-    
-    console.log('🌐 [API RESPONSE] Status:', response.status, response.statusText);
-    
+
     if (!response.ok) {
-      // Só redireciona para login em 401 se NÃO estiver na página de login
-      // e NÃO for uma tentativa de login/signup
       const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/signup');
       const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
-      
+
       if (response.status === 401 && typeof window !== 'undefined' && !isAuthEndpoint && !isLoginPage) {
-        console.warn('⚠️ [API] 401 Unauthorized - Redirecionando para login');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.href = '/login';
       }
-      
+
       const errorText = await response.text();
-      
       let error;
       try {
         error = JSON.parse(errorText);
       } catch {
         error = { error: errorText || 'Erro desconhecido' };
       }
-      
-      const errorMessage = error.error || error.message || 'Erro na requisição';
-      console.error('❌ [API ERROR]', response.status, errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(error.error || error.message || 'Erro na requisição');
     }
-    
-    const data = await response.json();
-    console.log('✅ [API RESPONSE] Success');
-    console.log('🌐 [API REQUEST] ====================');
-    return data;
-    
+
+    return response.json();
+
   } catch (error) {
-    console.error('❌ [API ERROR]', error.message);
-    console.log('🌐 [API REQUEST] ====================');
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[API]', endpoint, error.message);
+    }
+    throw error;
+  }
+}
+
+// Helper para download de arquivos (blob)
+async function downloadFile(endpoint, options = {}) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  const config = {
+    ...options,
+    headers: { ...options.headers },
+  };
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, config);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Erro ao baixar arquivo');
+    }
+
+    const blob = await response.blob();
+    return { data: blob };
+
+  } catch (error) {
     throw error;
   }
 }
@@ -109,6 +115,12 @@ export const api = {
   },
   delete: (endpoint, options = {}) => {
     return request(endpoint, { ...options, method: 'DELETE' });
+  },
+  // Download de arquivos (retorna blob)
+  download: (endpoint, options = {}) => {
+    const { params, ...restOptions } = options;
+    const queryString = params ? buildQueryString(params) : '';
+    return downloadFile(`${endpoint}${queryString}`, { ...restOptions, method: 'GET' });
   },
   // Auth methods
   login: (email, password) => {
@@ -307,7 +319,7 @@ export const deleteUsuario = (id) => {
 };
 
 export const getProfissionais = (filters = {}) => {
-  const params = new URLSearchParams({ ...filters, role: 'fono,medico' });
+  const params = new URLSearchParams({ ...filters, role: 'fono,medico,profissional' });
   return request(`/usuarios?${params}`);
 };
 

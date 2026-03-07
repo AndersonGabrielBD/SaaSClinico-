@@ -13,20 +13,22 @@ import {
   Calendar, 
   Edit, 
   Trash2, 
-  Eye, 
-  EyeOff,
   AlertTriangle,
   Pill,
   Clock,
-  UserCircle
+  UserCircle,
+  FileDown
 } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import ProntuarioForm from '@/components/prontuarios/ProntuarioForm'
+import Toast from '@/components/common/Toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+import { api } from '@/lib/api'
+import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function ProntuarioDetailPage() {
   const params = useParams()
@@ -37,6 +39,12 @@ export default function ProntuarioDetailPage() {
   const [paciente, setPaciente] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type })
+  }
 
   useEffect(() => {
     if (prontuarioId) {
@@ -62,7 +70,7 @@ export default function ProntuarioDetailPage() {
       }
     } catch (error) {
       console.error('❌ [PRONTUARIO DETAIL] Erro ao carregar prontuário:', error)
-      alert('Erro ao carregar prontuário')
+      showToast('Erro ao carregar prontuário', 'error')
     } finally {
       setLoading(false)
     }
@@ -80,13 +88,39 @@ export default function ProntuarioDetailPage() {
       router.push('/prontuarios')
     } catch (error) {
       console.error('❌ Erro ao excluir prontuário:', error)
-      alert('Erro ao excluir prontuário')
+      showToast('Erro ao excluir prontuário', 'error')
     }
   }
 
   const handleSave = async () => {
     setEditModalOpen(false)
     await loadProntuario()
+  }
+
+  const handleExportPdf = async () => {
+    try {
+      setExportingPdf(true)
+      
+      // Fazer requisição para exportar PDF
+      const response = await api.download(`/prontuarios/${prontuarioId}/export-pdf`)
+      
+      // Criar link para download
+      const url = window.URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      const pacienteNome = paciente?.nome_completo?.replace(/ /g, '_').toLowerCase() || 'prontuario'
+      link.setAttribute('download', `prontuario_${pacienteNome}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error)
+      showToast('Erro ao exportar prontuário em PDF', 'error')
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   if (loading) {
@@ -137,6 +171,14 @@ export default function ProntuarioDetailPage() {
         </div>
         
         <div className="flex gap-2">
+          <Button 
+            onClick={handleExportPdf} 
+            variant="outline" 
+            icon={<FileDown className="w-4 h-4" />}
+            disabled={exportingPdf}
+          >
+            {exportingPdf ? 'Gerando...' : 'Exportar PDF'}
+          </Button>
           <Button onClick={handleEdit} variant="secondary" icon={<Edit className="w-4 h-4" />}>
             Editar
           </Button>
@@ -144,21 +186,6 @@ export default function ProntuarioDetailPage() {
             Excluir
           </Button>
         </div>
-      </div>
-
-      {/* Status Badge */}
-      <div className="flex items-center gap-3">
-        {prontuario.visivel_para_paciente ? (
-          <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full flex items-center gap-1">
-            <Eye className="w-4 h-4" />
-            Visível para o paciente
-          </span>
-        ) : (
-          <span className="px-3 py-1 bg-neutral-200 text-neutral-700 text-sm font-medium rounded-full flex items-center gap-1">
-            <EyeOff className="w-4 h-4" />
-            Não visível para o paciente
-          </span>
-        )}
       </div>
 
       {/* Main Content */}
@@ -243,7 +270,10 @@ export default function ProntuarioDetailPage() {
                   <div>
                     <p className="text-xs text-neutral-500 mb-1">Data de Nascimento</p>
                     <p className="text-sm text-neutral-700">
-                      {format(new Date(paciente.data_nascimento), 'dd/MM/yyyy', { locale: ptBR })}
+                      {(() => {
+                        const date = parseDateSafe(paciente.data_nascimento)
+                        return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                      })()}
                     </p>
                   </div>
                 )}
@@ -253,10 +283,11 @@ export default function ProntuarioDetailPage() {
                     <p className="text-sm text-neutral-700">{paciente.telefone_principal}</p>
                   </div>
                 )}
-                <Link href={`/pacientes/${paciente.id}`}>
-                  <Button variant="secondary" size="sm" className="w-full mt-2">
-                    Ver Perfil Completo
-                  </Button>
+                <Link 
+                  href={`/pacientes/${paciente.id}`}
+                  className="inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors duration-200 bg-neutral-200 text-neutral-900 hover:bg-neutral-300 active:bg-neutral-400 px-3 py-1.5 text-sm w-full mt-2"
+                >
+                  Ver Perfil Completo
                 </Link>
               </div>
             </div>
@@ -276,23 +307,29 @@ export default function ProntuarioDetailPage() {
               <div>
                 <p className="text-xs text-neutral-500 mb-1">Criado em</p>
                 <p className="text-sm text-neutral-700">
-                  {format(new Date(prontuario.data_criacao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  {(() => {
+                    const date = parseDateSafe(prontuario.data_criacao)
+                    return date ? format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Data inválida'
+                  })()}
                 </p>
               </div>
               {prontuario.data_atualizacao && prontuario.data_atualizacao !== prontuario.data_criacao && (
                 <div>
                   <p className="text-xs text-neutral-500 mb-1">Última atualização</p>
                   <p className="text-sm text-neutral-700">
-                    {format(new Date(prontuario.data_atualizacao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    {(() => {
+                      const date = parseDateSafe(prontuario.data_atualizacao)
+                      return date ? format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Data inválida'
+                    })()}
                   </p>
                 </div>
               )}
-              {prontuario.criado_por && (
+              {(prontuario.criado_por_nome || prontuario.criado_por) && (
                 <div>
                   <p className="text-xs text-neutral-500 mb-1">Criado por</p>
                   <p className="text-sm text-neutral-700 flex items-center gap-1">
                     <UserCircle className="w-4 h-4" />
-                    {prontuario.criado_por}
+                    {prontuario.criado_por_nome || prontuario.criado_por}
                   </p>
                 </div>
               )}
@@ -341,6 +378,13 @@ export default function ProntuarioDetailPage() {
           />
         </Modal>
       )}
+
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(prev => ({ ...prev, show: false }))}
+      />
     </div>
   )
 }

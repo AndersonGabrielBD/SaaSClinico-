@@ -215,9 +215,9 @@ def atualizar_frequencia(frequencia_id):
 
 @frequencia_bp.route('/<frequencia_id>', methods=['DELETE'])
 @require_auth
-@require_roles(['admin'])
+@require_roles(['admin', 'recepcao'])
 def deletar_frequencia(frequencia_id):
-    """Deleta um registro de frequência (apenas admin)"""
+    """Deleta um registro de frequência (admin e recepcionista)"""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
@@ -229,4 +229,74 @@ def deletar_frequencia(frequencia_id):
         
     except Exception as e:
         logger.error(f"❌ Erro ao deletar frequência: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@frequencia_bp.route('/todos-pacientes', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+def listar_estatisticas_todos_pacientes():
+    """
+    Lista estatísticas de frequência de todos os pacientes.
+    - Admin/Recepcao: veem todos os pacientes
+    - Profissionais: veem apenas pacientes vinculados a eles
+    """
+    try:
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user['user_id']
+        
+        service = FrequenciaService()
+        
+        # Se for profissional, filtra apenas seus pacientes
+        if user_role in ['fono', 'medico', 'profissional']:
+            stats = service.listar_estatisticas_pacientes_profissional(
+                clinica_id, user_id
+            )
+        else:
+            # Admin e recepção veem todos
+            stats = service.listar_estatisticas_todos_pacientes(clinica_id)
+        
+        return jsonify(stats), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao listar estatísticas de todos pacientes: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@frequencia_bp.route('/resumo-mensal', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+def get_resumo_mensal():
+    """
+    Retorna resumo mensal de consultas para cálculo de pagamento dos profissionais.
+    Agrupa por profissional e por paciente, com detalhes de datas.
+    """
+    try:
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user['user_id']
+        
+        # Query params
+        ano = request.args.get('ano')
+        mes = request.args.get('mes')
+        
+        if not ano or not mes:
+            return jsonify({'error': 'Parâmetros ano e mes são obrigatórios'}), 400
+        
+        service = FrequenciaService()
+        
+        # Se for profissional, filtra apenas seus dados
+        profissional_id = None
+        if user_role in ['fono', 'medico', 'profissional']:
+            profissional_id = user_id
+        
+        resumo = service.get_resumo_mensal(clinica_id, ano, mes, profissional_id)
+        
+        return jsonify(resumo), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar resumo mensal: {str(e)}")
         return jsonify({'error': str(e)}), 500

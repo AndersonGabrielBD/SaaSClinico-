@@ -5,8 +5,13 @@ import { AuthProvider } from '@/context/AuthContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'FonoFlow - Gestão de Clínicas de Fonoaudiologia',
+  title: 'ClinFlow - Gestão de Clínicas de Fonoaudiologia',
   description: 'SaaS Multi-tenant para gestão completa de clínicas de fonoaudiologia',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({ children }) {

@@ -6,6 +6,8 @@ import { agendamentoService } from '@/services/agendamentoService'
 import { pacienteService } from '@/services/pacienteService'
 import * as api from '@/lib/api'
 import Button from '../common/Button'
+import { getTodayBrazil } from '@/lib/dateUtils'
+import { getUserRole } from '@/utils/auth'
 interface AgendamentoFormProps {
   agendamento?: Agendamento | null
   onSuccess: () => void
@@ -23,7 +25,7 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }: Ag
     paciente_id: agendamento?.paciente_id || '',
     profissional_id: agendamento?.profissional_id || '',
     sala_id: agendamento?.sala_id || '',
-    data_agendamento: agendamento?.data_agendamento || new Date().toISOString().split('T')[0],
+    data_agendamento: agendamento?.data_agendamento || getTodayBrazil(),
     horario_inicio: agendamento?.horario_inicio || '',
     horario_fim: agendamento?.horario_fim || '',
     tipo_atendimento: agendamento?.tipo_atendimento || 'Avaliação',
@@ -41,8 +43,25 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }: Ag
       setPacientes(pacientesData)
 
       // Carregar profissionais
-      const profData = await api.getProfissionais({ ativo: true })
-      setProfissionais(profData?.data || profData || [])
+      let profData = await api.getProfissionais({ ativo: true })
+      profData = profData?.data || profData || []
+      
+      // Se for profissional, filtrar apenas a si mesmo
+      const userRole = getUserRole()
+      const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
+      if (isProfissional) {
+        const userInfo = localStorage.getItem('user_info')
+        if (userInfo) {
+          try {
+            const user = JSON.parse(userInfo)
+            profData = profData.filter((p: any) => p.id === user.id)
+          } catch (e) {
+            console.error('Erro ao parsear user_info:', e)
+          }
+        }
+      }
+      
+      setProfissionais(profData)
 
       // Carregar salas
       const salasData = await api.getSalas({ ativo: true })
@@ -71,10 +90,15 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }: Ag
     try {
       setLoading(true)
 
+      const payload = {
+        ...formData,
+        sala_id: formData.sala_id || null
+      }
+
       if (agendamento) {
-        await agendamentoService.update(agendamento.id, formData)
+        await agendamentoService.update(agendamento.id, payload)
       } else {
-        await agendamentoService.create(formData)
+        await agendamentoService.create(payload)
       }
 
       onSuccess()
@@ -122,7 +146,8 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }: Ag
           <select
             value={formData.profissional_id}
             onChange={(e) => setFormData({ ...formData, profissional_id: e.target.value })}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+            disabled={['fono', 'medico', 'profissional'].includes(getUserRole())}
+            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none disabled:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-75"
             required
           >
             <option value="">Selecione um profissional</option>
@@ -132,25 +157,29 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }: Ag
               </option>
             ))}
           </select>
+          {['fono', 'medico', 'profissional'].includes(getUserRole()) && (
+            <p className="text-xs text-neutral-500 mt-1">Profissionais criam agendamentos apenas para si mesmos</p>
+          )}
         </div>
 
         {/* Sala */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Sala
+            Sala (opcional)
           </label>
           <select
             value={formData.sala_id}
             onChange={(e) => setFormData({ ...formData, sala_id: e.target.value })}
             className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
           >
-            <option value="">Selecione uma sala</option>
+            <option value="">Sem sala definida</option>
             {salas.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nome}
               </option>
             ))}
           </select>
+          <p className="text-xs text-neutral-500 mt-1">Você pode criar o agendamento sem informar sala.</p>
         </div>
 
         {/* Tipo de Atendimento */}

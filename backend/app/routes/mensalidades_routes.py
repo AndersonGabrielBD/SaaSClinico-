@@ -65,6 +65,7 @@ def buscar_mensalidade(mensalidade_id):
 
 @mensalidades_bp.route('/paciente/<paciente_id>', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def buscar_mensalidade_paciente(paciente_id):
     """Busca mensalidade de um paciente específico"""
     try:

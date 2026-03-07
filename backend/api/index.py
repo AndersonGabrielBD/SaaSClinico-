@@ -9,9 +9,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app
 
-# Cria a aplicação Flask
+# Vercel uses the 'app' variable as the WSGI entrypoint
 app = create_app()
-
-# Vercel handler
-handler = app
 

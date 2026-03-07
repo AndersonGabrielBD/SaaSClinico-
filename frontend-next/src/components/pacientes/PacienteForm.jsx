@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { pacienteService } from '@/services/pacienteService'
 import { usuarioService } from '@/services/usuarioService'
+import { ROLE_NAMES } from '@/utils/roles'
 import Button from '@/components/common/Button'
 
 export default function PacienteForm({ paciente, onSuccess, onCancel }) {
@@ -214,7 +215,7 @@ export default function PacienteForm({ paciente, onSuccess, onCancel }) {
                         {prof.nome_completo}
                       </p>
                       <p className="text-xs text-neutral-500">
-                        {prof.role === 'fono' ? 'Fonoaudiólogo' : 'Médico'}
+                        {prof.role === 'fono' ? 'Fonoaudiólogo' : 'Profissional'}
                         {prof.especialidade && ` - ${prof.especialidade}`}
                       </p>
                     </div>

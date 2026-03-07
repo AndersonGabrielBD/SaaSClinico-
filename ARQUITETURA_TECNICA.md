@@ -1123,7 +1123,7 @@ SECRET_KEY=your-flask-secret-key
 
 ```json
 {
-  "name": "fonoflow-web",
+  "name": "clinflow-web",
   "version": "1.0.0",
   "private": true,
   "scripts": {
