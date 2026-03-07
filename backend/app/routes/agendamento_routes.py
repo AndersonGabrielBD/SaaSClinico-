@@ -25,16 +25,9 @@ def get_agendamentos():
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
         
-        # Monta query diretamente no banco com todos os filtros via SQL
         client = get_supabase_client()
         query = client.table('agendamentos')\
-            .select('''
-                id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento,
-                observacoes, paciente_id, profissional_id, sala_id, clinica_id,
-                paciente:pacientes(id, nome_completo, telefone_principal),
-                profissional:usuarios!profissional_id(id, nome_completo, especialidade),
-                sala:salas(id, nome)
-            ''')\
+            .select('id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, observacoes, paciente_id, profissional_id, sala_id, clinica_id')\
             .eq('clinica_id', clinica_id)\
             .order('data_agendamento', desc=False)\
             .order('horario_inicio', desc=False)
@@ -53,15 +46,30 @@ def get_agendamentos():
             if data_fim:
                 query = query.lte('data_agendamento', data_fim)
 
-        result = query.execute()
-        agendamentos = result.data or []
+        agendamentos = query.execute().data or []
 
-        # Normaliza campos de nome para compatibilidade com frontend
+        # Enriquece com nomes via batch lookup
+        pac_ids = list({ag['paciente_id'] for ag in agendamentos if ag.get('paciente_id')})
+        prof_ids = list({ag['profissional_id'] for ag in agendamentos if ag.get('profissional_id')})
+
+        pacientes_map = {}
+        if pac_ids:
+            rows = client.table('pacientes').select('id, nome_completo').eq('clinica_id', clinica_id).in_('id', pac_ids).execute().data or []
+            pacientes_map = {r['id']: r['nome_completo'] for r in rows}
+
+        profissionais_map = {}
+        if prof_ids:
+            rows = client.table('usuarios').select('id, nome_completo').eq('clinica_id', clinica_id).in_('id', prof_ids).execute().data or []
+            profissionais_map = {r['id']: r['nome_completo'] for r in rows}
+
         for ag in agendamentos:
-            if isinstance(ag.get('paciente'), dict):
-                ag['paciente_nome'] = ag['paciente'].get('nome_completo')
-            if isinstance(ag.get('profissional'), dict):
-                ag['profissional_nome'] = ag['profissional'].get('nome_completo')
+            nome_pac = pacientes_map.get(ag.get('paciente_id'))
+            ag['paciente_nome'] = nome_pac
+            ag['paciente'] = {'id': ag['paciente_id'], 'nome_completo': nome_pac} if nome_pac else None
+
+            nome_prof = profissionais_map.get(ag.get('profissional_id'))
+            ag['profissional_nome'] = nome_prof
+            ag['profissional'] = {'id': ag['profissional_id'], 'nome_completo': nome_prof} if nome_prof else None
 
         return jsonify(agendamentos), 200
 
@@ -148,12 +156,12 @@ def update_agendamento(agendamento_id):
         
         data = request.get_json()
         
-        # Validar data se ela foi informada (não pode ser passada)
-        if data.get('data_agendamento'):
+        # Validar data apenas se estiver sendo alterada (não bloquear updates de status)
+        if data.get('data_agendamento') and len(data) > 1:
             data_agendamento = data.get('data_agendamento')
             hoje = today_brazil().isoformat()
             if data_agendamento < hoje:
-                return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
+                return jsonify({'error': 'Não é possível reagendar para datas passadas'}), 400
         
         repo = BaseRepository('agendamentos', clinica_id)
         

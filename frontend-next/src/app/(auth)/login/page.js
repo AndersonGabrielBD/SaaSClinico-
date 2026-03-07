@@ -105,7 +105,7 @@ export default function LoginPage() {
             Gestão clínica<br />simples e eficiente
           </h2>
           <p className="text-white/70 text-sm leading-relaxed">
-            Plataforma completa para clínicas de fonoaudiologia. Agenda, prontuários, financeiro e muito mais.
+            Plataforma completa para clínicas. Agenda, prontuários, financeiro e muito mais.
           </p>
         </div>
         <p className="text-white/40 text-xs">© 2026 ClinFlow</p>

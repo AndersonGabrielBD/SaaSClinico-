@@ -43,6 +43,7 @@ def create_app():
     from app.routes.dashboard_routes import dashboard_bp
     from app.routes.usuario_routes import usuario_bp
     from app.routes.sala_routes import sala_bp
+    from app.routes.tipo_atendimento_routes import tipo_atendimento_bp
     from app.routes.verificacao_routes import verificacao_bp
     from app.routes.financeiro_routes import financeiro_bp
     from app.routes.mensalidades_routes import mensalidades_bp
@@ -57,6 +58,7 @@ def create_app():
     app.register_blueprint(prontuario_bp, url_prefix='/prontuarios')
     app.register_blueprint(agendamento_bp, url_prefix='/agendamentos')
     app.register_blueprint(sala_bp, url_prefix='/salas')
+    app.register_blueprint(tipo_atendimento_bp, url_prefix='/tipos-atendimento')
     app.register_blueprint(verificacao_bp, url_prefix='/verificacao')
     app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
     app.register_blueprint(financeiro_bp, url_prefix='/financeiro')
