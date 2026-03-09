@@ -16,31 +16,25 @@ frequencia_bp = Blueprint('frequencia', __name__, url_prefix='/frequencia')
 
 @frequencia_bp.route('', methods=['POST'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def registrar_frequencia():
     """
     Registra frequência de atendimento.
-    Profissionais registram para seus próprios atendimentos.
-    Admin/Recepcao podem registrar para qualquer profissional.
+    Apenas Admin/Recepcao podem registrar frequência.
     """
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
         user_id = user['user_id']
-        user_role = user.get('role')
         
         # Validar dados
         dados = FrequenciaCreate(**request.json)
-        
-        # Se não for admin/recepcao, força profissional_id = user_id
-        profissional_id = dados.profissional_id
-        if user_role not in ['admin', 'recepcao']:
-            profissional_id = user_id
         
         service = FrequenciaService()
         frequencia = service.registrar_frequencia(
             clinica_id=clinica_id,
             paciente_id=dados.paciente_id,
-            profissional_id=profissional_id,
+            profissional_id=dados.profissional_id,
             data_atendimento=dados.data_atendimento,
             compareceu=dados.compareceu,
             registrado_por=user_id,
@@ -181,20 +175,15 @@ def listar_frequencia_profissional(profissional_id):
 
 @frequencia_bp.route('/<frequencia_id>', methods=['PUT'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def atualizar_frequencia(frequencia_id):
     """
     Atualiza um registro de frequência.
-    Profissional atualiza seus próprios, admin atualiza todos.
+    Apenas Admin/Recepcao podem atualizar frequência.
     """
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        user_role = user.get('role')
-        user_id = user['user_id']
-        
-        # Buscar frequência para verificar permissão
-        service = FrequenciaService()
-        # TODO: Adicionar método buscar_frequencia no service
         
         dados_atualizacao = request.json
         
@@ -202,6 +191,7 @@ def atualizar_frequencia(frequencia_id):
         dados_atualizacao.pop('profissional_id', None)
         dados_atualizacao.pop('paciente_id', None)
         
+        service = FrequenciaService()
         frequencia = service.atualizar_frequencia(
             frequencia_id, clinica_id, dados_atualizacao
         )
