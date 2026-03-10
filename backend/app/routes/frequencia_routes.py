@@ -290,3 +290,61 @@ def get_resumo_mensal():
     except Exception as e:
         logger.error(f"❌ Erro ao buscar resumo mensal: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@frequencia_bp.route('/export-pdf', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+def export_frequencia_pdf():
+    """Exporta relatório de frequência mensal em PDF"""
+    from flask import send_file
+    from app.services.pdf_service import PdfService
+    
+    try:
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user['user_id']
+        
+        # Query params
+        ano = request.args.get('ano')
+        mes = request.args.get('mes')
+        
+        if not ano or not mes:
+            return jsonify({'error': 'Parâmetros ano e mes são obrigatórios'}), 400
+        
+        logger.info(f"📄 [PDF] Exportando frequência mensal para clinica_id={clinica_id}, {mes}/{ano}")
+        
+        service = FrequenciaService()
+        
+        # Se for profissional, filtra apenas seus dados
+        profissional_id = None
+        if user_role in ['fono', 'medico', 'profissional']:
+            profissional_id = user_id
+        
+        # Buscar dados de frequência
+        frequencia_data = service.get_resumo_mensal(clinica_id, ano, mes, profissional_id)
+        
+        # Gerar PDF
+        pdf_service = PdfService()
+        filtros_info = {
+            'mes': mes,
+            'ano': ano
+        }
+        pdf_buffer = pdf_service.generate_frequencia_pdf(frequencia_data, filtros_info)
+        
+        # Gerar nome do arquivo
+        filename = f'frequencia_{mes}_{ano}.pdf'
+        
+        logger.info(f"✅ [PDF] Frequência exportada com sucesso: {filename}")
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao exportar PDF de frequência: {str(e)}")
+        return jsonify({'error': str(e)}), 500
