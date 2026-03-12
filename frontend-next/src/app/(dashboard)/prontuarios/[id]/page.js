@@ -206,6 +206,17 @@ export default function ProntuarioDetailPage() {
             </div>
           )}
 
+          {/* Queixas */}
+          {prontuario.queixas && (
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
+              <h2 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                Queixas
+              </h2>
+              <p className="text-neutral-700 whitespace-pre-wrap">{prontuario.queixas}</p>
+            </div>
+          )}
+
           {/* Diagnóstico Preliminar */}
           {prontuario.diagnostico_preliminar && (
             <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">

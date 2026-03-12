@@ -51,6 +51,7 @@ def create_app():
     from app.routes.frequencia_routes import frequencia_bp
     from app.routes.profissional_routes import profissional_bp
     from app.routes.senha_routes import senha_bp
+    from app.routes.pacote_routes import pacote_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(usuario_bp, url_prefix='/usuarios')
@@ -67,6 +68,7 @@ def create_app():
     app.register_blueprint(frequencia_bp, url_prefix='/frequencia')
     app.register_blueprint(profissional_bp, url_prefix='/profissionais')
     app.register_blueprint(senha_bp, url_prefix='/senha')
+    app.register_blueprint(pacote_bp, url_prefix='/pacotes')
 
     @app.route('/health')
     def health_check():
@@ -95,6 +97,7 @@ def create_app():
                 'relatorios': '/relatorios',
                 'frequencia': '/frequencia',
                 'profissionais': '/profissionais',
+                'pacotes': '/pacotes',
                 'health': '/health'
             }
         })

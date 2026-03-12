@@ -16,31 +16,25 @@ frequencia_bp = Blueprint('frequencia', __name__, url_prefix='/frequencia')
 
 @frequencia_bp.route('', methods=['POST'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def registrar_frequencia():
     """
     Registra frequência de atendimento.
-    Profissionais registram para seus próprios atendimentos.
-    Admin/Recepcao podem registrar para qualquer profissional.
+    Apenas Admin/Recepcao podem registrar frequência.
     """
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
         user_id = user['user_id']
-        user_role = user.get('role')
         
         # Validar dados
         dados = FrequenciaCreate(**request.json)
-        
-        # Se não for admin/recepcao, força profissional_id = user_id
-        profissional_id = dados.profissional_id
-        if user_role not in ['admin', 'recepcao']:
-            profissional_id = user_id
         
         service = FrequenciaService()
         frequencia = service.registrar_frequencia(
             clinica_id=clinica_id,
             paciente_id=dados.paciente_id,
-            profissional_id=profissional_id,
+            profissional_id=dados.profissional_id,
             data_atendimento=dados.data_atendimento,
             compareceu=dados.compareceu,
             registrado_por=user_id,
@@ -181,20 +175,15 @@ def listar_frequencia_profissional(profissional_id):
 
 @frequencia_bp.route('/<frequencia_id>', methods=['PUT'])
 @require_auth
+@require_roles(['admin', 'recepcao'])
 def atualizar_frequencia(frequencia_id):
     """
     Atualiza um registro de frequência.
-    Profissional atualiza seus próprios, admin atualiza todos.
+    Apenas Admin/Recepcao podem atualizar frequência.
     """
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        user_role = user.get('role')
-        user_id = user['user_id']
-        
-        # Buscar frequência para verificar permissão
-        service = FrequenciaService()
-        # TODO: Adicionar método buscar_frequencia no service
         
         dados_atualizacao = request.json
         
@@ -202,6 +191,7 @@ def atualizar_frequencia(frequencia_id):
         dados_atualizacao.pop('profissional_id', None)
         dados_atualizacao.pop('paciente_id', None)
         
+        service = FrequenciaService()
         frequencia = service.atualizar_frequencia(
             frequencia_id, clinica_id, dados_atualizacao
         )
@@ -299,4 +289,62 @@ def get_resumo_mensal():
         
     except Exception as e:
         logger.error(f"❌ Erro ao buscar resumo mensal: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@frequencia_bp.route('/export-pdf', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+def export_frequencia_pdf():
+    """Exporta relatório de frequência mensal em PDF"""
+    from flask import send_file
+    from app.services.pdf_service import PdfService
+    
+    try:
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user['user_id']
+        
+        # Query params
+        ano = request.args.get('ano')
+        mes = request.args.get('mes')
+        
+        if not ano or not mes:
+            return jsonify({'error': 'Parâmetros ano e mes são obrigatórios'}), 400
+        
+        logger.info(f"📄 [PDF] Exportando frequência mensal para clinica_id={clinica_id}, {mes}/{ano}")
+        
+        service = FrequenciaService()
+        
+        # Se for profissional, filtra apenas seus dados
+        profissional_id = None
+        if user_role in ['fono', 'medico', 'profissional']:
+            profissional_id = user_id
+        
+        # Buscar dados de frequência
+        frequencia_data = service.get_resumo_mensal(clinica_id, ano, mes, profissional_id)
+        
+        # Gerar PDF
+        pdf_service = PdfService()
+        filtros_info = {
+            'mes': mes,
+            'ano': ano
+        }
+        pdf_buffer = pdf_service.generate_frequencia_pdf(frequencia_data, filtros_info)
+        
+        # Gerar nome do arquivo
+        filename = f'frequencia_{mes}_{ano}.pdf'
+        
+        logger.info(f"✅ [PDF] Frequência exportada com sucesso: {filename}")
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao exportar PDF de frequência: {str(e)}")
         return jsonify({'error': str(e)}), 500

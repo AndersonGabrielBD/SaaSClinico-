@@ -21,6 +21,7 @@ export default function ProntuarioForm({
     paciente_id: prontuario?.paciente_id || initialPacienteId || '',
     titulo: prontuario?.titulo || '',
     descricao: prontuario?.descricao || '',
+    queixas: prontuario?.queixas || '',
     diagnostico_preliminar: prontuario?.diagnostico_preliminar || '',
     historico_clinico: prontuario?.historico_clinico || '',
     alergias: prontuario?.alergias || '',
@@ -146,6 +147,20 @@ export default function ProntuarioForm({
           rows={3}
           className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
           placeholder="Descrição geral do prontuário..."
+        />
+      </div>
+
+      {/* Queixas */}
+      <div>
+        <label className="block text-sm font-medium text-neutral-700 mb-2">
+          Queixas
+        </label>
+        <textarea
+          value={formData.queixas}
+          onChange={(e) => setFormData({ ...formData, queixas: e.target.value })}
+          rows={4}
+          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+          placeholder="Descreva as queixas principais do paciente..."
         />
       </div>
 

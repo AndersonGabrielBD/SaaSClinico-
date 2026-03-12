@@ -520,6 +520,103 @@ class PdfService:
         buffer.seek(0)
         return buffer
     
+    def generate_frequencia_pdf(self, frequencia_data, filtros=None):
+        """Gera PDF do relatório de frequência mensal por profissional"""
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+        story = []
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER))
+        
+        # Buscar dados da clínica do primeiro profissional
+        clinica_id = None
+        por_profissional = frequencia_data.get('por_profissional', [])
+        if por_profissional:
+            clinica_id = por_profissional[0].get('clinica_id')
+        
+        clinica_data = self._get_clinica_data(clinica_id) if clinica_id else {}
+        
+        self._create_header(story, clinica_data, styles)
+        
+        # Título
+        mes = filtros.get('mes', '') if filtros else ''
+        ano = filtros.get('ano', '') if filtros else ''
+        titulo = "RELATÓRIO DE FREQUÊNCIA MENSAL"
+        if mes and ano:
+            meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+            mes_nome = meses[int(mes) - 1] if 1 <= int(mes) <= 12 else mes
+            titulo += f"<br/>{mes_nome}/{ano}"
+        
+        story.append(Paragraph(f"<b>{titulo}</b>", styles['Title']))
+        story.append(Spacer(1, 0.5*cm))
+        
+        if not por_profissional:
+            story.append(Paragraph("Nenhuma frequência registrada no período.", styles['Normal']))
+        else:
+            # Renderizar cada profissional
+            for idx, prof in enumerate(por_profissional):
+                if idx > 0:
+                    story.append(Spacer(1, 1*cm))
+                
+                # Cabeçalho do profissional
+                prof_nome = prof.get('profissional_nome', 'N/A')
+                prof_role = prof.get('profissional_role', 'N/A')
+                
+                story.append(Paragraph(
+                    f"<b>{prof_nome}</b> - {prof_role}",
+                    styles['Heading2']
+                ))
+                
+                story.append(Spacer(1, 0.3*cm))
+                
+                # Tabela de pacientes atendidos
+                pacientes = prof.get('pacientes', [])
+                if pacientes:
+                    table_data = [['Paciente', 'Datas de Atendimento', 'Total']]
+                    
+                    for pac in pacientes:
+                        paciente_nome = pac.get('paciente_nome', 'N/A')
+                        datas = pac.get('datas', [])
+                        total = len(datas)
+                        
+                        # Formatar datas (mostrar até 3, depois resumir)
+                        if len(datas) <= 3:
+                            datas_str = ', '.join([self._format_date_short(d) for d in datas])
+                        else:
+                            primeiras = ', '.join([self._format_date_short(d) for d in datas[:3]])
+                            datas_str = f"{primeiras} ... (mais {len(datas) - 3})"
+                        
+                        table_data.append([paciente_nome, datas_str, str(total)])
+                    
+                    table = Table(table_data, colWidths=[6*cm, 8*cm, 2*cm])
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D6A4F')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('FONTSIZE', (0, 1), (-1, -1), 9),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+                    ]))
+                    
+                    story.append(table)
+                else:
+                    story.append(Paragraph("Nenhum paciente atendido.", styles['Normal']))
+        
+        # Rodapé com estatísticas gerais
+        story.append(Spacer(1, 1*cm))
+        story.append(Paragraph(f"<b>Profissionais ativos:</b> {len(por_profissional)}", styles['Normal']))
+        story.append(Paragraph(f"<b>Gerado em:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
+        
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+    
     def generate_prontuario_pdf(self, prontuario_data):
         """Gera PDF completo do prontuário com todas as evoluções"""
         buffer = BytesIO()
@@ -616,5 +713,24 @@ class PdfService:
                     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
             
             return f"{dt.day} de {meses[dt.month - 1]} de {dt.year}"
+        except:
+            return str(date_str)
+    
+    def _format_date_short(self, date_str):
+        """Formata data no formato curto (DD/MM/YYYY)"""
+        if not date_str:
+            return 'N/A'
+        
+        try:
+            if isinstance(date_str, str):
+                # Tentar diferentes formatos
+                if 'T' in date_str:
+                    dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                else:
+                    dt = datetime.strptime(date_str[:10], '%Y-%m-%d')
+            else:
+                dt = date_str
+            
+            return dt.strftime('%d/%m/%Y')
         except:
             return str(date_str)

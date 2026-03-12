@@ -77,5 +77,14 @@ export const frequenciaService = {
    */
   async getResumoMensal(ano, mes) {
     return await api.get(`/frequencia/resumo-mensal?ano=${ano}&mes=${mes}`);
+  },
+
+  /**
+   * Exporta relatório de frequência mensal em PDF
+   * @param {string} ano - Ex: "2026"
+   * @param {string} mes - Ex: "02"
+   */
+  async exportPdf(ano, mes) {
+    return await api.download(`/frequencia/export-pdf?ano=${ano}&mes=${mes}`);
   }
 };

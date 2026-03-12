@@ -216,7 +216,7 @@ class MensalidadeService:
                 .select('''
                     *,
                     pacientes(id, nome_completo),
-                    mensalidades_pacientes(valor_mensalidade),
+                    mensalidades_pacientes(valor_mensalidade, dia_vencimento),
                     registrador:usuarios!registrado_por(nome_completo)
                 ''') \
                 .eq('clinica_id', clinica_id)
@@ -246,6 +246,7 @@ class MensalidadeService:
                     item['paciente_nome'] = paciente.get('nome_completo')
                 if mensalidade:
                     item['valor_mensalidade'] = mensalidade.get('valor_mensalidade')
+                    item['dia_vencimento'] = mensalidade.get('dia_vencimento')
                 if registrador:
                     item['registrado_por_nome'] = registrador.get('nome_completo')
                 

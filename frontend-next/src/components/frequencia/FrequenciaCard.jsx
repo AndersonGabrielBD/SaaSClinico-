@@ -22,6 +22,9 @@ export default function FrequenciaCard({ pacienteId }) {
   })
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
 
+  // Verificar se é admin ou recepcionista (podem adicionar/editar frequências)
+  const canManageFrequencia = user?.role === 'admin' || user?.role === 'recepcao'
+
   useEffect(() => {
     loadEstatisticas()
   }, [pacienteId])
@@ -89,12 +92,14 @@ export default function FrequenciaCard({ pacienteId }) {
             <ExternalLink className="w-4 h-4" />
             Ver Resumo
           </Link>
-          <button
-            onClick={() => setShowRegistroModal(true)}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            Registrar Frequência
-          </button>
+          {canManageFrequencia && (
+            <button
+              onClick={() => setShowRegistroModal(true)}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Registrar Frequência
+            </button>
+          )}
         </div>
       </div>
 
