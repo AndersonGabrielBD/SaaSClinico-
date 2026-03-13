@@ -65,7 +65,7 @@ class PacoteService:
     def listar_tipos(self, clinica_id: str, ativo: Optional[bool] = None) -> List[Dict]:
         def operation():
             query = self.supabase.table('tipos_profissional') \
-                .select('*, usuarios(id, nome_completo)') \
+                .select('*') \
                 .eq('clinica_id', clinica_id) \
                 .order('nome')
             if ativo is not None:
