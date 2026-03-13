@@ -9,10 +9,12 @@ __version__ = "1.0.0"
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+from config import Config
 import os
 import logging
 
 load_dotenv()
+Config.validate()  # Falha na subida se SUPABASE_SERVICE_ROLE_KEY etc. faltando
 
 _log_level = logging.WARNING if os.getenv('ENVIRONMENT', 'development') == 'production' else logging.INFO
 logging.basicConfig(

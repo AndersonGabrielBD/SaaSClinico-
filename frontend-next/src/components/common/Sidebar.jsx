@@ -13,7 +13,8 @@ import {
   X,
   Activity,
   DoorOpen,
-  Tag
+  Tag,
+  Package
 } from 'lucide-react'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule } from '@/utils/roles'
@@ -25,7 +26,8 @@ const allMenuItems = [
   { name: 'Agenda', href: '/agenda', icon: Calendar, module: 'agenda' },
   { name: 'Prontuários', href: '/prontuarios', icon: FileText, module: 'prontuarios' },
   { name: 'Frequência', href: '/frequencia', icon: ClipboardCheck, module: 'frequencia' },
-  { name: 'Financeiro', href: '/financeiro', icon: DollarSign, module: 'financeiro' },
+  { name: 'Mensalidades', href: '/financeiro/mensalidades', icon: DollarSign, module: 'financeiro' },
+  { name: 'Pacotes', href: '/financeiro/pacotes', icon: Package, module: 'financeiro' },
   { name: 'Salas', href: '/salas', icon: DoorOpen, module: 'salas' },
   { name: 'Tipos de Atend.', href: '/tipos-atendimento', icon: Tag, module: 'tipos_atendimento' },
   { name: 'Configurações', href: '/configuracoes', icon: Settings, module: 'configuracoes' },

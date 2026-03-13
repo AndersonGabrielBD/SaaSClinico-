@@ -47,53 +47,93 @@ class PacoteService:
         raise last_error if last_error else Exception(f"Erro desconhecido em {operation_name}")
 
     # =========================================================================
+    # PROFISSIONAIS DISPONÍVEIS
+    # =========================================================================
+
+    def listar_profissionais(self, clinica_id: str) -> List[Dict]:
+        """Lista usuários com papel de profissional na clínica (para vincular a tipos/pacotes)."""
+        def operation():
+            resp = self.supabase.table('usuarios') \
+                .select('id, nome_completo, role, ativo') \
+                .eq('clinica_id', clinica_id) \
+                .in_('role', ['profissional', 'fono', 'medico']) \
+                .eq('ativo', True) \
+                .order('nome_completo') \
+                .execute()
+            return resp.data or []
+        return self._execute_with_retry(f"LISTAR_PROFISSIONAIS:{clinica_id}", operation)
+
+    # =========================================================================
     # TIPOS DE PROFISSIONAL
     # =========================================================================
 
     def listar_tipos(self, clinica_id: str, ativo: Optional[bool] = None) -> List[Dict]:
         def operation():
             query = self.supabase.table('tipos_profissional') \
-                .select('*') \
+                .select('*, usuarios!profissional_id(id, nome_completo)') \
                 .eq('clinica_id', clinica_id) \
                 .order('nome')
             if ativo is not None:
                 query = query.eq('ativo', ativo)
             response = query.execute()
-            return response.data or []
+            result = []
+            for row in (response.data or []):
+                profissional = row.pop('usuarios', None)
+                if profissional:
+                    row['profissional_nome'] = profissional.get('nome_completo')
+                else:
+                    row['profissional_nome'] = None
+                # Normaliza campo de valor
+                if row.get('valor_sessao') is None and row.get('valor_mensal') is not None:
+                    row['valor_sessao'] = row['valor_mensal']
+                result.append(row)
+            return result
         return self._execute_with_retry(f"LISTAR_TIPOS:{clinica_id}", operation)
 
     def buscar_tipo(self, tipo_id: str, clinica_id: str) -> Dict:
         def operation():
             response = self.supabase.table('tipos_profissional') \
-                .select('*') \
+                .select('*, usuarios!profissional_id(id, nome_completo)') \
                 .eq('id', tipo_id) \
                 .eq('clinica_id', clinica_id) \
                 .single() \
                 .execute()
             if not response.data:
                 raise ValueError('Tipo de profissional não encontrado')
-            return response.data
+            row = response.data
+            profissional = row.pop('usuarios', None)
+            row['profissional_nome'] = profissional.get('nome_completo') if profissional else None
+            if row.get('valor_sessao') is None and row.get('valor_mensal') is not None:
+                row['valor_sessao'] = row['valor_mensal']
+            return row
         return self._execute_with_retry(f"BUSCAR_TIPO:{tipo_id}", operation)
 
-    def criar_tipo(self, clinica_id: str, nome: str, valor_mensal: Decimal) -> Dict:
+    def criar_tipo(self, clinica_id: str, nome: str, valor_sessao: Decimal,
+                   profissional_id: Optional[str] = None) -> Dict:
         def operation():
             payload = {
                 'clinica_id': clinica_id,
                 'nome': nome.strip(),
-                'valor_mensal': float(valor_mensal),
+                'valor_sessao': float(valor_sessao),
+                'valor_mensal': float(valor_sessao),  # backward compat
                 'ativo': True,
             }
+            if profissional_id:
+                payload['profissional_id'] = profissional_id
             response = self.supabase.table('tipos_profissional').insert(payload).execute()
             if not response.data:
                 raise Exception('Erro ao criar tipo de profissional')
-            logger.info(f"✅ Tipo criado: {nome} - R$ {valor_mensal}")
+            logger.info(f"✅ Tipo criado: {nome} - R$ {valor_sessao}/sessão")
             return response.data[0]
         return self._execute_with_retry(f"CRIAR_TIPO:{clinica_id}", operation)
 
     def atualizar_tipo(self, tipo_id: str, clinica_id: str, dados: Dict) -> Dict:
         def operation():
-            if 'valor_mensal' in dados:
-                dados['valor_mensal'] = float(dados['valor_mensal'])
+            if 'valor_sessao' in dados:
+                dados['valor_sessao'] = float(dados['valor_sessao'])
+                dados['valor_mensal'] = dados['valor_sessao']  # backward compat
+            if 'valor_mensal' in dados and 'valor_sessao' not in dados:
+                dados['valor_sessao'] = float(dados['valor_mensal'])
             response = self.supabase.table('tipos_profissional') \
                 .update(dados) \
                 .eq('id', tipo_id) \
@@ -105,11 +145,7 @@ class PacoteService:
         return self._execute_with_retry(f"ATUALIZAR_TIPO:{tipo_id}", operation)
 
     def excluir_tipo(self, tipo_id: str, clinica_id: str) -> Dict:
-        """Exclui permanentemente um tipo de profissional.
-        Retorna erro se houver pacotes vinculados (integridade referencial).
-        """
         def operation():
-            # Verifica vínculos antes de excluir
             vinculados = self.supabase.table('pacotes_pacientes_itens') \
                 .select('id', count='exact') \
                 .eq('tipo_profissional_id', tipo_id) \
@@ -137,26 +173,27 @@ class PacoteService:
     def _calcular_valor_total(self, itens: List[Dict]) -> Decimal:
         total = Decimal('0')
         for item in itens:
-            vm = Decimal(str(item.get('valor_mensal', 0)))
-            qt = int(item.get('quantidade', 1))
-            total += vm * qt
+            vs = Decimal(str(item.get('valor_sessao') or item.get('valor_mensal') or 0))
+            qt = int(item.get('quantidade_sessoes') or item.get('quantidade') or 1)
+            total += vs * qt
         return total
 
     def _snapshot_valores_tipos(self, tipo_ids: List[str]) -> Dict[str, Decimal]:
-        """Busca os valores atuais dos tipos em uma única query e retorna um mapa {id: valor_mensal}."""
+        """Busca os valores atuais dos tipos e retorna {id: valor_sessao}."""
         if not tipo_ids:
             return {}
         resp = self.supabase.table('tipos_profissional') \
-            .select('id, valor_mensal') \
+            .select('id, valor_sessao, valor_mensal') \
             .in_('id', tipo_ids) \
             .execute()
-        return {row['id']: Decimal(str(row['valor_mensal'])) for row in (resp.data or [])}
+        result = {}
+        for row in (resp.data or []):
+            vs = row.get('valor_sessao') or row.get('valor_mensal') or 0
+            result[row['id']] = Decimal(str(vs))
+        return result
 
     def _enriquecer_pacote(self, pacote: Dict) -> Dict:
-        """Adiciona paciente_nome, itens com tipo e valor_total ao pacote.
-        Usa valor_mensal armazenado no item (snapshot do momento da criação/edição),
-        não o valor atual do tipo.
-        """
+        """Adiciona paciente_nome, itens enriquecidos e valor_total ao pacote."""
         paciente_data = pacote.pop('pacientes', None)
         if paciente_data:
             pacote['paciente_nome'] = paciente_data.get('nome_completo')
@@ -165,31 +202,50 @@ class PacoteService:
         itens = []
         for item in itens_raw:
             tipo = item.pop('tipos_profissional', None) or {}
-            qt = int(item.get('quantidade', 1))
-            # Prioridade: valor_mensal salvo no item (snapshot histórico)
-            # Fallback para o valor atual do tipo (itens antigos sem snapshot)
-            stored_vm = item.get('valor_mensal')
-            vm = Decimal(str(stored_vm)) if stored_vm is not None else Decimal(str(tipo.get('valor_mensal', 0)))
+            profissional = item.pop('usuarios', None)
+
+            qt = int(item.get('quantidade_sessoes') or item.get('quantidade') or 1)
+
+            # Valor da sessão: snapshot armazenado → fallback valor atual do tipo
+            stored_vs = item.get('valor_sessao') or item.get('valor_mensal')
+            vs = Decimal(str(stored_vs)) if stored_vs is not None \
+                else Decimal(str(tipo.get('valor_sessao') or tipo.get('valor_mensal') or 0))
+
+            profissional_nome = None
+            if profissional:
+                profissional_nome = profissional.get('nome_completo')
+            elif item.get('profissional_id'):
+                # fallback — nome não disponível aqui
+                profissional_nome = None
+
             itens.append({
                 'id': item.get('id'),
                 'tipo_profissional_id': item.get('tipo_profissional_id'),
-                'quantidade': qt,
+                'profissional_id': item.get('profissional_id'),
+                'profissional_nome': profissional_nome,
+                'quantidade_sessoes': qt,
                 'tipo_nome': tipo.get('nome'),
-                'valor_mensal': float(vm),
-                'subtotal': float(vm * qt),
+                'valor_sessao': float(vs),
+                'subtotal': float(vs * qt),
+                # backward compat
+                'quantidade': qt,
+                'valor_mensal': float(vs),
             })
         pacote['itens'] = itens
         pacote['valor_total'] = float(self._calcular_valor_total(
-            [{'valor_mensal': i['valor_mensal'], 'quantidade': i['quantidade']} for i in itens]
+            [{'valor_sessao': i['valor_sessao'], 'quantidade_sessoes': i['quantidade_sessoes']} for i in itens]
         ))
         return pacote
 
-    # Select que inclui valor_mensal armazenado no item (snapshot histórico) e nome do tipo
     _PACOTE_SELECT = (
         '*, '
         'pacientes(id, nome_completo), '
-        'pacotes_pacientes_itens(id, tipo_profissional_id, quantidade, valor_mensal, '
-        'tipos_profissional(id, nome))'
+        'pacotes_pacientes_itens('
+        '  id, tipo_profissional_id, profissional_id, quantidade_sessoes, quantidade, '
+        '  valor_sessao, valor_mensal, '
+        '  tipos_profissional(id, nome), '
+        '  usuarios!profissional_id(id, nome_completo)'
+        ')'
     )
 
     def listar_pacotes(self, clinica_id: str, ativo: Optional[bool] = None) -> List[Dict]:
@@ -231,47 +287,71 @@ class PacoteService:
         return self._execute_with_retry(f"BUSCAR_PACOTE_PACIENTE:{paciente_id}", operation)
 
     def _montar_itens_com_snapshot(self, pacote_id: str, itens: List[Dict]) -> List[Dict]:
-        """Monta a lista de itens incluindo o snapshot do valor_mensal atual do tipo."""
+        """Monta itens incluindo snapshot do valor_sessao atual do tipo."""
         tipo_ids = [it['tipo_profissional_id'] for it in itens]
         valores = self._snapshot_valores_tipos(tipo_ids)
-        return [
-            {
+        result = []
+        for it in itens:
+            vs = float(valores.get(it['tipo_profissional_id'], Decimal('0')))
+            qt = int(it.get('quantidade_sessoes') or it.get('quantidade') or 1)
+            item = {
                 'pacote_id': pacote_id,
                 'tipo_profissional_id': it['tipo_profissional_id'],
-                'quantidade': it.get('quantidade', 1),
-                'valor_mensal': float(valores.get(it['tipo_profissional_id'], Decimal('0'))),
+                'quantidade_sessoes': qt,
+                'quantidade': qt,  # backward compat
+                'valor_sessao': vs,
+                'valor_mensal': vs,  # backward compat
             }
-            for it in itens
-        ]
+            if it.get('profissional_id'):
+                item['profissional_id'] = it['profissional_id']
+            result.append(item)
+        return result
 
     def criar_pacote(
         self,
         clinica_id: str,
         paciente_id: str,
-        dia_vencimento: int,
         itens: List[Dict],
         criado_por: str,
+        dia_vencimento: Optional[int] = None,
         observacoes: Optional[str] = None,
     ) -> Dict:
         def operation():
             pacote_payload = {
                 'clinica_id': clinica_id,
                 'paciente_id': paciente_id,
-                'dia_vencimento': dia_vencimento,
                 'ativo': True,
                 'observacoes': observacoes,
                 'criado_por': criado_por,
             }
+            if dia_vencimento:
+                pacote_payload['dia_vencimento'] = dia_vencimento
+
             resp = self.supabase.table('pacotes_pacientes').insert(pacote_payload).execute()
             if not resp.data:
                 raise Exception('Erro ao criar pacote')
             pacote_id = resp.data[0]['id']
 
-            # Inserir itens com snapshot do valor_mensal vigente
             itens_payload = self._montar_itens_com_snapshot(pacote_id, itens)
             self.supabase.table('pacotes_pacientes_itens').insert(itens_payload).execute()
 
-            logger.info(f"✅ Pacote criado: {pacote_id} para paciente {paciente_id} (preços fixados no momento da criação)")
+            # Cria registro de pagamento pendente automaticamente
+            total = float(self._calcular_valor_total([
+                {'valor_sessao': it['valor_sessao'], 'quantidade_sessoes': it['quantidade_sessoes']}
+                for it in itens_payload
+            ]))
+            hoje = today_brazil()
+            pag_payload = {
+                'clinica_id': clinica_id,
+                'pacote_id': pacote_id,
+                'paciente_id': paciente_id,
+                'status': 'pendente',
+                'data_vencimento': hoje.isoformat(),
+                'valor_pago': total,
+            }
+            self.supabase.table('pagamentos_pacotes').insert(pag_payload).execute()
+
+            logger.info(f"✅ Pacote criado: {pacote_id} para paciente {paciente_id}")
             return self.buscar_pacote(pacote_id, clinica_id)
 
         return self._execute_with_retry(f"CRIAR_PACOTE:{clinica_id}", operation)
@@ -287,7 +367,6 @@ class PacoteService:
                     .execute()
 
             if itens is not None:
-                # Substituir itens: deletar antigos e inserir novos com snapshot atual
                 self.supabase.table('pacotes_pacientes_itens') \
                     .delete() \
                     .eq('pacote_id', pacote_id) \
@@ -295,6 +374,22 @@ class PacoteService:
                 if itens:
                     novos = self._montar_itens_com_snapshot(pacote_id, itens)
                     self.supabase.table('pacotes_pacientes_itens').insert(novos).execute()
+
+                    # Atualiza o pagamento pendente com novo valor total
+                    novo_total = float(self._calcular_valor_total([
+                        {'valor_sessao': it['valor_sessao'], 'quantidade_sessoes': it['quantidade_sessoes']}
+                        for it in novos
+                    ]))
+                    pag_pendente = self.supabase.table('pagamentos_pacotes') \
+                        .select('id') \
+                        .eq('pacote_id', pacote_id) \
+                        .eq('status', 'pendente') \
+                        .execute()
+                    if pag_pendente.data:
+                        self.supabase.table('pagamentos_pacotes') \
+                            .update({'valor_pago': novo_total}) \
+                            .eq('id', pag_pendente.data[0]['id']) \
+                            .execute()
 
             return self.buscar_pacote(pacote_id, clinica_id)
 
@@ -312,35 +407,72 @@ class PacoteService:
             return response.data[0]
         return self._execute_with_retry(f"DESATIVAR_PACOTE:{pacote_id}", operation)
 
+    def excluir_pacote(self, pacote_id: str, clinica_id: str) -> Dict:
+        """Exclui permanentemente o pacote e registros relacionados (pagamentos, itens)."""
+        def operation():
+            # Garante que o pacote pertence à clínica
+            pacote = self.supabase.table('pacotes_pacientes') \
+                .select('id') \
+                .eq('id', pacote_id) \
+                .eq('clinica_id', clinica_id) \
+                .single() \
+                .execute()
+            if not pacote.data:
+                raise ValueError('Pacote não encontrado ou sem permissão')
+            # Remove pagamentos do pacote
+            self.supabase.table('pagamentos_pacotes') \
+                .delete() \
+                .eq('pacote_id', pacote_id) \
+                .execute()
+            # Remove itens do pacote
+            self.supabase.table('pacotes_pacientes_itens') \
+                .delete() \
+                .eq('pacote_id', pacote_id) \
+                .execute()
+            # Remove o pacote
+            response = self.supabase.table('pacotes_pacientes') \
+                .delete() \
+                .eq('id', pacote_id) \
+                .eq('clinica_id', clinica_id) \
+                .execute()
+            if not response.data:
+                raise ValueError('Pacote não encontrado ou sem permissão')
+            logger.info(f"🗑️ Pacote {pacote_id} excluído permanentemente")
+            return response.data[0]
+        return self._execute_with_retry(f"EXCLUIR_PACOTE:{pacote_id}", operation)
+
     # =========================================================================
     # PAGAMENTOS DE PACOTES
     # =========================================================================
 
     def _calcular_valor_pacote_db(self, pacote_id: str) -> Decimal:
-        """Calcula valor total do pacote usando o valor_mensal fixado no item (snapshot histórico)."""
         resp = self.supabase.table('pacotes_pacientes_itens') \
-            .select('quantidade, valor_mensal') \
+            .select('quantidade_sessoes, quantidade, valor_sessao, valor_mensal') \
             .eq('pacote_id', pacote_id) \
             .execute()
         total = Decimal('0')
         for item in (resp.data or []):
-            vm = Decimal(str(item.get('valor_mensal') or 0))
-            qt = int(item.get('quantidade', 1))
-            total += vm * qt
+            vs = Decimal(str(item.get('valor_sessao') or item.get('valor_mensal') or 0))
+            qt = int(item.get('quantidade_sessoes') or item.get('quantidade') or 1)
+            total += vs * qt
         return total
 
     def gerar_pagamentos_mes_corrente(self, clinica_id: str) -> int:
-        """Gera registros de pagamento do mês atual para todos os pacotes ativos."""
+        """Mantido para compatibilidade — não usado na nova lógica de sessões."""
         def operation():
             hoje = today_brazil()
             mes_ref = date(hoje.year, hoje.month, 1)
-            ultimo_dia = calendar.monthrange(hoje.year, hoje.month)[1]
 
             pacotes = self.supabase.table('pacotes_pacientes') \
                 .select('id, paciente_id, dia_vencimento') \
                 .eq('clinica_id', clinica_id) \
                 .eq('ativo', True) \
+                .not_.is_('dia_vencimento', 'null') \
                 .execute()
+
+            ultimo_dia = 31
+            import calendar as cal
+            ultimo_dia = cal.monthrange(hoje.year, hoje.month)[1]
 
             criados = 0
             for p in (pacotes.data or []):
@@ -481,26 +613,22 @@ class PacoteService:
 
     def obter_estatisticas(self, clinica_id: str) -> Dict:
         def operation():
-            hoje = today_brazil()
-            mes_ref = date(hoje.year, hoje.month, 1).isoformat()
-
             pacotes_ativos = self.supabase.table('pacotes_pacientes') \
                 .select('id', count='exact') \
                 .eq('clinica_id', clinica_id) \
                 .eq('ativo', True) \
                 .execute()
 
-            pags_mes = self.supabase.table('pagamentos_pacotes') \
+            pags = self.supabase.table('pagamentos_pacotes') \
                 .select('status, valor_pago') \
                 .eq('clinica_id', clinica_id) \
-                .eq('mes_referencia', mes_ref) \
                 .execute()
 
             total_pendente = Decimal('0')
             total_recebido = Decimal('0')
-            total_pag = len(pags_mes.data or [])
+            total_pag = len(pags.data or [])
             pendentes = 0
-            for p in (pags_mes.data or []):
+            for p in (pags.data or []):
                 vp = Decimal(str(p.get('valor_pago') or 0))
                 if p.get('status') == 'pago':
                     total_recebido += vp
