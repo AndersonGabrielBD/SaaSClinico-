@@ -8,11 +8,30 @@ from app.schemas.pacote_schema import (
     PacoteCreate, PacoteUpdate,
     MarcarPagoPacoteRequest, AlterarVencimentoPacoteRequest,
 )
+
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
 pacote_bp = Blueprint('pacotes', __name__, url_prefix='/pacotes')
+
+
+# =============================================================================
+# PROFISSIONAIS DISPONÍVEIS
+# =============================================================================
+
+@pacote_bp.route('/profissionais', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao'])
+def listar_profissionais():
+    try:
+        user = get_current_user()
+        service = PacoteService()
+        profissionais = service.listar_profissionais(user['clinica_id'])
+        return jsonify(profissionais), 200
+    except Exception as e:
+        logger.error(f"❌ listar_profissionais: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # =============================================================================
@@ -60,7 +79,12 @@ def criar_tipo():
         user = get_current_user()
         dados = TipoProfissionalCreate(**request.json)
         service = PacoteService()
-        tipo = service.criar_tipo(user['clinica_id'], dados.nome, dados.valor_mensal)
+        tipo = service.criar_tipo(
+            user['clinica_id'],
+            dados.nome,
+            dados.valor_sessao,
+            profissional_id=dados.profissional_id,
+        )
         return jsonify(tipo), 201
     except ValidationError as e:
         return jsonify({'error': 'Dados inválidos', 'details': e.errors()}), 400
@@ -174,6 +198,7 @@ def criar_pacote():
             criado_por=user['user_id'],
             observacoes=dados.observacoes,
         )
+
         return jsonify(pacote), 201
     except ValidationError as e:
         return jsonify({'error': 'Dados inválidos', 'details': e.errors()}), 400
@@ -209,16 +234,17 @@ def atualizar_pacote(pacote_id):
 @pacote_bp.route('/<pacote_id>', methods=['DELETE'])
 @require_auth
 @require_roles(['admin', 'recepcao'])
-def desativar_pacote(pacote_id):
+def excluir_pacote(pacote_id):
+    """Exclui permanentemente o pacote e seus pagamentos/itens."""
     try:
         user = get_current_user()
         service = PacoteService()
-        pacote = service.desativar_pacote(pacote_id, user['clinica_id'])
+        pacote = service.excluir_pacote(pacote_id, user['clinica_id'])
         return jsonify(pacote), 200
     except ValueError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        logger.error(f"❌ desativar_pacote: {e}")
+        logger.error(f"❌ excluir_pacote: {e}")
         return jsonify({'error': str(e)}), 500
 
 

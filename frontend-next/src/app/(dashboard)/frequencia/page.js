@@ -144,10 +144,10 @@ export default function FrequenciaPage() {
       </div>
 
       {/* Filtro de Período e Exportação */}
-      <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center flex-1">
-            <div className="flex items-center gap-2">
+      <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200 overflow-hidden">
+        <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between min-w-0">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Calendar className="w-5 h-5 text-neutral-500" />
               <span className="text-sm font-medium text-neutral-700">Período:</span>
             </div>
@@ -155,18 +155,18 @@ export default function FrequenciaPage() {
               type="month"
               value={mesAno}
               onChange={(e) => setMesAno(e.target.value)}
-              className="px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full sm:w-auto min-w-0 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-            <span className="text-lg font-semibold text-neutral-900 capitalize">
+            <span className="text-lg font-semibold text-neutral-900 capitalize truncate">
               {getPeriodoLabel()}
             </span>
           </div>
           
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto min-w-0 flex-shrink-0">
             <select
               value={profissionalSelecionado || 'todos'}
               onChange={(e) => setProfissionalSelecionado(e.target.value === 'todos' ? null : e.target.value)}
-              className="px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full min-w-0 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="todos">Histórico  Completo</option>
               {resumoPorProfissional.map(prof => (
@@ -179,10 +179,10 @@ export default function FrequenciaPage() {
             <button
               onClick={handleExportPdf}
               disabled={exportingPdf || loading}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full md:w-auto min-w-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed flex-shrink-0 whitespace-nowrap"
             >
-              <FileDown className="w-4 h-4" />
-              {exportingPdf ? 'Gerando...' : 'Exportar PDF'}
+              <FileDown className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">{exportingPdf ? 'Gerando...' : 'Exportar PDF'}</span>
             </button>
           </div>
         </div>

@@ -11,9 +11,10 @@ from decimal import Decimal
 
 class TipoProfissionalCreate(BaseModel):
     nome: str = Field(..., min_length=1, max_length=100)
-    valor_mensal: Decimal = Field(..., gt=0)
+    profissional_id: Optional[str] = None
+    valor_sessao: Decimal = Field(..., gt=0)
 
-    @validator('valor_mensal')
+    @validator('valor_sessao')
     def validar_valor(cls, v):
         return round(v, 2)
 
@@ -24,10 +25,11 @@ class TipoProfissionalCreate(BaseModel):
 
 class TipoProfissionalUpdate(BaseModel):
     nome: Optional[str] = Field(None, min_length=1, max_length=100)
-    valor_mensal: Optional[Decimal] = Field(None, gt=0)
+    profissional_id: Optional[str] = None
+    valor_sessao: Optional[Decimal] = Field(None, gt=0)
     ativo: Optional[bool] = None
 
-    @validator('valor_mensal')
+    @validator('valor_sessao')
     def validar_valor(cls, v):
         return round(v, 2) if v is not None else v
 
@@ -40,7 +42,11 @@ class TipoProfissionalResponse(BaseModel):
     id: str
     clinica_id: str
     nome: str
-    valor_mensal: Decimal
+    profissional_id: Optional[str] = None
+    profissional_nome: Optional[str] = None
+    valor_sessao: Optional[Decimal] = None
+    # Backward compat
+    valor_mensal: Optional[Decimal] = None
     ativo: bool
     data_criacao: datetime
     data_atualizacao: datetime
@@ -55,16 +61,24 @@ class TipoProfissionalResponse(BaseModel):
 
 class PacoteItemInput(BaseModel):
     tipo_profissional_id: str = Field(..., description="UUID do tipo de profissional")
-    quantidade: int = Field(1, ge=1)
+    profissional_id: Optional[str] = None
+    quantidade_sessoes: int = Field(1, ge=1)
+    # Backward compat
+    quantidade: Optional[int] = None
 
 
 class PacoteItemResponse(BaseModel):
     id: str
     tipo_profissional_id: str
-    quantidade: int
+    profissional_id: Optional[str] = None
+    profissional_nome: Optional[str] = None
+    quantidade_sessoes: Optional[int] = None
     tipo_nome: Optional[str] = None
-    valor_mensal: Optional[Decimal] = None
+    valor_sessao: Optional[Decimal] = None
     subtotal: Optional[Decimal] = None
+    # Backward compat
+    quantidade: Optional[int] = None
+    valor_mensal: Optional[Decimal] = None
 
     class Config:
         from_attributes = True
@@ -76,7 +90,7 @@ class PacoteItemResponse(BaseModel):
 
 class PacoteCreate(BaseModel):
     paciente_id: str = Field(..., description="UUID do paciente")
-    dia_vencimento: int = Field(..., ge=1, le=31)
+    dia_vencimento: Optional[int] = Field(None, ge=1, le=31)
     observacoes: Optional[str] = None
     itens: List[PacoteItemInput] = Field(..., min_items=1)
 
@@ -92,7 +106,7 @@ class PacoteResponse(BaseModel):
     id: str
     clinica_id: str
     paciente_id: str
-    dia_vencimento: int
+    dia_vencimento: Optional[int] = None
     ativo: bool
     observacoes: Optional[str]
     criado_por: Optional[str]
@@ -148,7 +162,7 @@ class PagamentoPacoteResponse(BaseModel):
     clinica_id: str
     pacote_id: str
     paciente_id: str
-    mes_referencia: date
+    mes_referencia: Optional[date] = None
     status: str
     data_vencimento: date
     data_pagamento: Optional[datetime]

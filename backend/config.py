@@ -37,12 +37,15 @@ class Config:
     
     @classmethod
     def validate(cls):
-        """Valida se as variáveis obrigatórias estão configuradas"""
+        """Valida se as variáveis obrigatórias estão configuradas para o backend."""
         required = [
             'SUPABASE_URL',
-            'SUPABASE_KEY',
+            'SUPABASE_SERVICE_ROLE_KEY',  # Backend usa só esta key (bypassa RLS)
             'SECRET_KEY'
         ]
         missing = [var for var in required if not getattr(cls, var)]
         if missing:
-            raise ValueError(f'Variáveis de ambiente faltando: {", ".join(missing)}')
+            raise ValueError(
+                f'Variáveis de ambiente faltando: {", ".join(missing)}. '
+                'SUPABASE_SERVICE_ROLE_KEY: Supabase → Settings → API → service_role.'
+            )

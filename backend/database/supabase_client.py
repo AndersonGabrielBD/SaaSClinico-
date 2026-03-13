@@ -1,7 +1,7 @@
 """
 Cliente Supabase - cria uma nova instância por request para evitar conexões stale.
-O cliente Supabase é stateless (HTTP/REST), portanto criar uma instância por request
-é seguro e elimina o problema de conexões keepalive que ficam stale silenciosamente.
+O backend usa SOMENTE a Service Role Key para que todas as operações (incl. RLS)
+funcionem em produção; a autorização é feita no Flask (@require_roles, etc.).
 """
 from supabase import create_client, Client
 from config import Config
@@ -17,17 +17,16 @@ def reset_supabase_client():
 
 def get_supabase_client() -> Client:
     """
-    Retorna uma nova instância do cliente Supabase a cada chamada.
-    Usa service_role key se disponível (bypassa RLS), senão usa anon key.
-
-    Não usa singleton para evitar conexões HTTP keepalive stale que retornam
-    dados vazios silenciosamente sem lançar exceção.
+    Retorna uma nova instância do cliente Supabase usando SOMENTE a Service Role Key.
+    Necessária para o backend funcionar com RLS ativo (tipos_profissional, pacotes, etc.).
     """
-    key = Config.SUPABASE_SERVICE_ROLE_KEY or Config.SUPABASE_KEY
-
-    if not Config.SUPABASE_SERVICE_ROLE_KEY:
-        logger.warning("⚠️  SERVICE_ROLE key não configurada! Usando ANON key (com RLS ativo)")
-
+    key = Config.SUPABASE_SERVICE_ROLE_KEY
+    if not key:
+        raise RuntimeError(
+            "SUPABASE_SERVICE_ROLE_KEY é obrigatória no .env do backend. "
+            "Obtenha em: Supabase Dashboard → Settings → API → service_role (secret). "
+            "Sem ela, operações em banco falham com RLS (erro 42501)."
+        )
     try:
         client = create_client(Config.SUPABASE_URL, key)
         return client
