@@ -1,4 +1,3 @@
-// filepath: frontend-next/src/services/pacoteService.js
 import { api } from '../lib/api';
 
 export const pacoteService = {
@@ -37,7 +36,7 @@ export const pacoteService = {
   },
 
   // ==========================================================================
-  // PACOTES POR PACIENTE
+  // PACOTES
   // ==========================================================================
 
   async getAll(ativo = null) {
@@ -48,10 +47,6 @@ export const pacoteService = {
 
   async getById(id) {
     return await api.get(`/pacotes/${id}`);
-  },
-
-  async getByPacienteId(pacienteId) {
-    return await api.get(`/pacotes/paciente/${pacienteId}`);
   },
 
   async create(data) {
@@ -66,35 +61,25 @@ export const pacoteService = {
     return await api.delete(`/pacotes/${id}`);
   },
 
+  async ativar(id) {
+    return await api.put(`/pacotes/${id}/ativar`, {});
+  },
+
   // ==========================================================================
-  // PAGAMENTOS DE PACOTES
+  // PAGAMENTO DO PACOTE (inline)
   // ==========================================================================
-
-  async gerarPagamentosMesAtual() {
-    return await api.post('/pacotes/gerar-mes-atual', {});
-  },
-
-  async getPagamentos(filters = {}) {
-    return await api.get('/pacotes/pagamentos', { params: filters });
-  },
-
-  async getPagamentoById(id) {
-    return await api.get(`/pacotes/pagamentos/${id}`);
-  },
 
   async marcarPago(id, data) {
-    return await api.put(`/pacotes/pagamentos/${id}/marcar-pago`, data);
+    return await api.put(`/pacotes/${id}/marcar-pago`, data);
   },
 
   async marcarPendente(id) {
-    return await api.put(`/pacotes/pagamentos/${id}/marcar-pendente`, {});
+    return await api.put(`/pacotes/${id}/marcar-pendente`, {});
   },
 
-  async alterarVencimento(id, novaData) {
-    return await api.put(`/pacotes/pagamentos/${id}/alterar-vencimento`, {
-      nova_data_vencimento: novaData,
-    });
-  },
+  // ==========================================================================
+  // ESTATÍSTICAS
+  // ==========================================================================
 
   async getEstatisticas() {
     return await api.get('/pacotes/estatisticas');
