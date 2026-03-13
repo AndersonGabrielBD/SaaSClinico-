@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacienteService } from '@/services/pacienteService'
-import { profissionalService } from '@/services/profissionalService'
 import { pacoteService } from '@/services/pacoteService'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule } from '@/utils/roles'
@@ -45,20 +44,15 @@ export default function PacotesPage() {
   const [loading, setLoading] = useState(true)
   const [abaAtiva, setAbaAtiva] = useState('tipos')
 
-  // Dados base
   const [pacientes, setPacientes] = useState([])
   const [profissionais, setProfissionais] = useState([])
   const [tipos, setTipos] = useState([])
   const [pacotesAtivos, setPacotesAtivos] = useState([])
   const [pacotesInativos, setPacotesInativos] = useState([])
   const [estatisticas, setEstatisticas] = useState(null)
-  const [pagamentosPorPacote, setPagamentosPorPacote] = useState({})
 
-  // Loading states
-  const [loadingTipos, setLoadingTipos] = useState(false)
-  const [loadingPacotes, setLoadingPacotes] = useState(false)
+  const [loadingModal, setLoadingModal] = useState(false)
 
-  // Busca de tipos por profissional
   const [buscaTipo, setBuscaTipo] = useState('')
 
   // Modal Tipo
@@ -78,7 +72,7 @@ export default function PacotesPage() {
   const [buscaTipoModal, setBuscaTipoModal] = useState('')
 
   // Modal Pagamento
-  const [pagamentoParaPagar, setPagamentoParaPagar] = useState(null)
+  const [pacoteParaPagar, setPacoteParaPagar] = useState(null)
   const [valorPagoModal, setValorPagoModal] = useState('')
   const [metodoPagamentoModal, setMetodoPagamentoModal] = useState('pix')
   const [observacoesPagamentoModal, setObservacoesPagamentoModal] = useState('')
@@ -98,7 +92,7 @@ export default function PacotesPage() {
 
   useEffect(() => {
     if (hasAccess === true) {
-      loadAll()
+      loadData()
     }
   }, [hasAccess])
 
@@ -111,69 +105,64 @@ export default function PacotesPage() {
     setConfirmDialog({ show: true, message, onConfirm })
   }
 
-  const loadAll = async () => {
-    setLoading(true)
+  const loadData = async () => {
     try {
-      const [profissionaisData, pacientesData] = await Promise.all([
-        pacoteService.getProfissionais().catch(() => []),
-        pacienteService.getAll({ ativo: true }).catch(() => []),
+      setLoading(true)
+      const [tiposData, ativosData, inativosData, statsData] = await Promise.all([
+        pacoteService.getTipos(),
+        pacoteService.getAll(true),
+        pacoteService.getAll(false),
+        pacoteService.getEstatisticas(),
       ])
-      setProfissionais(Array.isArray(profissionaisData) ? profissionaisData : [])
-      setPacientes(Array.isArray(pacientesData) ? pacientesData : [])
-      await Promise.all([loadTipos(), loadPacotes()])
-    } catch (e) {
-      showToast('Erro ao carregar dados', 'error')
+      setTipos(Array.isArray(tiposData) ? tiposData : [])
+      setPacotesAtivos(Array.isArray(ativosData) ? ativosData : [])
+      setPacotesInativos(Array.isArray(inativosData) ? inativosData : [])
+      setEstatisticas(statsData)
+    } catch (error) {
+      showToast(error.message || 'Erro ao carregar dados', 'error')
     } finally {
       setLoading(false)
     }
   }
 
   const loadTipos = async () => {
-    setLoadingTipos(true)
     try {
       const data = await pacoteService.getTipos()
       setTipos(Array.isArray(data) ? data : [])
     } catch (e) {
       showToast(e.message || 'Erro ao carregar tipos', 'error')
-    } finally {
-      setLoadingTipos(false)
     }
   }
 
   const loadPacotes = async () => {
-    setLoadingPacotes(true)
     try {
-      const [ativosRes, inativosRes, statsRes, pagsRes] = await Promise.allSettled([
+      const [ativosData, inativosData, statsData] = await Promise.all([
         pacoteService.getAll(true),
         pacoteService.getAll(false),
         pacoteService.getEstatisticas(),
-        pacoteService.getPagamentos(),
       ])
-      const ativos = ativosRes.status === 'fulfilled' ? ativosRes.value : []
-      const inativos = inativosRes.status === 'fulfilled' ? inativosRes.value : []
-      const stats = statsRes.status === 'fulfilled' ? statsRes.value : null
-      const pags = pagsRes.status === 'fulfilled' ? pagsRes.value : []
-
-      setPacotesAtivos(Array.isArray(ativos) ? ativos : [])
-      setPacotesInativos(Array.isArray(inativos) ? inativos : [])
-      setEstatisticas(stats)
-
-      const pagMap = (Array.isArray(pags) ? pags : []).reduce((acc, p) => {
-        if (p?.pacote_id) {
-          // Keep most recent or pending first
-          if (!acc[p.pacote_id] || p.status === 'pendente') acc[p.pacote_id] = p
-        }
-        return acc
-      }, {})
-      setPagamentosPorPacote(pagMap)
+      setPacotesAtivos(Array.isArray(ativosData) ? ativosData : [])
+      setPacotesInativos(Array.isArray(inativosData) ? inativosData : [])
+      setEstatisticas(statsData)
     } catch (e) {
       showToast('Erro ao carregar pacotes', 'error')
-    } finally {
-      setLoadingPacotes(false)
     }
   }
 
-  // ── Tipos filtrados pela busca ─────────────────────────────────────────────
+  const loadDadosModal = async () => {
+    setLoadingModal(true)
+    try {
+      const [profData, pacData] = await Promise.all([
+        pacoteService.getProfissionais().catch(() => []),
+        pacienteService.getAll({ ativo: true }).catch(() => []),
+      ])
+      setProfissionais(Array.isArray(profData) ? profData : [])
+      setPacientes(Array.isArray(pacData) ? pacData : [])
+    } finally {
+      setLoadingModal(false)
+    }
+  }
+
   const tiposFiltrados = useMemo(() => {
     const q = buscaTipo.toLowerCase().trim()
     if (!q) return tipos
@@ -183,14 +172,12 @@ export default function PacotesPage() {
     )
   }, [tipos, buscaTipo])
 
-  // ── Profissionais filtrados no modal de tipo ──────────────────────────────
   const profissionaisFiltradosTipo = useMemo(() => {
     const q = buscaProfissionalTipo.toLowerCase().trim()
     if (!q) return profissionais
     return profissionais.filter(p => p.nome_completo.toLowerCase().includes(q))
   }, [profissionais, buscaProfissionalTipo])
 
-  // ── Tipos filtrados no modal de pacote ────────────────────────────────────
   const tiposFiltradosModal = useMemo(() => {
     const q = buscaTipoModal.toLowerCase().trim()
     const ativos = tipos.filter(t => t.ativo !== false)
@@ -209,6 +196,7 @@ export default function PacotesPage() {
     setTipoValorSessao(tipo?.valor_sessao != null ? String(tipo.valor_sessao) : '')
     setBuscaProfissionalTipo(tipo?.profissional_nome || '')
     setShowModalTipo(true)
+    loadDadosModal()
   }
 
   const handleSalvarTipo = async (e) => {
@@ -262,10 +250,11 @@ export default function PacotesPage() {
     setPacoteItens(pacote?.itens?.map(it => ({
       tipo_profissional_id: it.tipo_profissional_id,
       profissional_id: it.profissional_id || null,
-      quantidade_sessoes: it.quantidade_sessoes || it.quantidade || 1,
-      valor_sessao_snapshot: it.valor_sessao ?? it.valor_mensal ?? null,
+      quantidade_sessoes: it.quantidade_sessoes || 1,
+      valor_sessao_snapshot: it.valor_sessao ?? null,
     })) || [])
     setShowModalPacote(true)
+    loadDadosModal()
   }
 
   const calcularTotalPacote = () => {
@@ -332,12 +321,17 @@ export default function PacotesPage() {
   }
 
   const handleToggleAtivoPacote = (pacote) => {
+    const isAtivo = pacote.ativo
     showConfirm(
-      `Deseja ${pacote.ativo ? 'desativar' : 'ativar'} o pacote de ${pacote.paciente_nome}?`,
+      `Deseja ${isAtivo ? 'desativar' : 'ativar'} o pacote de ${pacote.paciente_nome}?`,
       async () => {
         try {
-          await pacoteService.update(pacote.id, { ativo: !pacote.ativo })
-          showToast(`Pacote ${pacote.ativo ? 'desativado' : 'ativado'}!`)
+          if (isAtivo) {
+            await pacoteService.update(pacote.id, { ativo: false })
+          } else {
+            await pacoteService.ativar(pacote.id)
+          }
+          showToast(`Pacote ${isAtivo ? 'desativado' : 'ativado'}!`)
           loadPacotes()
         } catch (error) {
           showToast(error.message || 'Erro ao alterar pacote', 'error')
@@ -361,37 +355,37 @@ export default function PacotesPage() {
     )
   }
 
-  const abrirModalPagamento = (pagamento, pacoteNome) => {
-    setPagamentoParaPagar({ ...pagamento, paciente_nome: pagamento.paciente_nome || pacoteNome })
-    setValorPagoModal(String(pagamento.valor_pago || 0))
+  const abrirModalPagamento = (pacote) => {
+    setPacoteParaPagar(pacote)
+    setValorPagoModal(String(pacote.valor_total || 0))
     setMetodoPagamentoModal('pix')
-    setObservacoesPagamentoModal(pagamento.observacoes || '')
+    setObservacoesPagamentoModal('')
   }
 
   const handleConfirmarPagamento = async (e) => {
     e.preventDefault()
-    const paymentId = pagamentoParaPagar?.id
-    if (!paymentId) return
+    const pacoteId = pacoteParaPagar?.id
+    if (!pacoteId) return
     const valor = parseFloat(valorPagoModal)
     if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'error'); return }
     try {
-      await pacoteService.marcarPago(paymentId, {
+      await pacoteService.marcarPago(pacoteId, {
         metodo_pagamento: metodoPagamentoModal,
         valor_pago: valor,
         observacoes: observacoesPagamentoModal.trim() || undefined,
       })
       showToast('Pagamento registrado!')
-      setPagamentoParaPagar(null)
+      setPacoteParaPagar(null)
       loadPacotes()
     } catch (error) {
       showToast(error.message || 'Erro ao registrar pagamento', 'error')
     }
   }
 
-  const handleMarcarPendente = async (pagamento) => {
+  const handleMarcarPendente = async (pacote) => {
     showConfirm('Marcar pagamento como pendente?', async () => {
       try {
-        await pacoteService.marcarPendente(pagamento.id)
+        await pacoteService.marcarPendente(pacote.id)
         showToast('Marcado como pendente!')
         loadPacotes()
       } catch (error) {
@@ -472,7 +466,6 @@ export default function PacotesPage() {
       {/* ── ABA: TIPOS E VALORES ─────────────────────────────────────────── */}
       {abaAtiva === 'tipos' && (
         <div className="space-y-3">
-          {/* Busca */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
             <input
@@ -490,11 +483,7 @@ export default function PacotesPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-neutral-100 overflow-hidden">
-            {loadingTipos ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary-600 border-t-transparent" />
-              </div>
-            ) : tiposFiltrados.length === 0 ? (
+            {tiposFiltrados.length === 0 ? (
               <div className="text-center py-12 text-neutral-500">
                 <Layers className="w-12 h-12 mx-auto text-neutral-300 mb-3" />
                 <p className="font-medium">{buscaTipo ? 'Nenhum resultado para a busca.' : 'Nenhum tipo cadastrado.'}</p>
@@ -515,7 +504,7 @@ export default function PacotesPage() {
                               <p className="text-xs text-neutral-500 truncate">{tipo.profissional_nome}</p>
                             </div>
                           )}
-                          <p className="text-sm font-medium text-primary-700 mt-1">{formatCurrency(tipo.valor_sessao ?? tipo.valor_mensal)}<span className="text-xs text-neutral-400 font-normal">/sessão</span></p>
+                          <p className="text-sm font-medium text-primary-700 mt-1">{formatCurrency(tipo.valor_sessao)}<span className="text-xs text-neutral-400 font-normal">/sessão</span></p>
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <button onClick={() => handleAbrirModalTipo(tipo)} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg"><Edit className="w-4 h-4" /></button>
@@ -548,7 +537,7 @@ export default function PacotesPage() {
                               </div>
                             ) : <span className="text-neutral-400 italic">Genérico</span>}
                           </td>
-                          <td className="px-4 py-3 text-sm font-semibold text-primary-700">{formatCurrency(tipo.valor_sessao ?? tipo.valor_mensal)}<span className="text-xs text-neutral-400 font-normal ml-1">/sessão</span></td>
+                          <td className="px-4 py-3 text-sm font-semibold text-primary-700">{formatCurrency(tipo.valor_sessao)}<span className="text-xs text-neutral-400 font-normal ml-1">/sessão</span></td>
                           <td className="px-4 py-3">
                             <div className="flex gap-3">
                               <button onClick={() => handleAbrirModalTipo(tipo)} className="text-primary-600 hover:text-primary-900 inline-flex items-center gap-1 text-sm font-medium"><Edit className="w-4 h-4" /> Editar</button>
@@ -569,14 +558,13 @@ export default function PacotesPage() {
       {/* ── ABA: ATIVOS / INATIVOS ───────────────────────────────────────── */}
       {(abaAtiva === 'ativos' || abaAtiva === 'inativos') && (
         <>
-          {/* Estatísticas (só ativos) */}
           {abaAtiva === 'ativos' && estatisticas && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
                 { label: 'Pacotes Ativos', value: estatisticas.total_pacotes_ativos, icon: Package, color: 'blue' },
                 { label: 'Pendentes', value: estatisticas.total_pagamentos_pendentes, icon: Clock, color: 'yellow' },
                 { label: 'Pendente R$', value: formatCurrency(estatisticas.valor_total_pendente), icon: AlertCircle, color: 'red', isText: true },
-                { label: 'Total Recebido', value: formatCurrency(estatisticas.valor_total_recebido_mes), icon: TrendingUp, color: 'green', isText: true },
+                { label: 'Total Recebido', value: formatCurrency(estatisticas.valor_total_recebido), icon: TrendingUp, color: 'green', isText: true },
               ].map(({ label, value, icon: Icon, color, isText }) => (
                 <div key={label} className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
                   <div className="flex items-center gap-2.5">
@@ -593,11 +581,7 @@ export default function PacotesPage() {
             </div>
           )}
 
-          {loadingPacotes ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary-600 border-t-transparent" />
-            </div>
-          ) : (() => {
+          {(() => {
             const lista = abaAtiva === 'ativos' ? pacotesAtivos : pacotesInativos
             const isAtivos = abaAtiva === 'ativos'
 
@@ -615,73 +599,69 @@ export default function PacotesPage() {
               <div className="bg-white rounded-lg shadow-sm border border-neutral-100 overflow-hidden">
                 {/* Mobile */}
                 <div className="block lg:hidden divide-y divide-neutral-100">
-                  {lista.map(pacote => {
-                    const pag = pagamentosPorPacote[pacote.id]
-                    const statusPag = pag?.status || 'sem_pagamento'
-                    return (
-                      <div key={pacote.id} className="p-4 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-neutral-900">{pacote.paciente_nome}</h3>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {(pacote.itens || []).map(it => (
-                                <span key={it.id || it.tipo_profissional_id} className="px-1.5 py-0.5 text-xs bg-neutral-100 rounded whitespace-nowrap">
-                                  {it.profissional_nome || it.tipo_nome} × {it.quantidade_sessoes || it.quantidade} sessão
-                                </span>
-                              ))}
-                            </div>
+                  {lista.map(pacote => (
+                    <div key={pacote.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-neutral-900">{pacote.paciente_nome}</h3>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(pacote.itens || []).map(it => (
+                              <span key={it.id || it.tipo_profissional_id} className="px-1.5 py-0.5 text-xs bg-neutral-100 rounded whitespace-nowrap">
+                                {it.profissional_nome || it.tipo_nome} x {it.quantidade_sessoes} sessão
+                              </span>
+                            ))}
                           </div>
-                          <p className="font-bold text-lg text-neutral-900 ml-2">{formatCurrency(pacote.valor_total)}</p>
                         </div>
+                        <p className="font-bold text-lg text-neutral-900 ml-2">{formatCurrency(pacote.valor_total)}</p>
+                      </div>
 
-                        {isAtivos && (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${statusPag === 'pago' ? 'bg-green-100 text-green-800' : statusPag === 'pendente' ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-700'}`}>
-                              {statusPag === 'sem_pagamento' ? 'Sem pagamento' : statusPag.charAt(0).toUpperCase() + statusPag.slice(1)}
-                            </span>
-                            {statusPag === 'pago' && pag && (
-                              <span className="text-xs text-neutral-500">{formatCurrency(pag.valor_pago)} · {pag.metodo_pagamento}</span>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {isAtivos ? (
-                            <>
-                              <button onClick={() => handleAbrirModalPacote(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100">
-                                <Edit className="w-4 h-4" /> Editar
-                              </button>
-                              {pag && statusPag !== 'pago' && (
-                                <button onClick={() => abrirModalPagamento(pag, pacote.paciente_nome)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100">
-                                  <CheckCircle className="w-4 h-4" /> Marcar pago
-                                </button>
-                              )}
-                              {pag && statusPag === 'pago' && (
-                                <button onClick={() => handleMarcarPendente(pag)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-yellow-700 bg-yellow-50 rounded-lg hover:bg-yellow-100">
-                                  <Clock className="w-4 h-4" /> Voltar pendente
-                                </button>
-                              )}
-                              <button onClick={() => handleToggleAtivoPacote(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100">
-                                <Archive className="w-4 h-4" /> Inativar
-                              </button>
-                              <button onClick={() => handleExcluirPacote(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 border border-neutral-200" title="Excluir permanentemente">
-                                <Trash2 className="w-4 h-4" /> Excluir
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button onClick={() => handleToggleAtivoPacote(pacote)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100">
-                                <CheckCircle className="w-4 h-4" /> Reativar
-                              </button>
-                              <button onClick={() => handleExcluirPacote(pacote)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 border border-neutral-200" title="Excluir permanentemente">
-                                <Trash2 className="w-4 h-4" /> Excluir
-                              </button>
-                            </>
+                      {isAtivos && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${pacote.status === 'pago' ? 'bg-green-100 text-green-800' : pacote.status === 'pendente' ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-700'}`}>
+                            {pacote.status === 'pendente' ? 'Pendente' : pacote.status === 'pago' ? 'Pago' : pacote.status === 'cancelado' ? 'Cancelado' : pacote.status}
+                          </span>
+                          {pacote.status === 'pago' && (
+                            <span className="text-xs text-neutral-500">{formatCurrency(pacote.valor_pago)} · {pacote.metodo_pagamento}</span>
                           )}
                         </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {isAtivos ? (
+                          <>
+                            <button onClick={() => handleAbrirModalPacote(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100">
+                              <Edit className="w-4 h-4" /> Editar
+                            </button>
+                            {pacote.status !== 'pago' && (
+                              <button onClick={() => abrirModalPagamento(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100">
+                                <CheckCircle className="w-4 h-4" /> Marcar pago
+                              </button>
+                            )}
+                            {pacote.status === 'pago' && (
+                              <button onClick={() => handleMarcarPendente(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-yellow-700 bg-yellow-50 rounded-lg hover:bg-yellow-100">
+                                <Clock className="w-4 h-4" /> Voltar pendente
+                              </button>
+                            )}
+                            <button onClick={() => handleToggleAtivoPacote(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100">
+                              <Archive className="w-4 h-4" /> Inativar
+                            </button>
+                            <button onClick={() => handleExcluirPacote(pacote)} className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 border border-neutral-200" title="Excluir permanentemente">
+                              <Trash2 className="w-4 h-4" /> Excluir
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => handleToggleAtivoPacote(pacote)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100">
+                              <CheckCircle className="w-4 h-4" /> Reativar
+                            </button>
+                            <button onClick={() => handleExcluirPacote(pacote)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 border border-neutral-200" title="Excluir permanentemente">
+                              <Trash2 className="w-4 h-4" /> Excluir
+                            </button>
+                          </>
+                        )}
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Desktop */}
@@ -704,63 +684,59 @@ export default function PacotesPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-neutral-100">
-                      {lista.map(pacote => {
-                        const pag = pagamentosPorPacote[pacote.id]
-                        const statusPag = pag?.status || 'sem_pagamento'
-                        return (
-                          <tr key={pacote.id} className="hover:bg-neutral-50">
-                            <td className="px-3 py-2.5 whitespace-nowrap text-sm font-medium text-neutral-900 max-w-[140px] truncate">{pacote.paciente_nome || '-'}</td>
-                            <td className="px-3 py-2.5 max-w-[250px]">
-                              <div className="flex flex-wrap gap-1">
-                                {(pacote.itens || []).map(it => (
-                                  <span key={it.id || it.tipo_profissional_id} className="px-1.5 py-0.5 text-xs bg-neutral-100 rounded whitespace-nowrap">
-                                    {it.profissional_nome || it.tipo_nome} × {it.quantidade_sessoes || it.quantidade}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5 whitespace-nowrap text-sm font-semibold text-neutral-900">{formatCurrency(pacote.valor_total)}</td>
-                            {isAtivos && (
-                              <>
-                                <td className="px-3 py-2.5 whitespace-nowrap">
-                                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${statusPag === 'pago' ? 'bg-green-100 text-green-800' : statusPag === 'pendente' ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-700'}`}>
-                                    {statusPag === 'sem_pagamento' ? 'Sem pag.' : statusPag.charAt(0).toUpperCase() + statusPag.slice(1)}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral-900">
-                                  {statusPag === 'pago' && pag?.valor_pago != null ? formatCurrency(pag.valor_pago) : '-'}
-                                </td>
-                                <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral-600 capitalize">
-                                  {statusPag === 'pago' && pag?.metodo_pagamento ? pag.metodo_pagamento : '-'}
-                                </td>
-                              </>
-                            )}
-                            <td className="px-3 py-2.5 text-sm text-neutral-600 max-w-[100px] truncate" title={pacote.observacoes || ''}>{pacote.observacoes || '-'}</td>
-                            <td className="px-3 py-2.5 whitespace-nowrap text-sm">
-                              <div className="flex flex-wrap gap-2">
-                                {isAtivos ? (
-                                  <>
-                                    <button onClick={() => handleAbrirModalPacote(pacote)} className="text-primary-600 hover:text-primary-900 inline-flex items-center gap-1 font-medium"><Edit className="w-4 h-4" /> Editar</button>
-                                    {pag && statusPag !== 'pago' && (
-                                      <button onClick={() => abrirModalPagamento(pag, pacote.paciente_nome)} className="text-green-600 hover:text-green-900 inline-flex items-center gap-1 font-medium"><CheckCircle className="w-4 h-4" /> Marcar pago</button>
-                                    )}
-                                    {pag && statusPag === 'pago' && (
-                                      <button onClick={() => handleMarcarPendente(pag)} className="text-yellow-600 hover:text-yellow-900 inline-flex items-center gap-1 font-medium"><Clock className="w-4 h-4" /> Voltar pendente</button>
-                                    )}
-                                    <button onClick={() => handleToggleAtivoPacote(pacote)} className="text-red-600 hover:text-red-900 inline-flex items-center gap-1 font-medium"><Archive className="w-4 h-4" /> Inativar</button>
-                                    <button onClick={() => handleExcluirPacote(pacote)} className="text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1 font-medium" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /> Excluir</button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button onClick={() => handleToggleAtivoPacote(pacote)} className="text-green-600 hover:text-green-900 inline-flex items-center gap-1 font-medium"><CheckCircle className="w-4 h-4" /> Reativar</button>
-                                    <button onClick={() => handleExcluirPacote(pacote)} className="text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1 font-medium" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /> Excluir</button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
+                      {lista.map(pacote => (
+                        <tr key={pacote.id} className="hover:bg-neutral-50">
+                          <td className="px-3 py-2.5 whitespace-nowrap text-sm font-medium text-neutral-900 max-w-[140px] truncate">{pacote.paciente_nome || '-'}</td>
+                          <td className="px-3 py-2.5 max-w-[250px]">
+                            <div className="flex flex-wrap gap-1">
+                              {(pacote.itens || []).map(it => (
+                                <span key={it.id || it.tipo_profissional_id} className="px-1.5 py-0.5 text-xs bg-neutral-100 rounded whitespace-nowrap">
+                                  {it.profissional_nome || it.tipo_nome} x {it.quantidade_sessoes}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-sm font-semibold text-neutral-900">{formatCurrency(pacote.valor_total)}</td>
+                          {isAtivos && (
+                            <>
+                              <td className="px-3 py-2.5 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${pacote.status === 'pago' ? 'bg-green-100 text-green-800' : pacote.status === 'pendente' ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-700'}`}>
+                                  {pacote.status === 'pendente' ? 'Pendente' : pacote.status === 'pago' ? 'Pago' : pacote.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral-900">
+                                {pacote.status === 'pago' && pacote.valor_pago != null ? formatCurrency(pacote.valor_pago) : '-'}
+                              </td>
+                              <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral-600 capitalize">
+                                {pacote.status === 'pago' && pacote.metodo_pagamento ? pacote.metodo_pagamento : '-'}
+                              </td>
+                            </>
+                          )}
+                          <td className="px-3 py-2.5 text-sm text-neutral-600 max-w-[100px] truncate" title={pacote.observacoes || ''}>{pacote.observacoes || '-'}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-sm">
+                            <div className="flex flex-wrap gap-2">
+                              {isAtivos ? (
+                                <>
+                                  <button onClick={() => handleAbrirModalPacote(pacote)} className="text-primary-600 hover:text-primary-900 inline-flex items-center gap-1 font-medium"><Edit className="w-4 h-4" /> Editar</button>
+                                  {pacote.status !== 'pago' && (
+                                    <button onClick={() => abrirModalPagamento(pacote)} className="text-green-600 hover:text-green-900 inline-flex items-center gap-1 font-medium"><CheckCircle className="w-4 h-4" /> Marcar pago</button>
+                                  )}
+                                  {pacote.status === 'pago' && (
+                                    <button onClick={() => handleMarcarPendente(pacote)} className="text-yellow-600 hover:text-yellow-900 inline-flex items-center gap-1 font-medium"><Clock className="w-4 h-4" /> Voltar pendente</button>
+                                  )}
+                                  <button onClick={() => handleToggleAtivoPacote(pacote)} className="text-red-600 hover:text-red-900 inline-flex items-center gap-1 font-medium"><Archive className="w-4 h-4" /> Inativar</button>
+                                  <button onClick={() => handleExcluirPacote(pacote)} className="text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1 font-medium" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /> Excluir</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => handleToggleAtivoPacote(pacote)} className="text-green-600 hover:text-green-900 inline-flex items-center gap-1 font-medium"><CheckCircle className="w-4 h-4" /> Reativar</button>
+                                  <button onClick={() => handleExcluirPacote(pacote)} className="text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1 font-medium" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /> Excluir</button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -794,7 +770,6 @@ export default function PacotesPage() {
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">Profissional</label>
                 <p className="text-xs text-neutral-500 mb-1.5">Deixe em branco para um tipo genérico.</p>
-                {/* Busca por profissional */}
                 <div className="relative mb-1.5">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
                   <input
@@ -806,26 +781,34 @@ export default function PacotesPage() {
                   />
                 </div>
                 <div className="max-h-36 overflow-y-auto border border-neutral-200 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => { setTipoProfissionalId(''); setBuscaProfissionalTipo('') }}
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${!tipoProfissionalId ? 'bg-primary-50 text-primary-700 font-medium' : 'hover:bg-neutral-50 text-neutral-600'}`}
-                  >
-                    Nenhum (tipo genérico)
-                  </button>
-                  {profissionaisFiltradosTipo.map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => { setTipoProfissionalId(p.id); setBuscaProfissionalTipo(p.nome_completo) }}
-                      className={`w-full text-left px-3 py-2 text-sm transition-colors border-t border-neutral-100 ${tipoProfissionalId === p.id ? 'bg-primary-50 text-primary-700 font-medium' : 'hover:bg-neutral-50 text-neutral-700'}`}
-                    >
-                      <p className="font-medium">{p.nome_completo}</p>
-                      <p className="text-xs text-neutral-500 capitalize">{p.role}</p>
-                    </button>
-                  ))}
-                  {profissionaisFiltradosTipo.length === 0 && buscaProfissionalTipo && (
-                    <p className="px-3 py-2 text-sm text-neutral-400 italic">Nenhum profissional encontrado.</p>
+                  {loadingModal ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent" />
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setTipoProfissionalId(''); setBuscaProfissionalTipo('') }}
+                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${!tipoProfissionalId ? 'bg-primary-50 text-primary-700 font-medium' : 'hover:bg-neutral-50 text-neutral-600'}`}
+                      >
+                        Nenhum (tipo genérico)
+                      </button>
+                      {profissionaisFiltradosTipo.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => { setTipoProfissionalId(p.id); setBuscaProfissionalTipo(p.nome_completo) }}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors border-t border-neutral-100 ${tipoProfissionalId === p.id ? 'bg-primary-50 text-primary-700 font-medium' : 'hover:bg-neutral-50 text-neutral-700'}`}
+                        >
+                          <p className="font-medium">{p.nome_completo}</p>
+                          <p className="text-xs text-neutral-500 capitalize">{p.role}</p>
+                        </button>
+                      ))}
+                      {profissionaisFiltradosTipo.length === 0 && buscaProfissionalTipo && (
+                        <p className="px-3 py-2 text-sm text-neutral-400 italic">Nenhum profissional encontrado.</p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -864,7 +847,6 @@ export default function PacotesPage() {
               <button onClick={() => setShowModalPacote(false)} className="p-2 hover:bg-neutral-100 rounded-lg"><X className="w-5 h-5 text-neutral-500" /></button>
             </div>
             <form onSubmit={handleSalvarPacote} className="p-4 space-y-4 overflow-y-auto flex-1">
-              {/* Paciente */}
               {!selectedPacote && (
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Paciente <span className="text-red-500">*</span></label>
@@ -875,12 +857,10 @@ export default function PacotesPage() {
                 </div>
               )}
 
-              {/* Seleção de profissionais/tipos */}
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Profissionais e Sessões <span className="text-red-500">*</span>
                 </label>
-                {/* Busca */}
                 <div className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
                   <input
@@ -902,7 +882,7 @@ export default function PacotesPage() {
                     const selecionado = !!item
                     const vsExibido = selecionado && item.valor_sessao_snapshot != null
                       ? item.valor_sessao_snapshot
-                      : (tipo.valor_sessao ?? tipo.valor_mensal)
+                      : tipo.valor_sessao
                     return (
                       <div key={tipo.id} className={`flex items-center gap-3 p-2 rounded-lg border ${selecionado ? 'border-primary-200 bg-primary-50' : 'border-neutral-100 bg-neutral-50'}`}>
                         <input
@@ -939,7 +919,6 @@ export default function PacotesPage() {
                   })}
                 </div>
 
-                {/* Total */}
                 {pacoteItens.length > 0 && (
                   <div className="mt-2 p-2.5 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
                     <span className="text-sm text-green-800 font-medium">Total do pacote:</span>
@@ -948,7 +927,6 @@ export default function PacotesPage() {
                 )}
               </div>
 
-              {/* Observações */}
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">Observações</label>
                 <textarea
@@ -970,18 +948,18 @@ export default function PacotesPage() {
       )}
 
       {/* ── MODAL: REGISTRAR PAGAMENTO ────────────────────────────────────── */}
-      {pagamentoParaPagar && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setPagamentoParaPagar(null)}>
+      {pacoteParaPagar && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setPacoteParaPagar(null)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-neutral-200">
               <h2 className="text-lg font-semibold text-neutral-900">Registrar pagamento</h2>
-              <button onClick={() => setPagamentoParaPagar(null)} className="p-2 hover:bg-neutral-100 rounded-lg"><X className="w-5 h-5 text-neutral-500" /></button>
+              <button onClick={() => setPacoteParaPagar(null)} className="p-2 hover:bg-neutral-100 rounded-lg"><X className="w-5 h-5 text-neutral-500" /></button>
             </div>
             <form onSubmit={handleConfirmarPagamento} className="p-6 space-y-4">
-              {pagamentoParaPagar.paciente_nome && (
+              {pacoteParaPagar.paciente_nome && (
                 <div className="p-3 bg-neutral-50 rounded-lg">
                   <p className="text-xs text-neutral-600 font-medium">Paciente</p>
-                  <p className="font-medium text-neutral-900">{pagamentoParaPagar.paciente_nome}</p>
+                  <p className="font-medium text-neutral-900">{pacoteParaPagar.paciente_nome}</p>
                 </div>
               )}
               <div>
@@ -999,7 +977,7 @@ export default function PacotesPage() {
                 <textarea value={observacoesPagamentoModal} onChange={e => setObservacoesPagamentoModal(e.target.value)} rows={2} className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 resize-none" placeholder="Opcional" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setPagamentoParaPagar(null)} className="flex-1 px-4 py-2.5 border border-neutral-300 text-neutral-700 font-semibold rounded-lg hover:bg-neutral-50">Cancelar</button>
+                <button type="button" onClick={() => setPacoteParaPagar(null)} className="flex-1 px-4 py-2.5 border border-neutral-300 text-neutral-700 font-semibold rounded-lg hover:bg-neutral-50">Cancelar</button>
                 <button type="submit" className="flex-1 px-4 py-2.5 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700">Confirmar pagamento</button>
               </div>
             </form>
