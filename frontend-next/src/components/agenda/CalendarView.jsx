@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { formatTimeHHmm } from '@/lib/dateUtils'
 
 export default function CalendarView({ agendamentos, onAgendamentoClick, selectedDate, onDateChange }) {
   const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate || new Date()))
@@ -177,7 +178,7 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
                       <div className="flex items-center gap-1 mb-0.5">
                         <Clock className="w-3 h-3" />
                         <span className="font-medium">
-                          {ag.horario_inicio?.substring(0, 5)}
+                          {formatTimeHHmm(ag.horario_inicio)}
                         </span>
                       </div>
                       <div className="truncate text-xs">

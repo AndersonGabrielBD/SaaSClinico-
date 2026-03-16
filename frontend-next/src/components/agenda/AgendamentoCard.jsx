@@ -4,6 +4,7 @@ import { Clock, CalendarDays, MapPin, UserRound, Stethoscope, Edit, Trash2, Chec
 import { agendamentoService } from '@/services/agendamentoService'
 import Button from '@/components/common/Button'
 import { getUserRole } from '@/utils/auth'
+import { formatTimeHHmm } from '@/lib/dateUtils'
 
 export default function AgendamentoCard({
   agendamento,
@@ -66,7 +67,7 @@ export default function AgendamentoCard({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-primary-50 text-primary-700 px-2.5 py-1 rounded-lg">
             <Clock className="w-3.5 h-3.5" />
-            <span className="text-xs font-semibold">{agendamento.horario_inicio} – {agendamento.horario_fim}</span>
+            <span className="text-xs font-semibold">{formatTimeHHmm(agendamento.horario_inicio)} – {formatTimeHHmm(agendamento.horario_fim)}</span>
           </div>
           <span className="text-xs text-neutral-400 hidden sm:inline">
             {agendamento.data_agendamento}

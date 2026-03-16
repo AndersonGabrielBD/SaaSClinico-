@@ -52,6 +52,15 @@ export function getNowBrazil() {
 }
 
 /**
+ * Formata horário para exibição curta (HH:mm).
+ * Aceita "10:00:00" ou "10:00" e retorna "10:00".
+ */
+export function formatTimeHHmm(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return ''
+  return timeStr.substring(0, 5)
+}
+
+/**
  * Converte uma data para o formato do Brasil (DD/MM/YYYY)
  */
 export function formatDateBrazil(dateString) {

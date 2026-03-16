@@ -21,7 +21,7 @@ import LoadingSpinner, { LoadingSkeleton } from '@/components/common/LoadingSpin
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
-import { parseDateSafe } from '@/lib/dateUtils'
+import { parseDateSafe, formatTimeHHmm } from '@/lib/dateUtils'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -312,7 +312,7 @@ export default function DashboardPage() {
                       {(() => {
                         const date = parseDateSafe(ag.data_agendamento)
                         return date ? format(date, "dd/MM", { locale: ptBR }) : '—'
-                      })()} · {ag.horario_inicio}
+                      })()} · {formatTimeHHmm(ag.horario_inicio)}
                     </p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium
