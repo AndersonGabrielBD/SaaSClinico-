@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, CalendarDays, MapPin, UserRound, Stethoscope, Edit, Trash2, CheckCircle } from 'lucide-react'
+import { Clock, MapPin, UserRound, Stethoscope, Edit, Trash2, CheckCircle } from 'lucide-react'
 import { agendamentoService } from '@/services/agendamentoService'
 import Button from '@/components/common/Button'
 import { getUserRole } from '@/utils/auth'
@@ -10,17 +10,28 @@ export default function AgendamentoCard({
   agendamento,
   onEdit,
   onDelete,
-  onRefresh
+  onRefresh,
+  showToast,
 }) {
   const userRole = getUserRole()
   const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
 
   const statusColors = {
-    agendada: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    confirmada: 'bg-blue-100 text-blue-700 border-blue-200',
-    concluida: 'bg-green-100 text-green-700 border-green-200',
-    cancelada: 'bg-red-100 text-red-700 border-red-200',
-    faltou: 'bg-orange-100 text-orange-700 border-orange-200'
+    agendada:       'bg-yellow-100 text-yellow-700 border-yellow-200',
+    confirmada:     'bg-blue-100 text-blue-700 border-blue-200',
+    em_atendimento: 'bg-purple-100 text-purple-700 border-purple-200',
+    concluida:      'bg-green-100 text-green-700 border-green-200',
+    cancelada:      'bg-red-100 text-red-700 border-red-200',
+    faltou:         'bg-orange-100 text-orange-700 border-orange-200',
+  }
+
+  const statusLabels = {
+    agendada:       'Agendada',
+    confirmada:     'Confirmada',
+    em_atendimento: 'Em Atendimento',
+    concluida:      'Concluída',
+    cancelada:      'Cancelada',
+    faltou:         'Faltou',
   }
 
   const handleConfirm = async () => {
@@ -35,6 +46,12 @@ export default function AgendamentoCard({
   const handleComplete = async () => {
     try {
       await agendamentoService.complete(agendamento.id)
+      // Sinal para a página de pacotes recarregar ao consumir sessão (funciona entre abas)
+      if (agendamento.pacote_item_id) {
+        try {
+          localStorage.setItem('pacotes_refresh_needed', Date.now().toString())
+        } catch (_) {}
+      }
       onRefresh()
     } catch (error) {
       console.error('Erro ao concluir:', error)
@@ -60,6 +77,8 @@ export default function AgendamentoCard({
     agendamento.profissional_nome ||
     'Profissional não informado'
 
+  const statusLabel = statusLabels[agendamento.status] || agendamento.status
+
   return (
     <div className="bg-white rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
       {/* Top bar — time + status */}
@@ -72,9 +91,19 @@ export default function AgendamentoCard({
           <span className="text-xs text-neutral-400 hidden sm:inline">
             {agendamento.data_agendamento}
           </span>
+          {agendamento.recorrencia_id && (
+            <span className="text-[10px] font-medium text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+              Recorrente
+            </span>
+          )}
+          {agendamento.pacote_item_id && (
+            <span className="text-[10px] font-medium text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100">
+              Pacote
+            </span>
+          )}
         </div>
-        <span className={`text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full border ${statusColors[agendamento.status]}`}>
-          {agendamento.status}
+        <span className={`text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full border ${statusColors[agendamento.status] || 'bg-neutral-100 text-neutral-600 border-neutral-200'}`}>
+          {statusLabel}
         </span>
       </div>
 
@@ -113,6 +142,14 @@ export default function AgendamentoCard({
         </div>
       )}
 
+      {/* Motivo de cancelamento */}
+      {agendamento.status === 'cancelada' && agendamento.motivo_cancelamento && (
+        <div className="flex items-start gap-2 px-4 py-2 bg-red-50/60 border-t border-red-100 text-xs text-red-700">
+          <span className="font-semibold shrink-0">Motivo:</span>
+          <span>{agendamento.motivo_cancelamento}</span>
+        </div>
+      )}
+
       {/* Actions */}
       {!isProfissional && (
         <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-t border-neutral-50">
@@ -127,10 +164,13 @@ export default function AgendamentoCard({
               <Button size="sm" variant="secondary" onClick={handleMarkAsMissed}>Faltou</Button>
             </>
           )}
+          {agendamento.status === 'em_atendimento' && (
+            <Button size="sm" variant="primary" onClick={handleComplete}>Concluir</Button>
+          )}
           {agendamento.status !== 'concluida' && agendamento.status !== 'cancelada' && (
             <div className="flex items-center gap-1 ml-auto">
               <Button size="sm" variant="ghost" onClick={() => onEdit(agendamento)} icon={<Edit className="w-3.5 h-3.5" />} />
-              <Button size="sm" variant="ghost" onClick={() => onDelete(agendamento.id)} icon={<Trash2 className="w-3.5 h-3.5" />} className="text-red-400 hover:text-red-600 hover:bg-red-50" />
+              <Button size="sm" variant="ghost" onClick={() => onDelete(agendamento)} icon={<Trash2 className="w-3.5 h-3.5" />} className="text-red-400 hover:text-red-600 hover:bg-red-50" />
             </div>
           )}
         </div>

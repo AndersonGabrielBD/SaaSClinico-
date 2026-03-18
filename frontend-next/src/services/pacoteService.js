@@ -78,6 +78,23 @@ export const pacoteService = {
   },
 
   // ==========================================================================
+  // PACOTE ATIVO POR PACIENTE + PROFISSIONAL
+  // ==========================================================================
+
+  // Busca o pacote pago e ativo de um paciente para um profissional específico,
+  // retornando os itens com sessoes_utilizadas e sessoes_restantes calculados
+  // pela RPC get_pacote_ativo_por_paciente_profissional.
+  async getPacoteAtivoByPacienteEProfissional(paciente_id, profissional_id) {
+    try {
+      return await api.get('/pacotes/ativo-por-profissional', {
+        params: { paciente_id, profissional_id },
+      });
+    } catch {
+      return null;
+    }
+  },
+
+  // ==========================================================================
   // ESTATÍSTICAS
   // ==========================================================================
 

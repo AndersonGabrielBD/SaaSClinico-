@@ -387,6 +387,29 @@ class PacoteService:
         return self._execute_with_retry(f"MARCAR_PENDENTE:{pacote_id}", operation)
 
     # =========================================================================
+    # PACOTE ATIVO POR PACIENTE + PROFISSIONAL
+    # =========================================================================
+
+    def buscar_pacote_ativo_por_profissional(
+        self, clinica_id: str, paciente_id: str, profissional_id: str
+    ) -> Optional[Dict]:
+        """Retorna o pacote pago e ativo do paciente para o profissional dado,
+        com sessoes_utilizadas e sessoes_restantes via RPC."""
+        def operation():
+            result = self.supabase.rpc(
+                'get_pacote_ativo_por_paciente_profissional',
+                {
+                    'p_clinica_id': clinica_id,
+                    'p_paciente_id': paciente_id,
+                    'p_profissional_id': profissional_id,
+                }
+            ).execute()
+            return result.data  # None se não encontrado
+        return self._execute_with_retry(
+            f"PACOTE_ATIVO:{paciente_id}:{profissional_id}", operation
+        )
+
+    # =========================================================================
     # ESTATÍSTICAS
     # =========================================================================
 

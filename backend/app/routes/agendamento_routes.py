@@ -27,7 +27,7 @@ def get_agendamentos():
         
         client = get_supabase_client()
         query = client.table('agendamentos')\
-            .select('id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, observacoes, paciente_id, profissional_id, sala_id, clinica_id')\
+            .select('id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, observacoes, paciente_id, profissional_id, sala_id, clinica_id, recorrencia_id, recorrencia_tipo, pacote_item_id, motivo_cancelamento')\
             .eq('clinica_id', clinica_id)\
             .order('data_agendamento', desc=False)\
             .order('horario_inicio', desc=False)
@@ -147,7 +147,7 @@ def create_agendamento():
 
 @agendamento_bp.route('/<agendamento_id>', methods=['PUT'])
 @require_auth
-@require_roles(['admin', 'recepcao'])
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
 def update_agendamento(agendamento_id):
     """Atualiza agendamento"""
     try:
@@ -203,6 +203,65 @@ def delete_agendamento(agendamento_id):
         return jsonify({'message': 'Agendamento cancelado'}), 200
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@agendamento_bp.route('/cancelar-recorrencia', methods=['PUT'])
+@require_auth
+@require_roles(['admin', 'recepcao'])
+def cancelar_recorrencia():
+    """Cancela em lote todos os agendamentos de uma série recorrente.
+    
+    Body: {
+      recorrencia_id: str,
+      from_date: str (opcional — cancela apenas os com data >= from_date),
+      motivo: str (opcional)
+    }
+    """
+    try:
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+
+        data = request.get_json()
+        recorrencia_id = data.get('recorrencia_id')
+        from_date = data.get('from_date')
+        motivo = data.get('motivo')
+
+        if not recorrencia_id:
+            return jsonify({'error': 'recorrencia_id é obrigatório'}), 400
+
+        client = get_supabase_client()
+
+        query = client.table('agendamentos')\
+            .select('id')\
+            .eq('clinica_id', clinica_id)\
+            .eq('recorrencia_id', recorrencia_id)\
+            .not_.in_('status', ['cancelada', 'concluida'])
+
+        if from_date:
+            query = query.gte('data_agendamento', from_date)
+
+        rows = query.execute().data or []
+        ids = [r['id'] for r in rows]
+
+        if not ids:
+            return jsonify({'message': 'Nenhum agendamento encontrado para cancelar', 'cancelados': 0}), 200
+
+        update_payload = {'status': 'cancelada'}
+        if motivo:
+            update_payload['motivo_cancelamento'] = motivo
+
+        client.table('agendamentos')\
+            .update(update_payload)\
+            .in_('id', ids)\
+            .eq('clinica_id', clinica_id)\
+            .execute()
+
+        return jsonify({'message': f'{len(ids)} agendamento(s) cancelado(s)', 'cancelados': len(ids)}), 200
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f'[RECORRENCIA] Erro ao cancelar: {e}')
         return jsonify({'error': str(e)}), 500
 
 

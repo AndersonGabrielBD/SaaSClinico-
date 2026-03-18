@@ -250,6 +250,13 @@ export const deleteAgendamento = (id) => {
   });
 };
 
+export const cancelarRecorrencia = (data) => {
+  return request(`/agendamentos/cancelar-recorrencia`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+};
+
 // ============================================================================
 // PRONTUÁRIOS
 // ============================================================================
