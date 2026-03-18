@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { agendamentoService } from '@/services/agendamentoService'
 import { Plus, Calendar as CalendarIcon, List, Search, FileDown, AlertTriangle } from 'lucide-react'
 import Button from '@/components/common/Button'
@@ -44,11 +44,7 @@ export default function AgendaPage() {
     setToast({ show: true, message, type })
   }
 
-  useEffect(() => {
-    loadAgendamentos()
-  }, [selectedDate, activeTab, viewMode])
-
-  const loadAgendamentos = async () => {
+  const loadAgendamentos = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -93,7 +89,11 @@ export default function AgendaPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedDate, activeTab, viewMode, isProfissional, user?.id])
+
+  useEffect(() => {
+    loadAgendamentos()
+  }, [loadAgendamentos])
 
   const handleCreate = () => {
     if (isProfissional) return
@@ -401,7 +401,7 @@ export default function AgendaPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-900">Cancelar este agendamento?</p>
-              <p className="text-sm text-neutral-500 mt-1">O status será alterado para "Cancelado".</p>
+              <p className="text-sm text-neutral-500 mt-1">O status será alterado para &quot;Cancelado&quot;.</p>
             </div>
           </div>
 
