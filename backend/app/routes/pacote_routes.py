@@ -293,6 +293,36 @@ def marcar_pendente(pacote_id):
 
 
 # =============================================================================
+# PACOTE ATIVO POR PACIENTE + PROFISSIONAL
+# =============================================================================
+
+@pacote_bp.route('/ativo-por-profissional', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+def pacote_ativo_por_profissional():
+    """Retorna o pacote pago e ativo de um paciente para um profissional,
+    com sessoes_utilizadas e sessoes_restantes por item via RPC."""
+    try:
+        user = get_current_user()
+        paciente_id = request.args.get('paciente_id')
+        profissional_id = request.args.get('profissional_id')
+
+        if not paciente_id or not profissional_id:
+            return jsonify({'error': 'paciente_id e profissional_id são obrigatórios'}), 400
+
+        service = PacoteService()
+        resultado = service.buscar_pacote_ativo_por_profissional(
+            clinica_id=user['clinica_id'],
+            paciente_id=paciente_id,
+            profissional_id=profissional_id,
+        )
+        return jsonify(resultado), 200
+    except Exception as e:
+        logger.error(f"pacote_ativo_por_profissional: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
 # ESTATÍSTICAS
 # =============================================================================
 

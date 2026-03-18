@@ -1,6 +1,37 @@
 import * as api from '@/lib/api'
 import { getTodayBrazil } from '@/lib/dateUtils'
 
+// Gera uma lista de datas a partir de uma data inicial, frequência e limite
+function gerarDatasRecorrentes({ dataInicio, frequencia, totalOcorrencias, dataFim }) {
+  const datas = []
+  const [ano, mes, dia] = dataInicio.split('-').map(Number)
+  let atual = new Date(ano, mes - 1, dia)
+  const limite = dataFim ? new Date(dataFim) : null
+
+  for (let i = 0; i < (totalOcorrencias || 52); i++) {
+    const dataStr = atual.toISOString().split('T')[0]
+    if (limite && atual > limite) break
+    datas.push(dataStr)
+
+    if (frequencia === 'semanal') {
+      atual = new Date(atual)
+      atual.setDate(atual.getDate() + 7)
+    } else if (frequencia === 'quinzenal') {
+      atual = new Date(atual)
+      atual.setDate(atual.getDate() + 14)
+    } else if (frequencia === 'mensal') {
+      atual = new Date(atual)
+      atual.setMonth(atual.getMonth() + 1)
+    } else {
+      break
+    }
+
+    if (datas.length >= 52) break
+  }
+
+  return datas
+}
+
 export const agendamentoService = {
   // Listar agendamentos
   async getAll(filters) {
@@ -12,9 +43,41 @@ export const agendamentoService = {
     return api.getAgendamentoById(id)
   },
 
-  // Criar agendamento
+  // Criar agendamento simples
   async create(agendamento) {
     return api.createAgendamento(agendamento)
+  },
+
+  // Criar agendamentos recorrentes em batch
+  // recorrenciaConfig: { frequencia, totalOcorrencias, dataFim }
+  async createRecorrente(agendamentoBase, recorrenciaConfig) {
+    const recorrenciaId = crypto.randomUUID()
+    const datas = gerarDatasRecorrentes({
+      dataInicio: agendamentoBase.data_agendamento,
+      frequencia: recorrenciaConfig.frequencia,
+      totalOcorrencias: recorrenciaConfig.totalOcorrencias,
+      dataFim: recorrenciaConfig.dataFim,
+    })
+
+    const resultados = []
+    const erros = []
+
+    for (const data of datas) {
+      try {
+        const result = await api.createAgendamento({
+          ...agendamentoBase,
+          data_agendamento: data,
+          recorrencia_id: recorrenciaId,
+          recorrencia_tipo: recorrenciaConfig.frequencia,
+          pacote_item_id: agendamentoBase.pacote_item_id || null,
+        })
+        resultados.push(result)
+      } catch (err) {
+        erros.push({ data, erro: err.message })
+      }
+    }
+
+    return { criados: resultados, erros, recorrenciaId }
   },
 
   // Atualizar agendamento
@@ -23,8 +86,8 @@ export const agendamentoService = {
   },
 
   // Alterar status
-  async updateStatus(id, status) {
-    return api.updateAgendamento(id, { status })
+  async updateStatus(id, status, extra = {}) {
+    return api.updateAgendamento(id, { status, ...extra })
   },
 
   // Confirmar agendamento
@@ -32,9 +95,17 @@ export const agendamentoService = {
     return this.updateStatus(id, 'confirmada')
   },
 
-  // Cancelar agendamento
-  async cancel(id) {
+  // Cancelar agendamento (soft-delete via DELETE que o backend converte em status=cancelada)
+  async cancel(id, motivo) {
+    if (motivo) {
+      return api.updateAgendamento(id, { status: 'cancelada', motivo_cancelamento: motivo })
+    }
     return api.deleteAgendamento(id)
+  },
+
+  // Iniciar atendimento (valida horário no frontend antes de chamar)
+  async startService(id) {
+    return this.updateStatus(id, 'em_atendimento')
   },
 
   // Marcar como faltou
@@ -45,6 +116,12 @@ export const agendamentoService = {
   // Concluir agendamento
   async complete(id) {
     return this.updateStatus(id, 'concluida')
+  },
+
+  // Cancelar todos os agendamentos de uma série recorrente
+  // scope: 'all' | 'from_date'
+  async cancelByRecorrenciaId(recorrenciaId, fromDate, motivo) {
+    return api.cancelarRecorrencia({ recorrencia_id: recorrenciaId, from_date: fromDate || undefined, motivo: motivo || undefined })
   },
 
   // Agendamentos do dia

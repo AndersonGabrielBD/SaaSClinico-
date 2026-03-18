@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { agendamentoService } from '@/services/agendamentoService'
 import { Plus, Calendar as CalendarIcon, List, Search, FileDown, AlertTriangle } from 'lucide-react'
 import Button from '@/components/common/Button'
@@ -22,7 +22,7 @@ export default function AgendaPage() {
   const { user } = useAuth()
   const userRole = getUserRole()
   const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
-  
+
   const [agendamentos, setAgendamentos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -31,58 +31,52 @@ export default function AgendaPage() {
   const [editingAgendamento, setEditingAgendamento] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState(getTodayBrazil())
-  const [activeTab, setActiveTab] = useState('agendadas') // 'agendadas', 'concluidas', 'canceladas', 'todas'
+  const [activeTab, setActiveTab] = useState('agendadas')
   const [exportingPdf, setExportingPdf] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
-  const [cancelConfirm, setCancelConfirm] = useState({ open: false, id: null })
+
+  // Modal de cancelamento (simples e recorrente)
+  const [cancelConfirm, setCancelConfirm] = useState({ open: false, id: null, motivo: '', recorrenciaId: null, dataAgendamento: null })
+  // 'single' | 'from_date' | 'all'
+  const [cancelScope, setCancelScope] = useState('single')
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
   }
 
-  useEffect(() => {
-    loadAgendamentos()
-  }, [selectedDate, activeTab, viewMode])
-
-  const loadAgendamentos = async () => {
+  const loadAgendamentos = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // Construir filtros baseados no modo de visualização
       let filters = {}
-      
+
       if (viewMode === 'calendar') {
-        // No modo calendário, buscar todo o mês
-        const date = new Date(selectedDate)
-        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
-        const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0)
-        
+        // Usar partes da data (YYYY-MM-DD) para evitar timezone: new Date('2025-04-01') vira 31/03 à noite em UTC-3
+        const [y, m] = selectedDate.split('-').map(Number)
+        const startOfMonth = new Date(y, m - 1, 1)
+        const endOfMonth = new Date(y, m, 0)
         filters.data_inicio = format(startOfMonth, 'yyyy-MM-dd')
         filters.data_fim = format(endOfMonth, 'yyyy-MM-dd')
-      } else if (activeTab === 'agendadas') {
-        // No modo lista, filtrar pela data selecionada apenas se for aba "agendadas"
+      } else if (activeTab !== 'todas') {
+        // Feature 3 — todas as abas (exceto "Todas") filtram pela data selecionada
         filters.data_agendamento = selectedDate
       }
-      
-      // Se for profissional, adicionar filtro de profissional_id
+
       if (isProfissional && user?.id) {
         filters.profissional_id = user.id
       }
-      
+
       const result = await agendamentoService.getAll(filters)
-      
       const data = result.data || result || []
-      
-      // Filtrar por profissional se não for admin
+
       let filteredData = data
       if (isProfissional && user?.id) {
         filteredData = data.filter(a => a.profissional_id === user.id)
       }
-      
+
       setAgendamentos(filteredData)
     } catch (error) {
-      // Identifica o tipo de erro
       if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
         setError('Backend não está respondendo. Verifique se o servidor está rodando em http://localhost:5000')
       } else if (error.response?.status === 401) {
@@ -95,7 +89,11 @@ export default function AgendaPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedDate, activeTab, viewMode, isProfissional, user?.id])
+
+  useEffect(() => {
+    loadAgendamentos()
+  }, [loadAgendamentos])
 
   const handleCreate = () => {
     if (isProfissional) return
@@ -108,16 +106,36 @@ export default function AgendaPage() {
     setModalOpen(true)
   }
 
-  const handleDelete = (id) => {
-    setCancelConfirm({ open: true, id })
+  // Recebe objeto completo para ter recorrencia_id disponível
+  const handleDelete = (agendamento) => {
+    setCancelScope('single')
+    setCancelConfirm({
+      open: true,
+      id: agendamento.id,
+      motivo: '',
+      recorrenciaId: agendamento.recorrencia_id || null,
+      dataAgendamento: agendamento.data_agendamento || null,
+    })
   }
 
   const confirmCancel = async () => {
     try {
-      await agendamentoService.cancel(cancelConfirm.id)
-      setCancelConfirm({ open: false, id: null })
+      const { id, motivo, recorrenciaId, dataAgendamento } = cancelConfirm
+
+      if (recorrenciaId && cancelScope !== 'single') {
+        const fromDate = cancelScope === 'from_date' ? dataAgendamento : undefined
+        await agendamentoService.cancelByRecorrenciaId(recorrenciaId, fromDate, motivo || undefined)
+        const msg = cancelScope === 'from_date'
+          ? 'Agendamentos a partir desta data cancelados'
+          : 'Todos os agendamentos da série foram cancelados'
+        showToast(msg, 'success')
+      } else {
+        await agendamentoService.cancel(id, motivo || undefined)
+        showToast('Agendamento cancelado com sucesso', 'success')
+      }
+
+      setCancelConfirm({ open: false, id: null, motivo: '', recorrenciaId: null, dataAgendamento: null })
       await loadAgendamentos()
-      showToast('Agendamento cancelado com sucesso', 'success')
     } catch (error) {
       console.error('Erro ao cancelar agendamento:', error)
       showToast('Erro ao cancelar agendamento', 'error')
@@ -127,25 +145,20 @@ export default function AgendaPage() {
   const handleSave = async () => {
     setModalOpen(false)
     await loadAgendamentos()
+    showToast('Agendamento salvo com sucesso', 'success')
   }
 
   const handleExportPdf = async () => {
     try {
       setExportingPdf(true)
-      
-      // Construir parâmetros de filtro
       const params = new URLSearchParams()
-      if (activeTab === 'agendadas') {
+      if (activeTab !== 'todas') {
         params.append('data_agendamento', selectedDate)
       }
       if (isProfissional && user?.id) {
         params.append('profissional_id', user.id)
       }
-      
-      // Fazer requisição para exportar PDF
       const response = await api.download(`/agendamentos/export-pdf?${params.toString()}`)
-      
-      // Criar link para download
       const url = window.URL.createObjectURL(response.data)
       const link = document.createElement('a')
       link.href = url
@@ -154,7 +167,6 @@ export default function AgendaPage() {
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
-      
     } catch (error) {
       console.error('Erro ao exportar PDF:', error)
       showToast('Erro ao exportar agenda em PDF', 'error')
@@ -164,7 +176,6 @@ export default function AgendaPage() {
   }
 
   const filteredAgendamentos = agendamentos.filter(a => {
-    // Filtro por aba/tab
     if (activeTab === 'agendadas') {
       if (!['agendada', 'confirmada', 'em_atendimento'].includes(a.status)) return false
     } else if (activeTab === 'concluidas') {
@@ -172,29 +183,22 @@ export default function AgendaPage() {
     } else if (activeTab === 'canceladas') {
       if (a.status !== 'cancelada') return false
     }
-    // activeTab === 'todas' mostra todos
-    
-    // Filtro de busca
+
     if (!searchTerm) return true
-    
     const search = searchTerm.toLowerCase()
-    
-    // Buscar por campos disponíveis
     return (
       a.tipo_atendimento?.toLowerCase().includes(search) ||
       a.observacoes?.toLowerCase().includes(search) ||
       a.id?.toLowerCase().includes(search) ||
-      // Se tiver os dados relacionados, buscar também
       a.paciente?.nome_completo?.toLowerCase().includes(search) ||
       a.profissional?.nome_completo?.toLowerCase().includes(search)
     )
   })
-  
-  // Contar por status
+
   const countAgendadas = agendamentos.filter(a => ['agendada', 'confirmada', 'em_atendimento'].includes(a.status)).length
   const countConcluidas = agendamentos.filter(a => a.status === 'concluida').length
   const countCanceladas = agendamentos.filter(a => a.status === 'cancelada').length
-  
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -288,14 +292,14 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* Tabs — horizontal scroll on mobile */}
+      {/* Tabs — Feature 3: label indica que as abas filtram por data; "Todas" não filtra */}
       <div className="bg-white rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
         <div className="flex overflow-x-auto scrollbar-none border-b border-neutral-100">
           {[
             { key: 'agendadas', label: 'Agendadas', short: 'Agend.', count: countAgendadas, activeClass: 'text-primary-600 border-primary-500 bg-primary-50/50', badgeClass: 'bg-primary-100 text-primary-700' },
             { key: 'concluidas', label: 'Concluídas', short: 'Concl.', count: countConcluidas, activeClass: 'text-green-600 border-green-500 bg-green-50/50', badgeClass: 'bg-green-100 text-green-700' },
             { key: 'canceladas', label: 'Canceladas', short: 'Canc.', count: countCanceladas, activeClass: 'text-red-600 border-red-500 bg-red-50/50', badgeClass: 'bg-red-100 text-red-700' },
-            { key: 'todas', label: 'Todas', short: 'Todas', count: agendamentos.length, activeClass: 'text-neutral-900 border-neutral-800 bg-neutral-50', badgeClass: 'bg-neutral-200 text-neutral-700' },
+            { key: 'todas', label: 'Todas as datas', short: 'Todas', count: agendamentos.length, activeClass: 'text-neutral-900 border-neutral-800 bg-neutral-50', badgeClass: 'bg-neutral-200 text-neutral-700' },
           ].map(({ key, label, short, count, activeClass, badgeClass }) => (
             <button
               key={key}
@@ -313,6 +317,14 @@ export default function AgendaPage() {
             </button>
           ))}
         </div>
+        {/* Legenda da data filtrada (para abas que filtram) */}
+        {activeTab !== 'todas' && viewMode === 'list' && (
+          <div className="px-4 py-1.5 bg-neutral-50 border-b border-neutral-100 text-xs text-neutral-400">
+            Exibindo registros de <span className="font-medium text-neutral-600">
+              {format(parseISO(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -337,7 +349,11 @@ export default function AgendaPage() {
       ) : filteredAgendamentos.length === 0 ? (
         <EmptyState
           title="Nenhum agendamento encontrado"
-          description={`Não há agendamentos para ${format(parseISO(selectedDate), "dd 'de' MMMM", { locale: ptBR })}`}
+          description={
+            activeTab !== 'todas'
+              ? `Não há ${activeTab === 'agendadas' ? 'agendamentos' : activeTab === 'concluidas' ? 'consultas concluídas' : 'cancelamentos'} em ${format(parseISO(selectedDate), "dd 'de' MMMM", { locale: ptBR })}`
+              : 'Nenhum agendamento encontrado'
+          }
           icon={<CalendarIcon className="w-10 h-10" />}
           action={!isProfissional ? handleCreate : undefined}
           actionLabel={!isProfissional ? 'Criar Agendamento' : undefined}
@@ -351,12 +367,13 @@ export default function AgendaPage() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onRefresh={loadAgendamentos}
+              showToast={showToast}
             />
           ))}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal de criação/edição */}
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -370,26 +387,71 @@ export default function AgendaPage() {
         />
       </Modal>
 
-      {/* Confirm Cancel Modal */}
+      {/* Modal de cancelamento (simples ou recorrente) */}
       <Modal
         isOpen={cancelConfirm.open}
-        onClose={() => setCancelConfirm({ open: false, id: null })}
+        onClose={() => setCancelConfirm({ open: false, id: null, motivo: '', recorrenciaId: null, dataAgendamento: null })}
         title="Cancelar Agendamento"
         size="sm"
       >
-        <div className="flex flex-col items-center text-center gap-4 py-2">
-          <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6 text-yellow-600" />
+        <div className="flex flex-col gap-4 py-2">
+          <div className="flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-neutral-900">Cancelar este agendamento?</p>
+              <p className="text-sm text-neutral-500 mt-1">O status será alterado para &quot;Cancelado&quot;.</p>
+            </div>
           </div>
+
+          {/* Opções de escopo — apenas para agendamentos recorrentes */}
+          {cancelConfirm.recorrenciaId && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Este agendamento é recorrente</p>
+              {[
+                { value: 'single',    label: 'Cancelar só este' },
+                { value: 'from_date', label: 'Cancelar este e os futuros da série' },
+                { value: 'all',       label: 'Cancelar todos da série' },
+              ].map(({ value, label }) => (
+                <label
+                  key={value}
+                  className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    cancelScope === value ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:bg-neutral-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="cancelScope"
+                    value={value}
+                    checked={cancelScope === value}
+                    onChange={() => setCancelScope(value)}
+                    className="accent-primary-600"
+                  />
+                  <span className="text-sm text-neutral-700">{label}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
           <div>
-            <p className="text-sm font-medium text-neutral-900">Tem certeza que deseja cancelar este agendamento?</p>
-            <p className="text-sm text-neutral-500 mt-1">Esta ação não pode ser desfeita.</p>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+              Motivo do cancelamento
+              <span className="text-neutral-400 font-normal ml-1">(opcional)</span>
+            </label>
+            <textarea
+              value={cancelConfirm.motivo}
+              onChange={(e) => setCancelConfirm(prev => ({ ...prev, motivo: e.target.value }))}
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              placeholder="Ex: paciente solicitou remarcação, emergência..."
+            />
           </div>
-          <div className="flex gap-3 w-full">
+          <div className="flex gap-3">
             <Button
               variant="ghost"
               className="flex-1"
-              onClick={() => setCancelConfirm({ open: false, id: null })}
+              onClick={() => setCancelConfirm({ open: false, id: null, motivo: '', recorrenciaId: null, dataAgendamento: null })}
             >
               Voltar
             </Button>
@@ -398,7 +460,7 @@ export default function AgendaPage() {
               className="flex-1"
               onClick={confirmCancel}
             >
-              Cancelar Agendamento
+              Confirmar Cancelamento
             </Button>
           </div>
         </div>

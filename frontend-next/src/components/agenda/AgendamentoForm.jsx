@@ -1,15 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { agendamentoService } from '@/services/agendamentoService'
+import { pacoteService } from '@/services/pacoteService'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
 import { getUserRole } from '@/utils/auth'
 import * as api from '@/lib/api'
 import Button from '@/components/common/Button'
 import { getTodayBrazil } from '@/lib/dateUtils'
+import { RefreshCw, Package } from 'lucide-react'
 
 const TIPOS_PADRAO = ['Avaliação', 'Reavaliação', 'Seguimento', 'Terapia', 'Retorno']
+
+const STATUS_OPCOES = [
+  { value: 'agendada',        label: 'Agendada' },
+  { value: 'confirmada',      label: 'Confirmada' },
+  { value: 'em_atendimento',  label: 'Em Atendimento' },
+  { value: 'concluida',       label: 'Concluída' },
+  { value: 'cancelada',       label: 'Cancelada' },
+  { value: 'faltou',          label: 'Faltou' },
+]
 
 export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
   const [loading, setLoading] = useState(false)
@@ -19,6 +30,20 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
   const [salas, setSalas] = useState([])
   const [tiposAtendimento, setTiposAtendimento] = useState(TIPOS_PADRAO)
 
+  // Feature 1 — Recorrência
+  const [recorrente, setRecorrente] = useState(false)
+  const [recorrenciaConfig, setRecorrenciaConfig] = useState({
+    frequencia: 'semanal',
+    modoFim: 'ocorrencias', // 'ocorrencias' | 'data'
+    totalOcorrencias: 4,
+    dataFim: '',
+  })
+
+  // Feature 2 — Pacote ativo
+  const [pacoteAtivo, setPacoteAtivo] = useState(null)
+  const [pacoteItemSelecionado, setPacoteItemSelecionado] = useState('')
+  const [loadingPacote, setLoadingPacote] = useState(false)
+
   const [formData, setFormData] = useState({
     paciente_id: agendamento?.paciente_id || '',
     profissional_id: agendamento?.profissional_id || '',
@@ -27,19 +52,52 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
     horario_inicio: agendamento?.horario_inicio || '',
     horario_fim: agendamento?.horario_fim || '',
     tipo_atendimento: agendamento?.tipo_atendimento || 'Avaliação',
-    observacoes: agendamento?.observacoes || ''
+    observacoes: agendamento?.observacoes || '',
+    // Feature 4 — status + cancelamento
+    status: agendamento?.status || 'agendada',
+    motivo_cancelamento: agendamento?.motivo_cancelamento || '',
   })
 
   useEffect(() => {
     loadOptions()
   }, [])
 
+  // Busca pacote ativo quando paciente + profissional estão preenchidos (apenas ao criar)
+  const buscarPacoteAtivo = useCallback(async (paciente_id, profissional_id) => {
+    if (!paciente_id || !profissional_id || agendamento) return
+    setLoadingPacote(true)
+    setPacoteAtivo(null)
+    setPacoteItemSelecionado('')
+    try {
+      const pacote = await pacoteService.getPacoteAtivoByPacienteEProfissional(
+        paciente_id,
+        profissional_id
+      )
+      if (pacote && pacote.itens?.length > 0) {
+        const itensComSaldo = pacote.itens.filter(i => i.sessoes_restantes > 0)
+        setPacoteAtivo({ ...pacote, itens: itensComSaldo })
+      }
+    } catch {
+      // silencioso
+    } finally {
+      setLoadingPacote(false)
+    }
+  }, [agendamento])
+
+  useEffect(() => {
+    if (formData.paciente_id && formData.profissional_id) {
+      buscarPacoteAtivo(formData.paciente_id, formData.profissional_id)
+    } else {
+      setPacoteAtivo(null)
+      setPacoteItemSelecionado('')
+    }
+  }, [formData.paciente_id, formData.profissional_id, buscarPacoteAtivo])
+
   const loadOptions = async () => {
     try {
       const userRole = getUserRole()
       const isProfissional = ['fono', 'medico', 'profissional'].includes(userRole)
-      
-      // Carregar pacientes
+
       let pacientesData
       if (isProfissional) {
         pacientesData = await profissionalService.getMyPacientes({ ativo: true })
@@ -48,13 +106,10 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
       }
       setPacientes(pacientesData)
 
-      // Carregar profissionais
       let profData = await api.getProfissionais({ ativo: true })
       profData = profData?.data || profData || []
-      
-      // Se for profissional, filtrar apenas a si mesmo
+
       if (isProfissional) {
-        const authToken = localStorage.getItem('auth_token')
         const userInfo = localStorage.getItem('user_info')
         if (userInfo) {
           try {
@@ -65,14 +120,11 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
           }
         }
       }
-      
       setProfissionais(profData)
 
-      // Carregar salas
       const salasData = await api.getSalas({ ativo: true })
       setSalas(salasData?.data || salasData || [])
 
-      // Carregar tipos de atendimento
       try {
         const tiposData = await api.getTiposAtendimento({ ativo: true })
         const tiposArr = tiposData?.data || tiposData || []
@@ -91,8 +143,7 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
     e.preventDefault()
     setError('')
 
-    // Validações
-    if (!formData.paciente_id || !formData.profissional_id || !formData.data_agendamento || 
+    if (!formData.paciente_id || !formData.profissional_id || !formData.data_agendamento ||
         !formData.horario_inicio || !formData.horario_fim) {
       setError('Preencha todos os campos obrigatórios')
       return
@@ -103,10 +154,18 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
       return
     }
 
-    // Validar data
-    const hoje = getTodayBrazil()
-    if (formData.data_agendamento < hoje) {
-      setError('Não é possível agendar em datas passadas')
+    // Validar data (somente ao criar)
+    if (!agendamento) {
+      const hoje = getTodayBrazil()
+      if (formData.data_agendamento < hoje) {
+        setError('Não é possível agendar em datas passadas')
+        return
+      }
+    }
+
+    // Feature 4 — motivo obrigatório ao cancelar
+    if (formData.status === 'cancelada' && !formData.motivo_cancelamento.trim()) {
+      setError('Informe o motivo do cancelamento')
       return
     }
 
@@ -115,42 +174,94 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
 
       const payload = {
         ...formData,
-        sala_id: formData.sala_id || null
+        sala_id: formData.sala_id || null,
+        pacote_item_id: pacoteItemSelecionado || null,
       }
 
       if (agendamento) {
+        // Edição — salva status + motivo junto
         await agendamentoService.update(agendamento.id, payload)
+      } else if (recorrente) {
+        // Feature 1 — criação recorrente
+        const config = {
+          frequencia: recorrenciaConfig.frequencia,
+          totalOcorrencias: recorrenciaConfig.modoFim === 'ocorrencias'
+            ? Number(recorrenciaConfig.totalOcorrencias)
+            : undefined,
+          dataFim: recorrenciaConfig.modoFim === 'data'
+            ? recorrenciaConfig.dataFim
+            : undefined,
+        }
+
+        // Fix 5 — Validar limite de sessões antes de criar recorrente com pacote
+        if (pacoteItemSelecionado && pacoteAtivo) {
+          const item = pacoteAtivo.itens.find(i => i.id === pacoteItemSelecionado)
+          if (item) {
+            // Calcula quantas datas serão geradas
+            const { default: gerarDatas } = { default: null } // evita import circular; usa lógica inline
+            let sessoesNecessarias = 0
+            if (recorrenciaConfig.modoFim === 'ocorrencias') {
+              sessoesNecessarias = Number(recorrenciaConfig.totalOcorrencias) || 0
+            } else if (recorrenciaConfig.modoFim === 'data' && recorrenciaConfig.dataFim) {
+              // Conta quantas datas são geradas pelo mesmo algoritmo do service
+              const [ano, mes, dia] = payload.data_agendamento.split('-').map(Number)
+              let atual = new Date(ano, mes - 1, dia)
+              const limite = new Date(recorrenciaConfig.dataFim)
+              let count = 0
+              const freq = recorrenciaConfig.frequencia
+              while (atual <= limite && count < 52) {
+                count++
+                if (freq === 'semanal') atual.setDate(atual.getDate() + 7)
+                else if (freq === 'quinzenal') atual.setDate(atual.getDate() + 14)
+                else if (freq === 'mensal') atual.setMonth(atual.getMonth() + 1)
+                else break
+              }
+              sessoesNecessarias = count
+            }
+            if (sessoesNecessarias > item.sessoes_restantes) {
+              setError(
+                `O pacote só possui ${item.sessoes_restantes} sessão(ões) disponível(eis), ` +
+                `mas você está tentando criar ${sessoesNecessarias} agendamento(s). ` +
+                `Reduza o número de repetições ou escolha uma data de término anterior.`
+              )
+              setLoading(false)
+              return
+            }
+          }
+        }
+
+        const { criados, erros } = await agendamentoService.createRecorrente(payload, config)
+        if (erros.length > 0 && criados.length === 0) {
+          setError(`Nenhum agendamento criado. Erros: ${erros.map(e => e.data).join(', ')}`)
+          return
+        }
+        if (erros.length > 0) {
+          // avisa mas continua
+          console.warn('Alguns agendamentos não foram criados:', erros)
+        }
       } else {
         await agendamentoService.create(payload)
       }
 
       onSuccess()
     } catch (err) {
-      // Interpretar diferentes tipos de erro
       let mensagem = 'Erro ao salvar agendamento'
-      
-      // Se for erro de constraint de data
       if (err.code === '23514' || err.message?.includes('data_futura') || err.message?.includes('check constraint')) {
         mensagem = 'Data inválida. Não é possível agendar em datas passadas'
-      }
-      // Se for erro de campo obrigatório
-      else if (err.status === 400 || err.message?.includes('inválido') || err.message?.includes('obrigat')) {
+      } else if (err.status === 400 || err.message?.includes('inválido') || err.message?.includes('obrigat')) {
         mensagem = err.message || 'Por favor, preencha todos os campos obrigatórios'
-      }
-      // Se for erro de conflito de horário
-      else if (err.message?.includes('conflict') || err.message?.includes('Há conflito')) {
+      } else if (err.message?.includes('conflict') || err.message?.includes('Há conflito')) {
         mensagem = 'Conflito de horário. Escolha outro horário'
-      }
-      // Erro genérico
-      else {
+      } else {
         mensagem = err.message || mensagem
       }
-      
       setError(mensagem)
     } finally {
       setLoading(false)
     }
   }
+
+  const isEditing = Boolean(agendamento)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -174,9 +285,7 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
           >
             <option value="">Selecione um paciente</option>
             {pacientes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nome_completo}
-              </option>
+              <option key={p.id} value={p.id}>{p.nome_completo}</option>
             ))}
           </select>
         </div>
@@ -217,9 +326,7 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
           >
             <option value="">Sem sala definida</option>
             {salas.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome}
-              </option>
+              <option key={s.id} value={s.id}>{s.nome}</option>
             ))}
           </select>
           <p className="text-xs text-neutral-500 mt-1">Você pode criar o agendamento sem informar sala.</p>
@@ -282,7 +389,42 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
             required
           />
         </div>
+
+        {/* Feature 4 — Status (somente ao editar) */}
+        {isEditing && (
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Status
+            </label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value, motivo_cancelamento: '' })}
+              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+            >
+              {STATUS_OPCOES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
+
+      {/* Feature 4 — Motivo de cancelamento (somente ao editar com status cancelada) */}
+      {isEditing && formData.status === 'cancelada' && (
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            Motivo do Cancelamento *
+          </label>
+          <textarea
+            value={formData.motivo_cancelamento}
+            onChange={(e) => setFormData({ ...formData, motivo_cancelamento: e.target.value })}
+            rows={2}
+            className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-400 focus:border-transparent outline-none"
+            placeholder="Descreva o motivo do cancelamento..."
+            required
+          />
+        </div>
+      )}
 
       {/* Observações */}
       <div>
@@ -298,10 +440,169 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
         />
       </div>
 
+      {/* Feature 2 — Pacote ativo (somente ao criar) */}
+      {!isEditing && (
+        <div>
+          {loadingPacote && (
+            <p className="text-xs text-neutral-400 flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" /> Verificando pacote ativo...
+            </p>
+          )}
+          {!loadingPacote && pacoteAtivo && pacoteAtivo.itens?.length > 0 && (
+            <div className="border border-emerald-200 bg-emerald-50 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium">
+                <Package className="w-4 h-4" />
+                Pacote ativo com sessões disponíveis
+              </div>
+              <div className="space-y-1">
+                {pacoteAtivo.itens.map((item) => (
+                  <label key={item.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="radio"
+                      name="pacote_item"
+                      value={item.id}
+                      checked={pacoteItemSelecionado === item.id}
+                      onChange={() => setPacoteItemSelecionado(item.id)}
+                      className="accent-emerald-600"
+                    />
+                    <span className="text-neutral-700">
+                      {item.tipo_nome || 'Sessão'}
+                      {item.profissional_nome && ` — ${item.profissional_nome}`}
+                    </span>
+                    <span className="ml-auto text-emerald-700 font-semibold text-xs">
+                      {item.sessoes_restantes} sessão(ões) restante(s)
+                    </span>
+                  </label>
+                ))}
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-500">
+                  <input
+                    type="radio"
+                    name="pacote_item"
+                    value=""
+                    checked={pacoteItemSelecionado === ''}
+                    onChange={() => setPacoteItemSelecionado('')}
+                  />
+                  Não vincular ao pacote
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Feature 1 — Repetição (somente ao criar) */}
+      {!isEditing && (
+        <div className="border border-neutral-200 rounded-lg p-4 space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={recorrente}
+              onChange={(e) => setRecorrente(e.target.checked)}
+              className="accent-primary-600 w-4 h-4"
+            />
+            <span className="text-sm font-medium text-neutral-700 flex items-center gap-1.5">
+              <RefreshCw className="w-4 h-4 text-neutral-400" />
+              Repetir agendamento
+            </span>
+          </label>
+
+          {recorrente && (
+            <div className="space-y-3 pl-6">
+              {/* Frequência */}
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 mb-1">Frequência</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'semanal', label: 'Semanal' },
+                    { value: 'quinzenal', label: 'Quinzenal' },
+                    { value: 'mensal', label: 'Mensal' },
+                  ].map((op) => (
+                    <button
+                      key={op.value}
+                      type="button"
+                      onClick={() => setRecorrenciaConfig(prev => ({ ...prev, frequencia: op.value }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors
+                        ${recorrenciaConfig.frequencia === op.value
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-neutral-600 border-neutral-300 hover:border-primary-400'
+                        }`}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modo de encerramento */}
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 mb-1">Encerrar após</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input
+                      type="radio"
+                      name="modoFim"
+                      value="ocorrencias"
+                      checked={recorrenciaConfig.modoFim === 'ocorrencias'}
+                      onChange={() => setRecorrenciaConfig(prev => ({ ...prev, modoFim: 'ocorrencias' }))}
+                    />
+                    Nº de ocorrências
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input
+                      type="radio"
+                      name="modoFim"
+                      value="data"
+                      checked={recorrenciaConfig.modoFim === 'data'}
+                      onChange={() => setRecorrenciaConfig(prev => ({ ...prev, modoFim: 'data' }))}
+                    />
+                    Data final
+                  </label>
+                </div>
+              </div>
+
+              {recorrenciaConfig.modoFim === 'ocorrencias' ? (
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">
+                    Número de repetições
+                  </label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={52}
+                    value={recorrenciaConfig.totalOcorrencias}
+                    onChange={(e) => setRecorrenciaConfig(prev => ({
+                      ...prev,
+                      totalOcorrencias: Math.max(2, Math.min(52, Number(e.target.value)))
+                    }))}
+                    className="w-24 px-3 py-1.5 text-sm border border-neutral-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  <p className="text-xs text-neutral-400 mt-1">
+                    Serão criados {recorrenciaConfig.totalOcorrencias} agendamentos ({recorrenciaConfig.frequencia === 'semanal' ? 'toda semana' : recorrenciaConfig.frequencia === 'quinzenal' ? 'a cada 2 semanas' : 'todo mês'})
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">
+                    Data de encerramento
+                  </label>
+                  <input
+                    type="date"
+                    value={recorrenciaConfig.dataFim}
+                    min={formData.data_agendamento}
+                    onChange={(e) => setRecorrenciaConfig(prev => ({ ...prev, dataFim: e.target.value }))}
+                    className="px-3 py-1.5 text-sm border border-neutral-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex gap-3 pt-4">
         <Button type="submit" loading={loading} className="flex-1">
-          {agendamento ? 'Atualizar' : 'Criar'} Agendamento
+          {isEditing ? 'Atualizar' : recorrente ? 'Criar Agendamentos Recorrentes' : 'Criar'} Agendamento
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancelar

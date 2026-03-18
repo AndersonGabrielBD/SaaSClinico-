@@ -96,6 +96,27 @@ export default function PacotesPage() {
     }
   }, [hasAccess])
 
+  // Atualizar lista ao voltar para a aba ou quando sessão é consumida em outro lugar
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && hasAccess === true) {
+        loadData()
+      }
+    }
+    const onStorage = (e) => {
+      if (e.key === 'pacotes_refresh_needed' && hasAccess === true) {
+        loadData()
+        try { localStorage.removeItem('pacotes_refresh_needed') } catch (_) {}
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [hasAccess])
+
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
     setTimeout(() => setToast({ show: false, message: '', type: '' }), 3000)
@@ -118,6 +139,7 @@ export default function PacotesPage() {
       setPacotesAtivos(Array.isArray(ativosData) ? ativosData : [])
       setPacotesInativos(Array.isArray(inativosData) ? inativosData : [])
       setEstatisticas(statsData)
+      try { localStorage.removeItem('pacotes_refresh_needed') } catch (_) {}
     } catch (error) {
       showToast(error.message || 'Erro ao carregar dados', 'error')
     } finally {
@@ -604,15 +626,31 @@ export default function PacotesPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="font-semibold text-neutral-900">{pacote.paciente_nome}</h3>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {(pacote.itens || []).map(it => (
-                              <span key={it.id || it.tipo_profissional_id} className="px-1.5 py-0.5 text-xs bg-neutral-100 rounded whitespace-nowrap">
-                                {it.profissional_nome || it.tipo_nome} x {it.quantidade_sessoes} sessão
-                              </span>
-                            ))}
+                          <div className="flex flex-col gap-1.5 mt-1.5">
+                            {(pacote.itens || []).map(it => {
+                              const utilizadas = it.sessoes_utilizadas ?? 0
+                              const total = it.quantidade_sessoes ?? 1
+                              const pct = Math.min(100, Math.round((utilizadas / total) * 100))
+                              return (
+                                <div key={it.id || it.tipo_profissional_id} className="text-xs space-y-0.5">
+                                  <div className="flex justify-between text-neutral-600">
+                                    <span className="font-medium">{it.profissional_nome || it.tipo_nome}</span>
+                                    <span className={utilizadas >= total ? 'text-red-600 font-semibold' : 'text-emerald-700 font-semibold'}>
+                                      {utilizadas}/{total} sessões
+                                    </span>
+                                  </div>
+                                  <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-red-500' : pct >= 75 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
-                        <p className="font-bold text-lg text-neutral-900 ml-2">{formatCurrency(pacote.valor_total)}</p>
+                        <p className="font-bold text-lg text-neutral-900 ml-4 shrink-0">{formatCurrency(pacote.valor_total)}</p>
                       </div>
 
                       {isAtivos && (
@@ -670,7 +708,7 @@ export default function PacotesPage() {
                     <thead className="bg-neutral-50">
                       <tr>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase">Paciente</th>
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase">Profissionais / Sessões</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase min-w-[220px]">Profissionais / Sessões</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase">Total</th>
                         {isAtivos && (
                           <>
@@ -687,13 +725,29 @@ export default function PacotesPage() {
                       {lista.map(pacote => (
                         <tr key={pacote.id} className="hover:bg-neutral-50">
                           <td className="px-3 py-2.5 whitespace-nowrap text-sm font-medium text-neutral-900 max-w-[140px] truncate">{pacote.paciente_nome || '-'}</td>
-                          <td className="px-3 py-2.5 max-w-[250px]">
-                            <div className="flex flex-wrap gap-1">
-                              {(pacote.itens || []).map(it => (
-                                <span key={it.id || it.tipo_profissional_id} className="px-1.5 py-0.5 text-xs bg-neutral-100 rounded whitespace-nowrap">
-                                  {it.profissional_nome || it.tipo_nome} x {it.quantidade_sessoes}
-                                </span>
-                              ))}
+                          <td className="px-3 py-2.5 min-w-[220px] max-w-[280px]">
+                            <div className="flex flex-col gap-1.5">
+                              {(pacote.itens || []).map(it => {
+                                const utilizadas = it.sessoes_utilizadas ?? 0
+                                const total = it.quantidade_sessoes ?? 1
+                                const pct = Math.min(100, Math.round((utilizadas / total) * 100))
+                                return (
+                                  <div key={it.id || it.tipo_profissional_id} className="text-xs space-y-0.5">
+                                    <div className="flex justify-between gap-2 text-neutral-700">
+                                      <span className="truncate">{it.profissional_nome || it.tipo_nome}</span>
+                                      <span className={`shrink-0 font-semibold ${utilizadas >= total ? 'text-red-600' : 'text-emerald-700'}`}>
+                                        {utilizadas}/{total}
+                                      </span>
+                                    </div>
+                                    <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-red-500' : pct >= 75 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap text-sm font-semibold text-neutral-900">{formatCurrency(pacote.valor_total)}</td>

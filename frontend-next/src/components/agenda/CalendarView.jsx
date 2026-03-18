@@ -1,11 +1,29 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { formatTimeHHmm } from '@/lib/dateUtils'
 
 export default function CalendarView({ agendamentos, onAgendamentoClick, selectedDate, onDateChange }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate || new Date()))
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (selectedDate) {
+      const [y, m, d] = selectedDate.split('-').map(Number)
+      return new Date(y, m - 1, d)
+    }
+    return new Date()
+  })
+
+  // Sincronizar currentMonth quando selectedDate mudar externamente (ex: troca de view, date picker)
+  useEffect(() => {
+    if (selectedDate) {
+      const [y, m, d] = selectedDate.split('-').map(Number)
+      const newDate = new Date(y, m - 1, d)
+      setCurrentMonth(prev => {
+        if (!isSameMonth(prev, newDate)) return newDate
+        return prev
+      })
+    }
+  }, [selectedDate])
 
   // Gerar os dias do calendário
   const calendarDays = useMemo(() => {
@@ -28,11 +46,19 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
   }, [agendamentos])
 
   const handlePrevMonth = () => {
-    setCurrentMonth(prevMonth => subMonths(prevMonth, 1))
+    const newMonth = subMonths(currentMonth, 1)
+    setCurrentMonth(newMonth)
+    if (onDateChange) {
+      onDateChange(format(startOfMonth(newMonth), 'yyyy-MM-dd'))
+    }
   }
 
   const handleNextMonth = () => {
-    setCurrentMonth(prevMonth => addMonths(prevMonth, 1))
+    const newMonth = addMonths(currentMonth, 1)
+    setCurrentMonth(newMonth)
+    if (onDateChange) {
+      onDateChange(format(startOfMonth(newMonth), 'yyyy-MM-dd'))
+    }
   }
 
   const handleToday = () => {
