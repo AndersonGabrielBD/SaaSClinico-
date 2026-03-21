@@ -541,11 +541,16 @@ class PdfService:
         # Título
         mes = filtros.get('mes', '') if filtros else ''
         ano = filtros.get('ano', '') if filtros else ''
-        titulo = "RELATÓRIO DE FREQUÊNCIA MENSAL"
-        if mes and ano:
+        d_ini = filtros.get('data_inicio', '') if filtros else ''
+        d_fim = filtros.get('data_fim', '') if filtros else ''
+        somente_faltas = bool(filtros.get('somente_faltas')) if filtros else False
+        titulo = "RELATÓRIO DE FALTAS (FREQUÊNCIA)" if somente_faltas else "RELATÓRIO DE FREQUÊNCIA (PRESENÇAS)"
+        if d_ini and d_fim:
+            titulo += f"<br/>Período: {d_ini} a {d_fim}"
+        elif mes and ano:
             meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-            mes_nome = meses[int(mes) - 1] if 1 <= int(mes) <= 12 else mes
+            mes_nome = meses[int(mes) - 1] if str(mes).isdigit() and 1 <= int(mes) <= 12 else mes
             titulo += f"<br/>{mes_nome}/{ano}"
         
         story.append(Paragraph(f"<b>{titulo}</b>", styles['Title']))

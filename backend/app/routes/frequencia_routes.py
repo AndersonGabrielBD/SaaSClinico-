@@ -187,8 +187,7 @@ def atualizar_frequencia(frequencia_id):
         
         dados_atualizacao = request.json
         
-        # Não permite alterar profissional_id ou paciente_id
-        dados_atualizacao.pop('profissional_id', None)
+        # Admin/Recepcao podem alterar profissional_id (ex: correção). Paciente não alterável.
         dados_atualizacao.pop('paciente_id', None)
         
         service = FrequenciaService()
@@ -269,22 +268,34 @@ def get_resumo_mensal():
         user_role = user.get('role')
         user_id = user['user_id']
         
-        # Query params
+        data_inicio = request.args.get('data_inicio')
+        data_fim = request.args.get('data_fim')
         ano = request.args.get('ano')
         mes = request.args.get('mes')
-        
-        if not ano or not mes:
-            return jsonify({'error': 'Parâmetros ano e mes são obrigatórios'}), 400
-        
+        somente_faltas = request.args.get('somente_faltas', '').lower() in ('1', 'true', 'yes')
+
+        if data_inicio and data_fim:
+            if data_inicio > data_fim:
+                return jsonify({'error': 'data_inicio não pode ser maior que data_fim'}), 400
+        elif not ano or not mes:
+            return jsonify({'error': 'Informe data_inicio e data_fim ou ano e mes'}), 400
+
         service = FrequenciaService()
-        
-        # Se for profissional, filtra apenas seus dados
+
         profissional_id = None
         if user_role in ['fono', 'medico', 'profissional']:
             profissional_id = user_id
-        
-        resumo = service.get_resumo_mensal(clinica_id, ano, mes, profissional_id)
-        
+
+        resumo = service.get_resumo_mensal(
+            clinica_id,
+            ano=ano,
+            mes=mes,
+            profissional_id=profissional_id,
+            data_inicio_param=data_inicio,
+            data_fim_param=data_fim,
+            somente_faltas=somente_faltas,
+        )
+
         return jsonify(resumo), 200
         
     except Exception as e:
@@ -306,35 +317,50 @@ def export_frequencia_pdf():
         user_role = user.get('role')
         user_id = user['user_id']
         
-        # Query params
+        data_inicio = request.args.get('data_inicio')
+        data_fim = request.args.get('data_fim')
         ano = request.args.get('ano')
         mes = request.args.get('mes')
-        
-        if not ano or not mes:
-            return jsonify({'error': 'Parâmetros ano e mes são obrigatórios'}), 400
-        
-        logger.info(f"📄 [PDF] Exportando frequência mensal para clinica_id={clinica_id}, {mes}/{ano}")
-        
+        somente_faltas = request.args.get('somente_faltas', '').lower() in ('1', 'true', 'yes')
+
+        if data_inicio and data_fim:
+            if data_inicio > data_fim:
+                return jsonify({'error': 'data_inicio não pode ser maior que data_fim'}), 400
+        elif not ano or not mes:
+            return jsonify({'error': 'Informe data_inicio e data_fim ou ano e mes'}), 400
+
+        logger.info(f"📄 [PDF] Exportando frequência clinica_id={clinica_id}")
+
         service = FrequenciaService()
-        
-        # Se for profissional, filtra apenas seus dados
+
         profissional_id = None
         if user_role in ['fono', 'medico', 'profissional']:
             profissional_id = user_id
-        
-        # Buscar dados de frequência
-        frequencia_data = service.get_resumo_mensal(clinica_id, ano, mes, profissional_id)
-        
-        # Gerar PDF
+
+        frequencia_data = service.get_resumo_mensal(
+            clinica_id,
+            ano=ano,
+            mes=mes,
+            profissional_id=profissional_id,
+            data_inicio_param=data_inicio,
+            data_fim_param=data_fim,
+            somente_faltas=somente_faltas,
+        )
+
         pdf_service = PdfService()
         filtros_info = {
             'mes': mes,
-            'ano': ano
+            'ano': ano,
+            'data_inicio': data_inicio,
+            'data_fim': data_fim,
+            'somente_faltas': somente_faltas,
         }
         pdf_buffer = pdf_service.generate_frequencia_pdf(frequencia_data, filtros_info)
-        
-        # Gerar nome do arquivo
-        filename = f'frequencia_{mes}_{ano}.pdf'
+
+        if data_inicio and data_fim:
+            filename = f'frequencia_{data_inicio}_a_{data_fim}.pdf'
+        else:
+            filename = f'frequencia_{mes}_{ano}.pdf'
         
         logger.info(f"✅ [PDF] Frequência exportada com sucesso: {filename}")
         

@@ -3,8 +3,13 @@ import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { formatTimeHHmm } from '@/lib/dateUtils'
+import { STATUS_COLORS, STATUS_SIDEBAR, STATUS_LABELS } from '@/components/agenda/AgendamentoCard'
+
+/** Mesma ordem e cores da legenda da sidebar em agenda/page.js */
+const CALENDAR_LEGEND_ORDER = ['agendada', 'confirmada', 'em_atendimento', 'concluida', 'faltou', 'cancelada']
 
 export default function CalendarView({ agendamentos, onAgendamentoClick, selectedDate, onDateChange }) {
+  const canOpenAgendamento = typeof onAgendamentoClick === 'function'
   const [currentMonth, setCurrentMonth] = useState(() => {
     if (selectedDate) {
       const [y, m, d] = selectedDate.split('-').map(Number)
@@ -76,16 +81,8 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
     }
   }
 
-  const getStatusColor = (status) => {
-    const colors = {
-      agendada: 'bg-blue-100 text-blue-700 border-blue-300',
-      confirmada: 'bg-green-100 text-green-700 border-green-300',
-      concluida: 'bg-gray-100 text-gray-700 border-gray-300',
-      cancelada: 'bg-red-100 text-red-700 border-red-300',
-      em_atendimento: 'bg-yellow-100 text-yellow-700 border-yellow-300'
-    }
-    return colors[status] || 'bg-neutral-100 text-neutral-700 border-neutral-300'
-  }
+  const getStatusColor = (status) =>
+    STATUS_COLORS[status] || 'bg-neutral-100 text-neutral-700 border-neutral-200'
 
   const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -119,28 +116,14 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
           </button>
         </div>
 
-        {/* Legendas de Status */}
-        <div className="flex flex-wrap gap-3 mt-4 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-blue-500"></div>
-            <span className="text-neutral-600">Agendada</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-green-500"></div>
-            <span className="text-neutral-600">Confirmada</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-yellow-500"></div>
-            <span className="text-neutral-600">Em Atendimento</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-gray-500"></div>
-            <span className="text-neutral-600">Concluída</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-red-500"></div>
-            <span className="text-neutral-600">Cancelada</span>
-          </div>
+        {/* Legenda — mesmas cores e ordem da sidebar da agenda */}
+        <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-xs">
+          {CALENDAR_LEGEND_ORDER.map((key) => (
+            <div key={key} className="flex items-center gap-1.5">
+              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${STATUS_SIDEBAR[key] || 'bg-neutral-400'}`} />
+              <span className="text-neutral-600">{STATUS_LABELS[key]}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -191,13 +174,13 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
                   {agendamentosNoDia.slice(0, 3).map((ag) => (
                     <div
                       key={ag.id}
-                      onClick={(e) => {
+                      onClick={canOpenAgendamento ? (e) => {
                         e.stopPropagation()
-                        onAgendamentoClick && onAgendamentoClick(ag)
-                      }}
+                        onAgendamentoClick(ag)
+                      } : undefined}
                       className={`
-                        text-xs p-1 rounded border cursor-pointer
-                        hover:shadow-md transition-shadow
+                        text-xs p-1 rounded border transition-shadow
+                        ${canOpenAgendamento ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}
                         ${getStatusColor(ag.status)}
                       `}
                     >

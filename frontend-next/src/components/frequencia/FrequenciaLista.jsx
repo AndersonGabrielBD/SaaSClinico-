@@ -9,7 +9,8 @@ import {
   X, 
   Trash2, 
   AlertCircle,
-  User
+  User,
+  Link2
 } from 'lucide-react'
 import Toast from '@/components/common/Toast'
 import { format } from 'date-fns'
@@ -108,6 +109,7 @@ export default function FrequenciaLista({ pacienteId, pacienteNome, user: userPr
               <th className="px-4 py-3 text-center">Comparecimento</th>
               <th className="px-4 py-3 text-left">Observações</th>
               <th className="px-4 py-3 text-left">Registrado por</th>
+              <th className="px-4 py-3 text-center">Agendamento</th>
               {isAdminOrRecepcao && <th className="px-4 py-3 text-center">Ações</th>}
             </tr>
           </thead>
@@ -156,6 +158,19 @@ export default function FrequenciaLista({ pacienteId, pacienteNome, user: userPr
                 </td>
                 <td className="px-4 py-3 text-neutral-600 text-xs">
                   {freq.registrado_por_nome || freq.usuario_nome || 'Desconhecido'}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {freq.agendamento_id ? (
+                    <span
+                      className="inline-flex items-center gap-1 text-teal-600"
+                      title="Vinculado ao agendamento"
+                    >
+                      <Link2 className="w-4 h-4" />
+                      <span className="text-xs">Vinculado</span>
+                    </span>
+                  ) : (
+                    <span className="text-neutral-300 text-xs">-</span>
+                  )}
                 </td>
                 {isAdminOrRecepcao && (
                   <td className="px-4 py-3 text-center">

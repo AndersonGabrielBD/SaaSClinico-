@@ -24,7 +24,7 @@ export const ROLE_NAMES = {
 
 // Definição de permissões por módulo
 const PERMISSIONS = {
-  dashboard: ['admin', 'recepcao'],
+  dashboard: ['admin'],
   pacientes: {
     view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
     create: ['admin', 'recepcao'],
@@ -74,7 +74,7 @@ const PERMISSIONS = {
     delete: ['admin']
   },
   tipos_atendimento: {
-    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
+    view: ['admin', 'recepcao'],
     create: ['admin', 'recepcao'],
     edit: ['admin', 'recepcao'],
     delete: ['admin', 'recepcao']
@@ -221,4 +221,11 @@ export function hasAdminAccess(userRole) {
 export function getRoleName(role) {
   if (!role) return 'Usuário';
   return ROLE_NAMES[role.toLowerCase()] || role;
+}
+
+/** Primeira rota após login / clique no logo (recepção não tem dashboard). */
+export function getDefaultHomePath(userRole) {
+  if (!userRole) return '/login';
+  if (canAccessModule(userRole, 'dashboard')) return '/dashboard';
+  return '/agenda';
 }

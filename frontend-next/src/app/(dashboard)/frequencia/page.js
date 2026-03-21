@@ -1,51 +1,67 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { frequenciaService } from '@/services/frequenciaService'
-import { 
-  Calendar, 
-  User, 
+import {
+  Calendar,
+  User,
   Users,
   ChevronDown,
   ChevronUp,
   Search,
-  FileDown
+  FileDown,
+  UserX,
 } from 'lucide-react'
 import Link from 'next/link'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
 import Toast from '@/components/common/Toast'
-import { format } from 'date-fns'
+import { format, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { parseDateSafe } from '@/lib/dateUtils'
+import { parseDateSafe, getTodayBrazil } from '@/lib/dateUtils'
+
+function defaultPeriodo() {
+  const hoje = getTodayBrazil()
+  const [y, m] = hoje.split('-').map(Number)
+  const ini = format(new Date(y, m - 1, 1), 'yyyy-MM-dd')
+  const fim = format(endOfMonth(new Date(y, m - 1, 1)), 'yyyy-MM-dd')
+  return { dataInicio: ini, dataFim: fim }
+}
 
 export default function FrequenciaPage() {
+  const defaults = useMemo(() => defaultPeriodo(), [])
   const [dados, setDados] = useState(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [viewMode, setViewMode] = useState('profissional') // profissional | paciente
+  /** presenças: por profissional | paciente; faltas: mesma estrutura de dados */
+  const [viewMode, setViewMode] = useState('profissional')
+  const [tipoRegistro, setTipoRegistro] = useState('presencas') // presencas | faltas
   const [expandedItems, setExpandedItems] = useState({})
   const [profissionalSelecionado, setProfissionalSelecionado] = useState('todos')
+  const [dataInicio, setDataInicio] = useState(defaults.dataInicio)
+  const [dataFim, setDataFim] = useState(defaults.dataFim)
   const [exportingPdf, setExportingPdf] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
   }
-  
-  // Filtro de período
-  const hoje = new Date()
-  const [mesAno, setMesAno] = useState(`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`)
 
-  useEffect(() => {
-    loadDados()
-  }, [mesAno])
+  const somenteFaltas = tipoRegistro === 'faltas'
 
-  const loadDados = async () => {
+  const loadDados = useCallback(async () => {
+    if (!dataInicio || !dataFim) return
+    if (dataInicio > dataFim) {
+      showToast('Data início não pode ser maior que data fim', 'error')
+      return
+    }
     try {
       setLoading(true)
-      const [ano, mes] = mesAno.split('-')
-      const data = await frequenciaService.getResumoMensal(ano, mes)
+      const data = await frequenciaService.getResumoMensal({
+        dataInicio,
+        dataFim,
+        somenteFaltas,
+      })
       setDados(data)
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
@@ -53,7 +69,11 @@ export default function FrequenciaPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [dataInicio, dataFim, somenteFaltas])
+
+  useEffect(() => {
+    loadDados()
+  }, [loadDados])
 
   const toggleExpand = (id) => {
     setExpandedItems(prev => ({
@@ -62,31 +82,33 @@ export default function FrequenciaPage() {
     }))
   }
 
-  // Formatar período para exibição
   const getPeriodoLabel = () => {
-    const [ano, mes] = mesAno.split('-')
-    const data = new Date(parseInt(ano), parseInt(mes) - 1, 1)
-    return format(data, "MMMM 'de' yyyy", { locale: ptBR })
+    try {
+      const a = parseDateSafe(dataInicio)
+      const b = parseDateSafe(dataFim)
+      if (a && b) {
+        return `${format(a, "dd MMM yyyy", { locale: ptBR })} — ${format(b, "dd MMM yyyy", { locale: ptBR })}`
+      }
+    } catch (_) {}
+    return `${dataInicio} a ${dataFim}`
   }
 
-  // Função de exportação de PDF
   const handleExportPdf = async () => {
     try {
       setExportingPdf(true)
-      const [ano, mes] = mesAno.split('-')
-      
-      const response = await frequenciaService.exportPdf(ano, mes)
-      
-      // Criar link para download
+      const response = await frequenciaService.exportPdf({
+        dataInicio,
+        dataFim,
+        somenteFaltas,
+      })
       const url = window.URL.createObjectURL(response.data)
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `frequencia_${mes}_${ano}.pdf`)
+      link.setAttribute('download', `frequencia_${dataInicio}_a_${dataFim}${somenteFaltas ? '_faltas' : ''}.pdf`)
       document.body.appendChild(link)
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
-      
       showToast('PDF gerado com sucesso!', 'success')
     } catch (error) {
       console.error('Erro ao exportar PDF:', error)
@@ -96,7 +118,7 @@ export default function FrequenciaPage() {
     }
   }
 
-  if (loading) {
+  if (loading && !dados) {
     return (
       <div className="space-y-6">
         <LoadingSkeleton />
@@ -107,7 +129,6 @@ export default function FrequenciaPage() {
   const resumoPorProfissional = dados?.por_profissional || []
   const resumoPorPaciente = dados?.por_paciente || []
 
-  // Filtrar por profissional selecionado primeiro
   let profissionaisFiltradosPorSelecao = resumoPorProfissional
   if (profissionalSelecionado && profissionalSelecionado !== 'todos') {
     profissionaisFiltradosPorSelecao = resumoPorProfissional.filter(
@@ -115,89 +136,101 @@ export default function FrequenciaPage() {
     )
   }
 
-  // Depois filtrar por busca de texto
-  const profissionaisFiltrados = profissionaisFiltradosPorSelecao.filter(p => 
+  const profissionaisFiltrados = profissionaisFiltradosPorSelecao.filter(p =>
     p.profissional_nome?.toLowerCase().includes(searchTerm.toLowerCase())
   )
-  
-  const pacientesFiltrados = resumoPorPaciente.filter(p => 
+
+  const pacientesFiltrados = resumoPorPaciente.filter(p =>
     p.paciente_nome?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // Totais gerais (baseado nos dados filtrados por select)
-  const totalConsultas = profissionaisFiltradosPorSelecao.reduce((acc, p) => acc + p.total_consultas, 0)
+  const totalEventos = profissionaisFiltradosPorSelecao.reduce((acc, p) => acc + p.total_consultas, 0)
   const totalProfissionais = profissionaisFiltradosPorSelecao.length
   const totalPacientes = resumoPorPaciente.length
 
+  const labelEvento = somenteFaltas ? 'faltas' : 'consultas'
+  const labelEventoSing = somenteFaltas ? 'falta' : 'consulta'
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">
             Controle de Frequência
           </h1>
           <p className="text-neutral-600 mt-1">
-            Resumo de consultas para cálculo de pagamento dos profissionais
+            Resumo por período para pagamento e acompanhamento de presenças e faltas
           </p>
         </div>
       </div>
 
-      {/* Filtro de Período e Exportação */}
       <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200 overflow-hidden">
-        <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between min-w-0">
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center flex-1 min-w-0">
+        <div className="flex flex-col gap-4 min-w-0">
+          <div className="flex flex-col lg:flex-row flex-wrap gap-3 lg:items-end">
             <div className="flex items-center gap-2 flex-shrink-0">
               <Calendar className="w-5 h-5 text-neutral-500" />
-              <span className="text-sm font-medium text-neutral-700">Período:</span>
+              <span className="text-sm font-medium text-neutral-700">Período</span>
             </div>
-            <input
-              type="month"
-              value={mesAno}
-              onChange={(e) => setMesAno(e.target.value)}
-              className="w-full sm:w-auto min-w-0 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <span className="text-lg font-semibold text-neutral-900 capitalize truncate">
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center flex-1 min-w-0">
+              <label className="text-xs text-neutral-500 sm:hidden">Início</label>
+              <input
+                type="date"
+                value={dataInicio}
+                max={dataFim}
+                onChange={(e) => setDataInicio(e.target.value)}
+                className="px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+              <span className="text-neutral-400 text-sm hidden sm:inline">até</span>
+              <label className="text-xs text-neutral-500 sm:hidden">Fim</label>
+              <input
+                type="date"
+                value={dataFim}
+                min={dataInicio}
+                onChange={(e) => setDataFim(e.target.value)}
+                className="px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+            <p className="text-sm font-medium text-neutral-700 capitalize lg:ml-2 truncate">
               {getPeriodoLabel()}
-            </span>
+            </p>
           </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto min-w-0 flex-shrink-0">
+
+          <div className="flex flex-col sm:flex-row gap-3 w-full flex-wrap">
             <select
-              value={profissionalSelecionado || 'todos'}
-              onChange={(e) => setProfissionalSelecionado(e.target.value === 'todos' ? null : e.target.value)}
-              className="w-full min-w-0 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              value={profissionalSelecionado}
+              onChange={(e) => setProfissionalSelecionado(e.target.value)}
+              className="w-full sm:w-auto min-w-[200px] px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="todos">Histórico  Completo</option>
+              <option value="todos">Todos os profissionais</option>
               {resumoPorProfissional.map(prof => (
                 <option key={prof.profissional_id} value={prof.profissional_id}>
                   {prof.profissional_nome}
                 </option>
               ))}
             </select>
-            
+
             <button
               onClick={handleExportPdf}
-              disabled={exportingPdf || loading}
-              className="w-full md:w-auto min-w-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed flex-shrink-0 whitespace-nowrap"
+              disabled={exportingPdf || loading || dataInicio > dataFim}
+              className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
             >
               <FileDown className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{exportingPdf ? 'Gerando...' : 'Exportar PDF'}</span>
+              {exportingPdf ? 'Gerando...' : 'Exportar PDF'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg p-5 shadow-sm border border-neutral-200">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-100 rounded-xl">
-              <Calendar className="w-6 h-6 text-blue-600" />
+            <div className={`p-3 rounded-xl ${somenteFaltas ? 'bg-orange-100' : 'bg-blue-100'}`}>
+              {somenteFaltas ? <UserX className="w-6 h-6 text-orange-600" /> : <Calendar className="w-6 h-6 text-blue-600" />}
             </div>
             <div>
-              <p className="text-sm text-neutral-500">Total de Consultas</p>
-              <p className="text-3xl font-bold text-neutral-900">{totalConsultas}</p>
+              <p className="text-sm text-neutral-500">Total no período</p>
+              <p className="text-3xl font-bold text-neutral-900">{totalEventos}</p>
+              <p className="text-xs text-neutral-400 mt-0.5">{somenteFaltas ? 'Registros de falta' : 'Atendimentos (compareceu)'}</p>
             </div>
           </div>
         </div>
@@ -208,7 +241,7 @@ export default function FrequenciaPage() {
               <Users className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-500">Profissionais Ativos</p>
+              <p className="text-sm text-neutral-500">Profissionais</p>
               <p className="text-3xl font-bold text-neutral-900">{totalProfissionais}</p>
             </div>
           </div>
@@ -220,20 +253,52 @@ export default function FrequenciaPage() {
               <User className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-500">Pacientes Atendidos</p>
+              <p className="text-sm text-neutral-500">Pacientes</p>
               <p className="text-3xl font-bold text-neutral-900">{totalPacientes}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs para alternar visualização */}
       <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
         <div className="border-b border-neutral-200">
-          <div className="flex">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-2 pt-2">
+            <div className="flex flex-wrap">
+              <button
+                type="button"
+                onClick={() => setTipoRegistro('presencas')}
+                className={`px-4 py-3 text-sm font-medium transition-colors rounded-t-lg ${
+                  tipoRegistro === 'presencas'
+                    ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50/50'
+                    : 'text-neutral-600 hover:text-neutral-900'
+                }`}
+              >
+                Presenças
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoRegistro('faltas')}
+                className={`px-4 py-3 text-sm font-medium transition-colors rounded-t-lg flex items-center gap-1.5 ${
+                  tipoRegistro === 'faltas'
+                    ? 'text-orange-700 border-b-2 border-orange-500 bg-orange-50/50'
+                    : 'text-neutral-600 hover:text-neutral-900'
+                }`}
+              >
+                <UserX className="w-4 h-4" />
+                Faltas
+              </button>
+            </div>
+            <p className="text-xs text-neutral-500 px-2 pb-2 sm:pb-0">
+              {tipoRegistro === 'faltas'
+                ? 'Registros em que o paciente não compareceu (frequência com compareceu = não).'
+                : 'Atendimentos em que o paciente compareceu.'}
+            </p>
+          </div>
+          <div className="flex border-t border-neutral-100">
             <button
+              type="button"
               onClick={() => setViewMode('profissional')}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-6 py-3 font-medium transition-colors flex-1 sm:flex-none ${
                 viewMode === 'profissional'
                   ? 'text-primary-600 border-b-2 border-primary-600'
                   : 'text-neutral-600 hover:text-neutral-900'
@@ -242,8 +307,9 @@ export default function FrequenciaPage() {
               Por Profissional
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('paciente')}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-6 py-3 font-medium transition-colors flex-1 sm:flex-none ${
                 viewMode === 'paciente'
                   ? 'text-primary-600 border-b-2 border-primary-600'
                   : 'text-neutral-600 hover:text-neutral-900'
@@ -254,7 +320,6 @@ export default function FrequenciaPage() {
           </div>
         </div>
 
-        {/* Busca */}
         <div className="p-4 border-b border-neutral-200">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
@@ -268,12 +333,13 @@ export default function FrequenciaPage() {
           </div>
         </div>
 
-        {/* Conteúdo */}
         <div className="p-4">
-          {viewMode === 'profissional' ? (
+          {loading ? (
+            <LoadingSkeleton rows={4} />
+          ) : viewMode === 'profissional' ? (
             profissionaisFiltrados.length === 0 ? (
-              <EmptyState 
-                message={searchTerm ? "Nenhum profissional encontrado" : "Nenhum registro de frequência"} 
+              <EmptyState
+                message={searchTerm ? 'Nenhum profissional encontrado' : `Nenhum registro de ${labelEvento}`}
               />
             ) : (
               <div className="space-y-4">
@@ -283,22 +349,29 @@ export default function FrequenciaPage() {
                     className="border border-neutral-200 rounded-lg overflow-hidden"
                   >
                     <button
+                      type="button"
                       onClick={() => toggleExpand(prof.profissional_id)}
-                      className="w-full p-4 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors"
+                      className="w-full p-4 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors text-left"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary-100 rounded-lg">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 bg-primary-100 rounded-lg flex-shrink-0">
                           <Users className="w-5 h-5 text-primary-600" />
                         </div>
-                        <div className="text-left">
-                          <h3 className="font-semibold text-neutral-900">{prof.profissional_nome}</h3>
-                          <p className="text-sm text-neutral-600">{prof.profissional_role}</p>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-neutral-900 truncate">{prof.profissional_nome}</h3>
+                          <p className="text-sm text-neutral-600 truncate">
+                            {prof.profissional_role || prof.especialidade || 'Profissional'}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-shrink-0">
                         <div className="text-right">
-                          <p className="text-sm text-neutral-500">Total de Consultas</p>
-                          <p className="text-2xl font-bold text-primary-600">{prof.total_consultas}</p>
+                          <p className="text-sm text-neutral-500">
+                            Total de {somenteFaltas ? 'faltas' : 'consultas'}
+                          </p>
+                          <p className={`text-2xl font-bold ${somenteFaltas ? 'text-orange-600' : 'text-primary-600'}`}>
+                            {prof.total_consultas}
+                          </p>
                         </div>
                         {expandedItems[prof.profissional_id] ? (
                           <ChevronUp className="w-5 h-5 text-neutral-400" />
@@ -313,7 +386,7 @@ export default function FrequenciaPage() {
                         {prof.pacientes?.length > 0 ? (
                           <div className="space-y-3">
                             <h4 className="font-medium text-neutral-700 mb-3">
-                              Pacientes Atendidos ({prof.pacientes.length})
+                              Pacientes ({prof.pacientes.length})
                             </h4>
                             {prof.pacientes.map((pac, idx) => (
                               <div
@@ -327,14 +400,15 @@ export default function FrequenciaPage() {
                                   >
                                     {pac.paciente_nome}
                                   </Link>
-                                  <span className="bg-primary-100 text-primary-700 px-2 py-1 rounded text-sm font-semibold">
-                                    {pac.datas?.length || 0} {pac.datas?.length === 1 ? 'consulta' : 'consultas'}
+                                  <span className={`px-2 py-1 rounded text-sm font-semibold ${somenteFaltas ? 'bg-orange-100 text-orange-800' : 'bg-primary-100 text-primary-700'}`}>
+                                    {pac.datas?.length || 0}{' '}
+                                    {(pac.datas?.length === 1 ? labelEventoSing : labelEvento)}
                                   </span>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                  {pac.datas?.map((data, idx) => (
+                                  {pac.datas?.map((data, i) => (
                                     <span
-                                      key={idx}
+                                      key={i}
                                       className="inline-flex items-center gap-1 text-xs bg-white text-neutral-600 px-2 py-1 rounded border border-neutral-200"
                                     >
                                       <Calendar className="w-3 h-3" />
@@ -349,7 +423,7 @@ export default function FrequenciaPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-neutral-500 text-center py-4">Nenhum paciente atendido</p>
+                          <p className="text-neutral-500 text-center py-4">Nenhum paciente neste período</p>
                         )}
                       </div>
                     )}
@@ -357,99 +431,101 @@ export default function FrequenciaPage() {
                 ))}
               </div>
             )
+          ) : pacientesFiltrados.length === 0 ? (
+            <EmptyState
+              message={searchTerm ? 'Nenhum paciente encontrado' : `Nenhum registro de ${labelEvento}`}
+            />
           ) : (
-            pacientesFiltrados.length === 0 ? (
-              <EmptyState 
-                message={searchTerm ? "Nenhum paciente encontrado" : "Nenhum registro de frequência"} 
-              />
-            ) : (
-              <div className="space-y-4">
-                {pacientesFiltrados.map((pac) => (
-                  <div
-                    key={pac.paciente_id}
-                    className="border border-neutral-200 rounded-lg overflow-hidden"
+            <div className="space-y-4">
+              {pacientesFiltrados.map((pac) => (
+                <div
+                  key={pac.paciente_id}
+                  className="border border-neutral-200 rounded-lg overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(pac.paciente_id)}
+                    className="w-full p-4 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors text-left"
                   >
-                    <button
-                      onClick={() => toggleExpand(pac.paciente_id)}
-                      className="w-full p-4 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                          <User className="w-5 h-5 text-purple-600" />
-                        </div>
-                        <div className="text-left">
-                          <Link
-                            href={`/pacientes/${pac.paciente_id}`}
-                            className="font-semibold text-neutral-900 hover:text-primary-600"
-                          >
-                            {pac.paciente_nome}
-                          </Link>
-                        </div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
+                        <User className="w-5 h-5 text-purple-600" />
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-sm text-neutral-500">Total de Consultas</p>
-                          <p className="text-2xl font-bold text-purple-600">{pac.total_consultas}</p>
-                        </div>
-                        {expandedItems[pac.paciente_id] ? (
-                          <ChevronUp className="w-5 h-5 text-neutral-400" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-neutral-400" />
-                        )}
+                      <div className="min-w-0">
+                        <Link
+                          href={`/pacientes/${pac.paciente_id}`}
+                          className="font-semibold text-neutral-900 hover:text-primary-600 block truncate"
+                        >
+                          {pac.paciente_nome}
+                        </Link>
                       </div>
-                    </button>
+                    </div>
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <div className="text-right">
+                        <p className="text-sm text-neutral-500">Total</p>
+                        <p className={`text-2xl font-bold ${somenteFaltas ? 'text-orange-600' : 'text-purple-600'}`}>
+                          {pac.total_consultas}
+                        </p>
+                      </div>
+                      {expandedItems[pac.paciente_id] ? (
+                        <ChevronUp className="w-5 h-5 text-neutral-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-neutral-400" />
+                      )}
+                    </div>
+                  </button>
 
-                    {expandedItems[pac.paciente_id] && (
-                      <div className="p-4 bg-white border-t border-neutral-200">
-                        {pac.profissionais?.length > 0 ? (
-                          <div className="space-y-3">
-                            <h4 className="font-medium text-neutral-700 mb-3">
-                              Profissionais ({pac.profissionais.length})
-                            </h4>
-                            {pac.profissionais.map((prof, idx) => (
-                              <div
-                                key={idx}
-                                className="p-3 bg-neutral-50 rounded-lg border border-neutral-200"
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <div>
-                                    <p className="font-medium text-neutral-900">
-                                      {prof.profissional_nome}
-                                    </p>
-                                    <p className="text-sm text-neutral-600">
-                                      {prof.especialidade || 'Profissional'}
-                                    </p>
-                                  </div>
-                                  <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-semibold">
-                                    {prof.quantidade} {prof.quantidade === 1 ? 'consulta' : 'consultas'}
-                                  </span>
+                  {expandedItems[pac.paciente_id] && (
+                    <div className="p-4 bg-white border-t border-neutral-200">
+                      {pac.profissionais?.length > 0 ? (
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-neutral-700 mb-3">
+                            Profissionais ({pac.profissionais.length})
+                          </h4>
+                          {pac.profissionais.map((prof, idx) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-neutral-50 rounded-lg border border-neutral-200"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <p className="font-medium text-neutral-900">
+                                    {prof.profissional_nome}
+                                  </p>
+                                  <p className="text-sm text-neutral-600">
+                                    {prof.especialidade || 'Profissional'}
+                                  </p>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {prof.datas?.map((data, idx) => (
-                                    <span
-                                      key={idx}
-                                      className="inline-flex items-center gap-1 text-xs bg-white text-neutral-600 px-2 py-1 rounded border border-neutral-200"
-                                    >
-                                      <Calendar className="w-3 h-3" />
-                                      {(() => {
-                                        const date = parseDateSafe(data)
-                                        return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
-                                      })()}
-                                    </span>
-                                  ))}
-                                </div>
+                                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${somenteFaltas ? 'bg-orange-100 text-orange-800' : 'bg-purple-100 text-purple-700'}`}>
+                                  {prof.quantidade}{' '}
+                                  {prof.quantidade === 1 ? labelEventoSing : labelEvento}
+                                </span>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-neutral-500 text-center py-4">Nenhum profissional associado</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )
+                              <div className="flex flex-wrap gap-2">
+                                {prof.datas?.map((data, i) => (
+                                  <span
+                                    key={i}
+                                    className="inline-flex items-center gap-1 text-xs bg-white text-neutral-600 px-2 py-1 rounded border border-neutral-200"
+                                  >
+                                    <Calendar className="w-3 h-3" />
+                                    {(() => {
+                                      const date = parseDateSafe(data)
+                                      return date ? format(date, 'dd/MM/yyyy', { locale: ptBR }) : 'Data inválida'
+                                    })()}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-neutral-500 text-center py-4">Nenhum profissional associado</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

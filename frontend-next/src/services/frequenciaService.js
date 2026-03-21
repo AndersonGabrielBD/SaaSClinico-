@@ -71,20 +71,40 @@ export const frequenciaService = {
   },
 
   /**
-   * Busca resumo mensal de consultas para cálculo de pagamento
-   * @param {string} ano - Ex: "2026"
-   * @param {string} mes - Ex: "02"
+   * Resumo no período (data_inicio / data_fim) ou mês legado (ano/mes).
+   * @param {{ dataInicio: string, dataFim: string, somenteFaltas?: boolean }} range
+   * @param {{ ano: string, mes: string, somenteFaltas?: boolean }} month — alternativa ao range
    */
-  async getResumoMensal(ano, mes) {
-    return await api.get(`/frequencia/resumo-mensal?ano=${ano}&mes=${mes}`);
+  async getResumoMensal(params = {}) {
+    const sp = new URLSearchParams();
+    if (params.dataInicio && params.dataFim) {
+      sp.set('data_inicio', params.dataInicio);
+      sp.set('data_fim', params.dataFim);
+    } else if (params.ano && params.mes) {
+      sp.set('ano', params.ano);
+      sp.set('mes', params.mes);
+    } else {
+      throw new Error('Informe dataInicio/dataFim ou ano/mes');
+    }
+    if (params.somenteFaltas) sp.set('somente_faltas', 'true');
+    return await api.get(`/frequencia/resumo-mensal?${sp}`);
   },
 
   /**
-   * Exporta relatório de frequência mensal em PDF
-   * @param {string} ano - Ex: "2026"
-   * @param {string} mes - Ex: "02"
+   * Exporta PDF com os mesmos filtros de getResumoMensal
    */
-  async exportPdf(ano, mes) {
-    return await api.download(`/frequencia/export-pdf?ano=${ano}&mes=${mes}`);
+  async exportPdf(params = {}) {
+    const sp = new URLSearchParams();
+    if (params.dataInicio && params.dataFim) {
+      sp.set('data_inicio', params.dataInicio);
+      sp.set('data_fim', params.dataFim);
+    } else if (params.ano && params.mes) {
+      sp.set('ano', params.ano);
+      sp.set('mes', params.mes);
+    } else {
+      throw new Error('Informe dataInicio/dataFim ou ano/mes');
+    }
+    if (params.somenteFaltas) sp.set('somente_faltas', 'true');
+    return await api.download(`/frequencia/export-pdf?${sp}`);
   }
 };

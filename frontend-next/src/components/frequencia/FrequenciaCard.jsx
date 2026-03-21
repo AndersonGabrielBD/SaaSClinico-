@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { frequenciaService } from '@/services/frequenciaService'
 import { useAuth } from '@/context/AuthContext'
+import * as api from '@/lib/api'
 import { Calendar, CheckCircle, XCircle, TrendingUp, User, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import Toast from '@/components/common/Toast'
@@ -13,9 +14,11 @@ export default function FrequenciaCard({ pacienteId }) {
   const { user } = useAuth()
   const [estatisticas, setEstatisticas] = useState(null)
   const [estatisticasPorProfissional, setEstatisticasPorProfissional] = useState([])
+  const [profissionais, setProfissionais] = useState([])
   const [loading, setLoading] = useState(true)
   const [showRegistroModal, setShowRegistroModal] = useState(false)
   const [formData, setFormData] = useState({
+    profissional_id: '',
     data_atendimento: getTodayBrazil(),
     compareceu: true,
     observacoes: ''
@@ -28,6 +31,17 @@ export default function FrequenciaCard({ pacienteId }) {
   useEffect(() => {
     loadEstatisticas()
   }, [pacienteId])
+
+  const loadProfissionais = async () => {
+    try {
+      const data = await api.getProfissionais({ ativo: true })
+      const list = data?.data || data || []
+      setProfissionais(Array.isArray(list) ? list : [])
+    } catch (error) {
+      console.error('Erro ao carregar profissionais:', error)
+      setProfissionais([])
+    }
+  }
 
   const loadEstatisticas = async () => {
     try {
@@ -52,11 +66,15 @@ export default function FrequenciaCard({ pacienteId }) {
       setToast({ show: true, message: 'Erro: Usuário não autenticado', type: 'error' })
       return
     }
+    if (!formData.profissional_id) {
+      setToast({ show: true, message: 'Selecione o profissional que atendeu', type: 'error' })
+      return
+    }
     
     try {
       await frequenciaService.registrar({
         paciente_id: pacienteId,
-        profissional_id: user.id,
+        profissional_id: formData.profissional_id,
         data_atendimento: formData.data_atendimento,
         compareceu: formData.compareceu === 'true' || formData.compareceu === true,
         observacoes: formData.observacoes || null
@@ -64,6 +82,7 @@ export default function FrequenciaCard({ pacienteId }) {
       
       setShowRegistroModal(false)
       setFormData({
+        profissional_id: '',
         data_atendimento: getTodayBrazil(),
         compareceu: true,
         observacoes: ''
@@ -74,6 +93,27 @@ export default function FrequenciaCard({ pacienteId }) {
       console.error('Erro:', error)
       setToast({ show: true, message: 'Erro ao registrar frequência', type: 'error' })
     }
+  }
+
+  const handleOpenRegistroModal = () => {
+    loadProfissionais()
+    setFormData({
+      profissional_id: '',
+      data_atendimento: getTodayBrazil(),
+      compareceu: true,
+      observacoes: ''
+    })
+    setShowRegistroModal(true)
+  }
+
+  const handleCloseRegistroModal = () => {
+    setShowRegistroModal(false)
+    setFormData({
+      profissional_id: '',
+      data_atendimento: getTodayBrazil(),
+      compareceu: true,
+      observacoes: ''
+    })
   }
 
   if (loading) {
@@ -94,7 +134,7 @@ export default function FrequenciaCard({ pacienteId }) {
           </Link>
           {canManageFrequencia && (
             <button
-              onClick={() => setShowRegistroModal(true)}
+              onClick={handleOpenRegistroModal}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
               Registrar Frequência
@@ -197,7 +237,7 @@ export default function FrequenciaCard({ pacienteId }) {
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Registrar Frequência</h2>
             
-            {/* Info do profissional */}
+            {/* Info de quem registrou */}
             {user && (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
                 <User className="w-5 h-5 text-blue-600" />
@@ -209,6 +249,28 @@ export default function FrequenciaCard({ pacienteId }) {
             )}
 
             <form onSubmit={handleRegistrar} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Profissional que atendeu
+                </label>
+                <select
+                  value={formData.profissional_id}
+                  onChange={(e) => setFormData({ ...formData, profissional_id: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Selecione o profissional</option>
+                  {profissionais.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome_completo || p.email}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Quem realizou o atendimento ao paciente
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Data do Atendimento
@@ -257,14 +319,7 @@ export default function FrequenciaCard({ pacienteId }) {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowRegistroModal(false)
-                    setFormData({
-                      data_atendimento: getTodayBrazil(),
-                      compareceu: true,
-                      observacoes: ''
-                    })
-                  }}
+                  onClick={handleCloseRegistroModal}
                   className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors"
                 >
                   Cancelar

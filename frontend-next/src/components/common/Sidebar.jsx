@@ -17,7 +17,7 @@ import {
   Package
 } from 'lucide-react'
 import { getUserRole } from '@/utils/auth'
-import { canAccessModule } from '@/utils/roles'
+import { canAccessModule, getDefaultHomePath } from '@/utils/roles'
 import { useMemo } from 'react'
 
 const allMenuItems = [
@@ -41,6 +41,8 @@ export default function Sidebar({ isOpen, onClose }) {
     if (!userRole) return []
     return allMenuItems.filter(item => canAccessModule(userRole, item.module))
   }, [userRole])
+
+  const homeHref = useMemo(() => getDefaultHomePath(userRole), [userRole])
 
   return (
     <>
@@ -67,7 +69,7 @@ export default function Sidebar({ isOpen, onClose }) {
       >
         {/* Logo */}
         <div className="flex items-center justify-between px-5 h-16 border-b border-neutral-100 flex-shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
+          <Link href={homeHref} className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0">
               <Activity className="w-4 h-4 text-white" />
             </div>

@@ -64,8 +64,9 @@ class PacoteService:
 
     def listar_tipos(self, clinica_id: str, ativo: Optional[bool] = None) -> List[Dict]:
         def operation():
+            # Join com usuarios para preencher profissional_nome (select('*') não traz o embed)
             query = self.supabase.table('tipos_profissional') \
-                .select('*') \
+                .select('*, usuarios!profissional_id(id, nome_completo)') \
                 .eq('clinica_id', clinica_id) \
                 .order('nome')
             if ativo is not None:
@@ -74,6 +75,8 @@ class PacoteService:
             result = []
             for row in (response.data or []):
                 prof = row.pop('usuarios', None)
+                if isinstance(prof, list):
+                    prof = prof[0] if prof else None
                 row['profissional_nome'] = prof.get('nome_completo') if prof else None
                 result.append(row)
             return result
@@ -91,6 +94,8 @@ class PacoteService:
                 raise ValueError('Tipo de profissional não encontrado')
             row = response.data
             prof = row.pop('usuarios', None)
+            if isinstance(prof, list):
+                prof = prof[0] if prof else None
             row['profissional_nome'] = prof.get('nome_completo') if prof else None
             return row
         return self._execute_with_retry(f"BUSCAR_TIPO:{tipo_id}", operation)

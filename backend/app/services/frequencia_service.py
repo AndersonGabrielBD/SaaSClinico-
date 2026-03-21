@@ -1,10 +1,26 @@
 # filepath: backend/app/services/frequencia_service.py
+import calendar
 import logging
 from typing import List, Dict, Optional
 from datetime import date
 from database.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+_ROLE_LABELS = {
+    'admin': 'Administrador',
+    'recepcao': 'Recepcionista',
+    'fono': 'Fonoaudiólogo',
+    'medico': 'Médico',
+    'profissional': 'Profissional',
+}
+
+
+def _label_profissional_role(role: Optional[str]) -> str:
+    if not role:
+        return ''
+    r = str(role).lower()
+    return _ROLE_LABELS.get(r, role)
 
 
 class FrequenciaService:
@@ -21,14 +37,14 @@ class FrequenciaService:
         """Registra a frequência de um atendimento"""
         try:
             # Verificar se já existe registro para este agendamento
+            # Nota: maybe_single() causa 406 quando não há resultados (bug supabase-py)
             if agendamento_id:
                 existente = self.supabase.table('frequencia_atendimentos') \
                     .select('id') \
                     .eq('agendamento_id', agendamento_id) \
-                    .maybe_single() \
+                    .limit(1) \
                     .execute()
-                
-                if existente.data:
+                if existente and existente.data and len(existente.data) > 0:
                     raise ValueError("Frequência já registrada para este agendamento")
             
             dados = {
@@ -351,47 +367,71 @@ class FrequenciaService:
             logger.error(f"❌ Erro ao listar estatísticas dos pacientes do profissional: {str(e)}")
             raise
 
-    def get_resumo_mensal(self, clinica_id: str, ano: str, mes: str, 
-                         profissional_id: Optional[str] = None) -> Dict:
+    def get_resumo_mensal(
+        self,
+        clinica_id: str,
+        ano: Optional[str] = None,
+        mes: Optional[str] = None,
+        profissional_id: Optional[str] = None,
+        data_inicio_param: Optional[str] = None,
+        data_fim_param: Optional[str] = None,
+        somente_faltas: bool = False,
+    ) -> Dict:
         """
-        Retorna resumo mensal de consultas agrupado por profissional e por paciente.
-        Usado para cálculo de pagamento dos profissionais.
+        Resumo de frequência no período, agrupado por profissional e por paciente.
+        Período: informe data_inicio + data_fim (yyyy-MM-dd) OU ano + mes (compatível).
+        somente_faltas=True: apenas compareceu=false; senão apenas compareceu=true.
         """
         try:
-            # Definir período
-            data_inicio = f"{ano}-{mes.zfill(2)}-01"
-            # Último dia do mês
-            if mes == '12':
-                data_fim = f"{int(ano)+1}-01-01"
+            use_range = bool(data_inicio_param and data_fim_param)
+            if use_range:
+                data_inicio = data_inicio_param.strip()
+                data_fim_inclusivo = data_fim_param.strip()
             else:
-                data_fim = f"{ano}-{str(int(mes)+1).zfill(2)}-01"
-            
-            # Query base
+                if not ano or not mes:
+                    raise ValueError('Informe ano e mes ou data_inicio e data_fim')
+                data_inicio = f"{ano}-{mes.zfill(2)}-01"
+                if mes == '12':
+                    data_fim_excl = f"{int(ano)+1}-01-01"
+                else:
+                    data_fim_excl = f"{ano}-{str(int(mes)+1).zfill(2)}-01"
+                last_d = calendar.monthrange(int(ano), int(mes))[1]
+                data_fim_inclusivo = f"{ano}-{mes.zfill(2)}-{last_d:02d}"
+
+            compareceu_val = False if somente_faltas else True
+
             query = self.supabase.table('frequencia_atendimentos') \
-                .select('*, pacientes(id, nome_completo), usuarios!profissional_id(id, nome_completo, especialidade)') \
+                .select('*, pacientes(id, nome_completo), usuarios!profissional_id(id, nome_completo, especialidade, role)') \
                 .eq('clinica_id', clinica_id) \
-                .eq('compareceu', True) \
-                .gte('data_atendimento', data_inicio) \
-                .lt('data_atendimento', data_fim)
-            
-            # Se for profissional específico, filtra
+                .eq('compareceu', compareceu_val)
+
+            if use_range:
+                query = query.gte('data_atendimento', data_inicio).lte('data_atendimento', data_fim_inclusivo)
+            else:
+                query = query.gte('data_atendimento', data_inicio).lt('data_atendimento', data_fim_excl)
+
             if profissional_id:
                 query = query.eq('profissional_id', profissional_id)
-            
+
             response = query.order('data_atendimento', desc=False).execute()
             registros = response.data or []
-            
+
             # Agrupar POR PROFISSIONAL (para cálculo de pagamento)
             por_profissional = {}
             for reg in registros:
                 prof_id = reg['profissional_id']
                 prof_info = reg.get('usuarios', {}) or {}
+                if isinstance(prof_info, list):
+                    prof_info = prof_info[0] if prof_info else {}
                 pac_info = reg.get('pacientes', {}) or {}
-                
+                if isinstance(pac_info, list):
+                    pac_info = pac_info[0] if pac_info else {}
+
                 if prof_id not in por_profissional:
                     por_profissional[prof_id] = {
                         'profissional_id': prof_id,
                         'profissional_nome': prof_info.get('nome_completo', 'Desconhecido'),
+                        'profissional_role': _label_profissional_role(prof_info.get('role')),
                         'especialidade': prof_info.get('especialidade', ''),
                         'total_consultas': 0,
                         'pacientes_dict': {}
@@ -429,7 +469,11 @@ class FrequenciaService:
             for reg in registros:
                 pac_id = reg['paciente_id']
                 pac_info = reg.get('pacientes', {}) or {}
+                if isinstance(pac_info, list):
+                    pac_info = pac_info[0] if pac_info else {}
                 prof_info = reg.get('usuarios', {}) or {}
+                if isinstance(prof_info, list):
+                    prof_info = prof_info[0] if prof_info else {}
                 
                 if pac_id not in por_paciente:
                     por_paciente[pac_id] = {
@@ -474,7 +518,8 @@ class FrequenciaService:
                     'ano': ano,
                     'mes': mes,
                     'data_inicio': data_inicio,
-                    'data_fim': data_fim
+                    'data_fim': data_fim_inclusivo,
+                    'somente_faltas': somente_faltas,
                 },
                 'por_profissional': resultado_profissional,
                 'por_paciente': resultado_paciente,

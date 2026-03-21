@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Tag, Plus, Edit, Trash2, ToggleLeft, ToggleRight, GripVertical } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
@@ -12,6 +13,7 @@ import { getUserRole } from '@/utils/auth'
 import * as api from '@/lib/api'
 
 export default function TiposAtendimentoPage() {
+  const router = useRouter()
   const userRole = getUserRole()
   const canCreate = canPerformAction(userRole, 'tipos_atendimento', 'create')
   const canEdit = canPerformAction(userRole, 'tipos_atendimento', 'edit')
@@ -43,8 +45,12 @@ export default function TiposAtendimentoPage() {
   }, [])
 
   useEffect(() => {
+    if (userRole && !canAccessModule(userRole, 'tipos_atendimento')) {
+      router.replace('/agenda')
+      return
+    }
     loadTipos()
-  }, [loadTipos])
+  }, [loadTipos, userRole, router])
 
   const openCreate = () => {
     setEditingTipo(null)
