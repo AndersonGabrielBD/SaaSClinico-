@@ -39,9 +39,8 @@ export default function DashboardPage() {
     setHasAccess(canAccess)
     
     if (!canAccess && userRole) {
-      // Redirecionar após 2 segundos
       const timeout = setTimeout(() => {
-        router.push('/pacientes')
+        router.push('/agenda')
       }, 2000)
       return () => clearTimeout(timeout)
     }

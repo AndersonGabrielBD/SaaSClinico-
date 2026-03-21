@@ -32,10 +32,13 @@ def get_agendamentos():
             .order('data_agendamento', desc=False)\
             .order('horario_inicio', desc=False)
 
-        if paciente_id:
-            query = query.eq('paciente_id', paciente_id)
-        if profissional_id:
-            query = query.eq('profissional_id', profissional_id)
+        if user.get('role') in ['fono', 'medico', 'profissional']:
+            query = query.eq('profissional_id', user['user_id'])
+        else:
+            if paciente_id:
+                query = query.eq('paciente_id', paciente_id)
+            if profissional_id:
+                query = query.eq('profissional_id', profissional_id)
         if status:
             query = query.eq('status', status)
         if data_agendamento:
@@ -90,10 +93,15 @@ def get_agendamento(agendamento_id):
         
         repo = BaseRepository('agendamentos', clinica_id)
         agendamento = repo.get_by_id(agendamento_id)
-        
+
         if not agendamento:
             return jsonify({'error': 'Agendamento não encontrado'}), 404
-        
+
+        role = user.get('role')
+        if role in ['fono', 'medico', 'profissional']:
+            if agendamento.get('profissional_id') != user['user_id']:
+                return jsonify({'error': 'Não autorizado'}), 403
+
         return jsonify(agendamento), 200
         
     except Exception as e:
@@ -102,7 +110,7 @@ def get_agendamento(agendamento_id):
 
 @agendamento_bp.route('', methods=['POST'])
 @require_auth
-@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@require_roles(['admin', 'recepcao'])
 def create_agendamento():
     """Cria novo agendamento"""
     try:
@@ -147,7 +155,7 @@ def create_agendamento():
 
 @agendamento_bp.route('/<agendamento_id>', methods=['PUT'])
 @require_auth
-@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@require_roles(['admin', 'recepcao'])
 def update_agendamento(agendamento_id):
     """Atualiza agendamento"""
     try:

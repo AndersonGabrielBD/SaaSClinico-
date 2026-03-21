@@ -9,7 +9,7 @@ TIPOS_PADRAO = ['Avaliação', 'Reavaliação', 'Seguimento', 'Terapia', 'Retorn
 
 @tipo_atendimento_bp.route('', methods=['GET'])
 @require_auth
-@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@require_roles(['admin', 'recepcao'])
 def get_tipos():
     """Lista tipos de atendimento da clínica, com fallback para padrões se vazio"""
     try:

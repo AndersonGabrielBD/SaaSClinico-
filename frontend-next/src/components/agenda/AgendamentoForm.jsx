@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { agendamentoService } from '@/services/agendamentoService'
+import { frequenciaService } from '@/services/frequenciaService'
 import { pacoteService } from '@/services/pacoteService'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
@@ -178,9 +179,27 @@ export default function AgendamentoForm({ agendamento, onSuccess, onCancel }) {
         pacote_item_id: pacoteItemSelecionado || null,
       }
 
-      if (agendamento) {
+      if (agendamento && agendamento.id) {
         // Edição — salva status + motivo junto
         await agendamentoService.update(agendamento.id, payload)
+        // Se status mudou para concluida ou faltou, registrar frequência vinculada ao agendamento
+        if ((formData.status === 'concluida' || formData.status === 'faltou') && formData.profissional_id) {
+          try {
+            await frequenciaService.registrar({
+              paciente_id: formData.paciente_id,
+              profissional_id: formData.profissional_id,
+              agendamento_id: agendamento.id,
+              data_atendimento: formData.data_agendamento,
+              compareceu: formData.status === 'concluida',
+              observacoes: null
+            })
+          } catch (freqErr) {
+            // Ignora se já existe frequência para este agendamento
+            if (!freqErr?.message?.includes('já registrada')) {
+              console.warn('Frequência não registrada:', freqErr)
+            }
+          }
+        }
       } else if (recorrente) {
         // Feature 1 — criação recorrente
         const config = {

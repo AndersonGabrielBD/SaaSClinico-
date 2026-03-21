@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import * as api from '@/lib/api'
 import { useRouter } from 'next/navigation'
+import { getDefaultHomePath } from '@/utils/roles'
 
 const AuthContext = createContext(undefined)
 
@@ -80,14 +81,7 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true)
         setUser(response.user)
         
-        // Redirecionar baseado no role do usuário
-        const userRole = response.user.role?.toLowerCase()
-        if (userRole === 'admin' || userRole === 'recepcao') {
-          router.replace('/dashboard')
-        } else {
-          // Profissionais vão para a lista de pacientes
-          router.replace('/pacientes')
-        }
+        router.replace(getDefaultHomePath(response.user.role?.toLowerCase()))
         return response
       } else {
         throw new Error('Resposta inválida do servidor')
@@ -126,7 +120,7 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true)
         setUser(response.user)
         
-        router.replace('/dashboard')
+        router.replace(getDefaultHomePath(response.user.role?.toLowerCase()))
       }
     } catch (error) {
       console.error('Erro no registro:', error)
