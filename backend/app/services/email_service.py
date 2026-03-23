@@ -1,8 +1,12 @@
 # filepath: backend/app/services/email_service.py
+import logging
 import os
 from typing import Optional
 import requests
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
 
 class EmailService:
     """Serviço de envio de emails via Resend"""
@@ -32,7 +36,7 @@ class EmailService:
         """
         try:
             if not EmailService.RESEND_API_KEY:
-                print("⚠️ RESEND_API_KEY não configurada. Email não será enviado.")
+                logger.warning("[EMAIL] RESEND_API_KEY não configurada — email não enviado.")
                 return {
                     "sucesso": False,
                     "mensagem": "Serviço de email não configurado",
@@ -68,38 +72,28 @@ class EmailService:
             )
             
             if response.status_code in [200, 201]:
-                response_data = response.json()
-                email_id = response_data.get('id')
-                
-                print(f"✅ Email enviado com sucesso para {email} (ID: {email_id})")
+                email_id = response.json().get('id')
+                logger.info(f"[EMAIL] Email enviado para {email} (id={email_id})")
                 return {
                     "sucesso": True,
                     "mensagem": f"Código de reset enviado para {email}",
-                    "email_id": email_id
+                    "email_id": email_id,
                 }
             else:
                 error_msg = response.json().get('message', 'Erro desconhecido')
-                print(f"❌ Erro ao enviar email: {error_msg}")
+                logger.error(f"[EMAIL] Falha ao enviar email para {email}: {error_msg}")
                 return {
                     "sucesso": False,
                     "mensagem": f"Erro ao enviar email: {error_msg}",
-                    "email_id": None
+                    "email_id": None,
                 }
-                
+
         except requests.exceptions.Timeout:
-            print("❌ Timeout ao conectar com Resend")
-            return {
-                "sucesso": False,
-                "mensagem": "Timeout ao enviar email",
-                "email_id": None
-            }
+            logger.error("[EMAIL] Timeout ao conectar com Resend")
+            return {"sucesso": False, "mensagem": "Timeout ao enviar email", "email_id": None}
         except Exception as e:
-            print(f"❌ Erro ao enviar email: {str(e)}")
-            return {
-                "sucesso": False,
-                "mensagem": f"Erro ao enviar email: {str(e)}",
-                "email_id": None
-            }
+            logger.error(f"[EMAIL] Erro inesperado ao enviar email: {e}")
+            return {"sucesso": False, "mensagem": f"Erro ao enviar email: {str(e)}", "email_id": None}
     
     @staticmethod
     def _get_reset_password_template(reset_code: str, nome_usuario: str) -> str:

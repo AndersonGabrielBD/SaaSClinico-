@@ -412,6 +412,7 @@ export const getProximosAgendamentos = (limite = 10) => getRecentActivity();
 // FINANCEIRO
 // ============================================================================
 
+// Returns { data: [], pagination: { page, per_page, total, pages } }
 export const getLancamentos = (params = {}) => {
   const query = new URLSearchParams(params).toString();
   return request(`/financeiro/lancamentos${query ? `?${query}` : ''}`);

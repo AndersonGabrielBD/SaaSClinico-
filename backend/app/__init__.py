@@ -28,7 +28,7 @@ def create_app():
     """Factory para criar a aplicação Flask"""
     app = Flask(__name__)
 
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
+    app.config['SECRET_KEY'] = Config.SECRET_KEY
     app.config['JSON_SORT_KEYS'] = False
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 

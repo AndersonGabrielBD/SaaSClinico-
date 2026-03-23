@@ -59,11 +59,15 @@ def diagnostico_financeiro():
         return jsonify({'error': str(e)}), 500
 
 
+_PAGE_SIZE_DEFAULT = 100
+_PAGE_SIZE_MAX = 500
+
+
 @financeiro_bp.route('/lancamentos', methods=['GET'])
 @require_auth
 @require_roles(['admin', 'recepcao'])
 def get_lancamentos():
-    """Lista lançamentos financeiros com todos os filtros empurrados ao banco."""
+    """Lista lançamentos financeiros com filtros no banco e paginação."""
     import logging
     logger = logging.getLogger(__name__)
 
@@ -76,14 +80,24 @@ def get_lancamentos():
         data_fim = request.args.get('data_fim')
         paciente_id = request.args.get('paciente_id')
 
+        try:
+            page = max(1, int(request.args.get('page', 1)))
+            per_page = min(int(request.args.get('per_page', _PAGE_SIZE_DEFAULT)), _PAGE_SIZE_MAX)
+        except (ValueError, TypeError):
+            page, per_page = 1, _PAGE_SIZE_DEFAULT
+
+        offset = (page - 1) * per_page
+
         from database.supabase_client import get_supabase_client
         client = get_supabase_client()
 
-        # Monta query com todos os filtros direto no banco (sem carregamento total)
-        query = client.table('lancamentos_financeiros') \
-            .select('*') \
-            .eq('clinica_id', clinica_id) \
+        query = (
+            client.table('lancamentos_financeiros')
+            .select('*', count='exact')
+            .eq('clinica_id', clinica_id)
             .order('data_criacao', desc=True)
+            .range(offset, offset + per_page - 1)
+        )
 
         if status:
             query = query.eq('status', status)
@@ -92,18 +106,24 @@ def get_lancamentos():
         if data_inicio:
             query = query.gte('data_criacao', data_inicio)
         if data_fim:
-            # Inclui o dia inteiro somando 1 dia ao fim
             query = query.lt('data_criacao', data_fim + 'T23:59:59')
 
         result = query.execute()
-        lancamentos = result.data or []
+        total = result.count or 0
 
-        logger.info(f"✅ [FINANCEIRO] Retornando {len(lancamentos)} lançamentos")
-        return jsonify(lancamentos), 200
+        return jsonify({
+            'data': result.data or [],
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'pages': max(1, -(-total // per_page)),
+            },
+        }), 200
 
     except Exception as e:
-        logger.error(f"❌ [FINANCEIRO] Erro ao buscar lançamentos: {str(e)}", exc_info=True)
-        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+        logger.error(f"[FINANCEIRO] Erro ao buscar lançamentos: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 @financeiro_bp.route('/lancamentos/<lancamento_id>', methods=['GET'])

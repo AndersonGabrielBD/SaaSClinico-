@@ -6,11 +6,15 @@ from app.utils.exceptions import NotFoundException, ValidationException
 
 paciente_bp = Blueprint('pacientes', __name__)
 
+_PAGE_SIZE_DEFAULT = 100
+_PAGE_SIZE_MAX = 500
+
+
 @paciente_bp.route('', methods=['GET'])
 @require_auth
 @require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
 def get_pacientes():
-    """Lista pacientes da clínica com filtros no banco (sem carregamento total)."""
+    """Lista pacientes da clínica com filtros no banco e paginação."""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
@@ -18,23 +22,44 @@ def get_pacientes():
         search = request.args.get('search')
         ativo = request.args.get('ativo')
 
+        try:
+            page = max(1, int(request.args.get('page', 1)))
+            per_page = min(int(request.args.get('per_page', _PAGE_SIZE_DEFAULT)), _PAGE_SIZE_MAX)
+        except (ValueError, TypeError):
+            page, per_page = 1, _PAGE_SIZE_DEFAULT
+
+        offset = (page - 1) * per_page
+
         from database.supabase_client import get_supabase_client
         client = get_supabase_client()
 
-        query = client.table('pacientes')\
-            .select('id, nome_completo, cpf, telefone_principal, data_nascimento, email, ativo, data_criacao')\
-            .eq('clinica_id', clinica_id)\
+        query = (
+            client.table('pacientes')
+            .select('id, nome_completo, cpf, telefone_principal, data_nascimento, email, ativo, data_criacao',
+                    count='exact')
+            .eq('clinica_id', clinica_id)
             .order('nome_completo', desc=False)
+            .range(offset, offset + per_page - 1)
+        )
 
         if ativo is not None:
             query = query.eq('ativo', ativo.lower() == 'true')
 
         if search:
-            # Busca por nome via ilike (índice gin/trigram no banco)
             query = query.ilike('nome_completo', f'%{search}%')
 
         response = query.execute()
-        return jsonify(response.data or []), 200
+        total = response.count or 0
+
+        return jsonify({
+            'data': response.data or [],
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'pages': max(1, -(-total // per_page)),
+            },
+        }), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
