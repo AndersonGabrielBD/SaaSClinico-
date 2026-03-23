@@ -442,22 +442,37 @@ export default function AgendaPage() {
       {/* ─── SIDEBAR ────────────────────────────────────────────────── */}
       <aside className={`
         fixed lg:relative z-30 lg:z-auto
-        h-full lg:h-auto
-        w-72 flex-shrink-0
+        max-lg:top-0 max-lg:bottom-0 max-lg:left-0 lg:top-auto lg:bottom-auto lg:left-auto
+        lg:h-full
+        w-72 max-w-[85vw] flex-shrink-0
         bg-white border-r border-neutral-100
-        flex flex-col
+        flex flex-col max-lg:overflow-hidden
         transition-transform duration-200
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Fechar mobile */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 lg:hidden">
+        <div className="flex flex-shrink-0 items-center justify-between px-4 py-3 border-b border-neutral-100 lg:hidden">
           <span className="font-semibold text-neutral-800">Filtros</span>
           <button onClick={() => setSidebarOpen(false)} className="p-1 rounded hover:bg-neutral-100">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+        {/* CTA no topo no mobile: evita depender de scroll/altura do painel inferior */}
+        {!isProfissional && (
+          <div className="flex-shrink-0 px-4 py-3 border-b border-neutral-100 bg-white lg:hidden">
+            <button
+              type="button"
+              onClick={() => { handleCreate(); setSidebarOpen(false) }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Agendamento
+            </button>
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 space-y-6 touch-pan-y">
           {/* Mini-calendário */}
           <MiniCalendario
             selectedDate={selectedDate}
@@ -537,10 +552,11 @@ export default function AgendaPage() {
           </div>
         </div>
 
-        {/* Botão novo agendamento na sidebar */}
+        {/* Botão novo agendamento — só no desktop (no mobile o CTA fica no topo) */}
         {!isProfissional && (
-          <div className="px-4 py-4 border-t border-neutral-100">
+          <div className="hidden lg:block flex-shrink-0 px-4 pt-3 pb-4 border-t border-neutral-100 bg-white">
             <button
+              type="button"
               onClick={() => { handleCreate(); setSidebarOpen(false) }}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
             >
