@@ -1,262 +1,193 @@
 # filepath: backend/app/routes/auth_routes.py
+import logging
 from flask import Blueprint, request, jsonify
 from database.supabase_client import get_supabase_client
-from app.utils.jwt_utils import create_token
+from app.utils.jwt_utils import create_token, require_auth, get_current_user
 from app.services.auth_service import AuthService
 from app.schemas.auth_schema import ResetPasswordRequest, ResetPasswordWithCode
 
+logger = logging.getLogger(__name__)
+
 auth_bp = Blueprint('auth', __name__)
+
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """Login com email e senha via Supabase Auth"""
+    """Login via Supabase Auth. Returns a signed JWT and the user profile."""
+    data = request.get_json(silent=True) or {}
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+
+    if not email or not password:
+        return jsonify({'error': 'Email e senha são obrigatórios'}), 400
+
+    supabase = get_supabase_client()
+
     try:
-        data = request.get_json()
-        email = data.get('email')
-        password = data.get('password')
-        
-        if not email or not password:
-            return jsonify({'error': 'Email e senha são obrigatórios'}), 400
-        
-        # Autentica via Supabase
-        supabase = get_supabase_client()
-        response = supabase.auth.sign_in_with_password({
+        auth_response = supabase.auth.sign_in_with_password({
             'email': email,
-            'password': password
+            'password': password,
         })
-        
-        # Busca dados do usuário
-        user_data = response.user
-        
-        # Busca clinica_id do perfil do usuário
-        try:
-            profile_response = supabase.table('usuarios')\
-                .select('clinica_id, role, nome_completo')\
-                .eq('id', user_data.id)\
-                .execute()
-            
-            # Verifica se encontrou perfil
-            if profile_response.data and len(profile_response.data) > 0:
-                profile = profile_response.data[0]
-            else:
-                # Perfil não encontrado - cria um padrão
-                # Primeiro, verifica se já existe uma clínica
-                clinicas = supabase.table('clinicas').select('id, nome_clinica').limit(1).execute()
-                
-                if clinicas.data and len(clinicas.data) > 0:
-                    # Use a primeira clínica encontrada
-                    clinica_id = clinicas.data[0]['id']
-                else:
-                    # Cria uma clínica padrão
-                    clinica_response = supabase.table('clinicas').insert({
-                        'nome_clinica': 'Clínica Padrão',
-                        'email': email
-                    }).execute()
-                    clinica_id = clinica_response.data[0]['id']
-                
-                # Cria perfil do usuário
-                profile_create = supabase.table('usuarios').insert({
-                    'id': user_data.id,
-                    'clinica_id': clinica_id,
-                    'nome_completo': email.split('@')[0],
-                    'email': email,
-                    'role': 'fono'
-                }).execute()
-                
-                profile = profile_create.data[0] if profile_create.data else {
-                    'clinica_id': clinica_id,
-                    'role': 'fono',
-                    'nome_completo': email.split('@')[0]
-                }
-        except Exception as profile_error:
-            print(f"Erro ao buscar/criar perfil: {str(profile_error)}")
-            # Se falhar, usa dados mínimos do Auth
-            profile = {
-                'clinica_id': None,
-                'role': 'fono',
-                'nome_completo': email.split('@')[0]
-            }
-        
-        # Verifica se tem clinica_id
-        if not profile.get('clinica_id'):
-            return jsonify({
-                'error': 'Usuário sem clínica associada. Por favor, faça o registro novamente.'
-            }), 401
-        
-        # Cria token customizado
-        token_data = {
+    except Exception as e:
+        logger.warning(f"[AUTH] Falha no login para {email}: {e}")
+        return jsonify({'error': 'Credenciais inválidas'}), 401
+
+    user_data = auth_response.user
+    if not user_data:
+        return jsonify({'error': 'Credenciais inválidas'}), 401
+
+    # Fetch the clinic profile — never auto-create or guess a clinic
+    try:
+        profile_res = (
+            supabase.table('usuarios')
+            .select('clinica_id, role, nome_completo, ativo')
+            .eq('id', user_data.id)
+            .single()
+            .execute()
+        )
+        profile = profile_res.data
+    except Exception as e:
+        logger.error(f"[AUTH] Erro ao buscar perfil do usuário {user_data.id}: {e}")
+        return jsonify({'error': 'Erro ao carregar perfil do usuário'}), 500
+
+    if not profile:
+        logger.warning(f"[AUTH] Usuário {user_data.id} autenticado no Auth mas sem perfil em 'usuarios'")
+        return jsonify({
+            'error': (
+                'Perfil de usuário não encontrado. '
+                'Entre em contato com o administrador da clínica para que seu acesso seja configurado.'
+            )
+        }), 401
+
+    if not profile.get('clinica_id'):
+        logger.error(f"[AUTH] Usuário {user_data.id} sem clinica_id no perfil")
+        return jsonify({'error': 'Usuário sem clínica associada. Contate o suporte.'}), 401
+
+    if not profile.get('ativo', True):
+        return jsonify({'error': 'Usuário inativo. Contate o administrador da clínica.'}), 401
+
+    token = create_token({'id': user_data.id, 'email': user_data.email})
+
+    return jsonify({
+        'token': token,
+        'user': {
             'id': user_data.id,
             'email': user_data.email,
-            'clinica_id': profile.get('clinica_id'),
-            'role': profile.get('role', 'fono'),
-            'nome_completo': profile.get('nome_completo', email.split('@')[0])
-        }
-        
-        token = create_token(token_data)
-        
-        return jsonify({
-            'token': token,
-            'user': {
-                'id': user_data.id,
-                'email': user_data.email,
-                'clinica_id': profile.get('clinica_id'),
-                'role': profile.get('role'),
-                'nome_completo': profile.get('nome_completo')
-            }
-        }), 200
-        
-    except Exception as e:
-        print(f"Erro no login: {str(e)}")
-        return jsonify({'error': f'Erro no login: {str(e)}'}), 401
+            'clinica_id': profile['clinica_id'],
+            'role': profile['role'],
+            'nome_completo': profile.get('nome_completo', ''),
+        },
+    }), 200
 
 
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
-    """Registro de novo usuário"""
+    """
+    Self-registration: creates a Supabase Auth user, a clinic record and an
+    admin profile in a single flow. For additional users, the clinic admin
+    should invite them via the user management screen.
+    """
+    data = request.get_json(silent=True) or {}
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    nome = data.get('nome', '').strip()
+    clinica_nome = data.get('clinica_nome', '').strip()
+
+    if not all([email, password, nome, clinica_nome]):
+        return jsonify({'error': 'Todos os campos são obrigatórios'}), 400
+
+    supabase = get_supabase_client()
+
     try:
-        data = request.get_json()
-        email = data.get('email')
-        password = data.get('password')
-        nome = data.get('nome')
-        clinica_nome = data.get('clinica_nome')
-        
-        if not all([email, password, nome, clinica_nome]):
-            return jsonify({'error': 'Todos os campos são obrigatórios'}), 400
-        
-        supabase = get_supabase_client()
-        
-        # Cria usuário no Supabase Auth
-        auth_response = supabase.auth.sign_up({
-            'email': email,
-            'password': password
-        })
-        
+        auth_response = supabase.auth.sign_up({'email': email, 'password': password})
         user = auth_response.user
-        
-        # Cria clínica
-        clinica_response = supabase.table('clinicas').insert({
+        if not user:
+            return jsonify({'error': 'Erro ao criar conta. Tente novamente.'}), 400
+    except Exception as e:
+        logger.warning(f"[AUTH] Falha no signup para {email}: {e}")
+        return jsonify({'error': f'Erro no registro: {str(e)}'}), 400
+
+    try:
+        clinica_res = supabase.table('clinicas').insert({
             'nome_clinica': clinica_nome,
-            'email': email
+            'email': email,
         }).execute()
-        
-        clinica = clinica_response.data[0]
-        
-        # Cria perfil do usuário
+        clinica = clinica_res.data[0]
+
         supabase.table('usuarios').insert({
             'id': user.id,
             'clinica_id': clinica['id'],
             'nome_completo': nome,
             'email': email,
-            'role': 'admin'
+            'role': 'admin',
         }).execute()
-        
-        # Cria token
-        token_data = {
+    except Exception as e:
+        logger.error(f"[AUTH] Erro ao criar clínica/perfil para {user.id}: {e}")
+        return jsonify({'error': 'Erro ao configurar conta. Contate o suporte.'}), 500
+
+    token = create_token({'id': user.id, 'email': email})
+
+    return jsonify({
+        'token': token,
+        'user': {
             'id': user.id,
             'email': email,
             'clinica_id': clinica['id'],
             'role': 'admin',
-            'nome_completo': nome
-        }
-        
-        token = create_token(token_data)
-        
-        return jsonify({
-            'token': token,
-            'user': {
-                'id': user.id,
-                'email': email,
-                'clinica_id': clinica['id'],
-                'role': 'admin',
-                'nome_completo': nome
-            },
-            'clinica': clinica
-        }), 201
-        
-    except Exception as e:
-        return jsonify({'error': f'Erro no registro: {str(e)}'}), 400
+            'nome_completo': nome,
+        },
+        'clinica': clinica,
+    }), 201
 
 
 @auth_bp.route('/me', methods=['GET'])
-def get_current_user():
-    """Retorna dados do usuário autenticado"""
-    from app.utils.jwt_utils import require_auth, get_current_user
-    
-    @require_auth
-    def _get_user():
-        user = get_current_user()
-        return jsonify({'user': user}), 200
-    
-    return _get_user()
+@require_auth
+def get_me():
+    """Returns live profile data for the authenticated user."""
+    user = get_current_user()
+
+    supabase = get_supabase_client()
+    try:
+        res = (
+            supabase.table('usuarios')
+            .select('id, email, clinica_id, role, nome_completo, foto_perfil_url, especialidade, numero_registro, primeiro_acesso')
+            .eq('id', user['id'])
+            .single()
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"[AUTH] /me falhou para {user.get('id')}: {e}")
+        return jsonify({'error': 'Erro ao carregar perfil'}), 500
+
+    if not res.data:
+        return jsonify({'error': 'Perfil não encontrado'}), 404
+
+    return jsonify({'user': res.data}), 200
+
 
 @auth_bp.route('/reset-password-request', methods=['POST'])
 def reset_password_request():
-    """
-    Solicita um código de reset de senha
-    
-    Body:
-    {
-        "email": "user@example.com" ou "12345678900"
-    }
-    
-    Response:
-    {
-        "sucesso": true,
-        "mensagem": "Código gerado com sucesso",
-        "reset_code": "ABC123XY" (apenas em desenvolvimento)
-    }
-    """
-    try:
-        data = request.get_json()
-        email = data.get('email')
-        
-        if not email:
-            return jsonify({'error': 'Email ou CPF é obrigatório'}), 400
-        
-        # Gerar código de reset
-        result = AuthService.generate_reset_code_for_user(email)
-        
-        status_code = 200 if result.get('sucesso') else 400
-        return jsonify(result), status_code
-        
-    except Exception as e:
-        print(f"Erro ao solicitar reset de senha: {str(e)}")
-        return jsonify({'error': f'Erro ao processar solicitação: {str(e)}'}), 500
+    """Requests a password reset code sent by email."""
+    data = request.get_json(silent=True) or {}
+    email = data.get('email', '').strip()
+
+    if not email:
+        return jsonify({'error': 'Email ou CPF é obrigatório'}), 400
+
+    result = AuthService.generate_reset_code_for_user(email)
+    return jsonify(result), 200 if result.get('sucesso') else 400
 
 
 @auth_bp.route('/reset-password', methods=['POST'])
 def reset_password():
-    """
-    Reseta a senha usando código de reset
-    
-    Body:
-    {
-        "email": "user@example.com" ou "12345678900",
-        "reset_code": "ABC123XY",
-        "nova_senha": "novaSenha123"
-    }
-    
-    Response:
-    {
-        "sucesso": true,
-        "mensagem": "Senha alterada com sucesso"
-    }
-    """
-    try:
-        data = request.get_json()
-        email = data.get('email')
-        reset_code = data.get('reset_code')
-        nova_senha = data.get('nova_senha')
-        
-        if not all([email, reset_code, nova_senha]):
-            return jsonify({'error': 'Email, código e nova senha são obrigatórios'}), 400
-        
-        # Validar e resetar senha
-        result = AuthService.validate_and_reset_password(email, reset_code, nova_senha)
-        
-        status_code = 200 if result.get('sucesso') else 400
-        return jsonify(result), status_code
-        
-    except Exception as e:
-        print(f"Erro ao resetar senha: {str(e)}")
-        return jsonify({'error': f'Erro ao alterar senha: {str(e)}'}), 500
+    """Validates a reset code and changes the user's password."""
+    data = request.get_json(silent=True) or {}
+    email = data.get('email', '').strip()
+    reset_code = data.get('reset_code', '').strip()
+    nova_senha = data.get('nova_senha', '')
+
+    if not all([email, reset_code, nova_senha]):
+        return jsonify({'error': 'Email, código e nova senha são obrigatórios'}), 400
+
+    result = AuthService.validate_and_reset_password(email, reset_code, nova_senha)
+    return jsonify(result), 200 if result.get('sucesso') else 400

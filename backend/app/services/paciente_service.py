@@ -1,42 +1,43 @@
 # filepath: backend/app/services/paciente_service.py
+import logging
 from typing import List, Optional, Dict
 from app.repositories.base_repository import BaseRepository
 from app.schemas.paciente_schema import PacienteCreate, PacienteUpdate, PacienteResponse
 from app.utils.exceptions import NotFoundException, ValidationException
 from database.supabase_client import get_supabase_client
 
+logger = logging.getLogger(__name__)
+
 
 class PacienteService:
     """Service de pacientes"""
-    
+
     def __init__(self):
         self.repository = BaseRepository("pacientes")
 
     async def listar_pacientes(
-        self, 
-        clinica_id: str, 
+        self,
+        clinica_id: str,
         ativo: Optional[bool] = None,
         search: Optional[str] = None
     ) -> List[Dict]:
-        """Lista pacientes com filtros opcionais"""
-        
+        """Lista pacientes com filtros opcionais."""
         client = get_supabase_client()
         query = client.table("pacientes").select("*").eq("clinica_id", clinica_id)
-        print(f"Listando pacientes para clínica {clinica_id} com filtros: ativo={ativo}, search='{search}'")
+
         if ativo is not None:
             query = query.eq("ativo", ativo)
-        
+
         if search:
-            # Busca avançada
             query = query.or_(
                 f"nome_completo.ilike.%{search}%,"
                 f"cpf.ilike.%{search}%,"
                 f"email.ilike.%{search}%"
             )
-        
+
         query = query.order("nome_completo")
         result = query.execute()
-        print(result)
+        logger.debug(f"[PACIENTE] Listados {len(result.data or [])} pacientes para clinica_id={clinica_id}")
         return result.data or []
 
     async def buscar_paciente(self, paciente_id: str, clinica_id: str) -> Dict:

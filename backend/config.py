@@ -6,9 +6,9 @@ load_dotenv()
 
 class Config:
     """Configuração centralizada da aplicação"""
-    
-    # Flask
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
+
+    # Flask — SECRET_KEY não tem fallback intencional: ausência é detectada em validate()
+    SECRET_KEY = os.getenv('SECRET_KEY')
     DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
     HOST = os.getenv('HOST', '0.0.0.0')
     PORT = int(os.getenv('PORT', 5000))

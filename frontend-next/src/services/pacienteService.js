@@ -1,47 +1,53 @@
 import * as api from '@/lib/api'
 
+/**
+ * Normalises the paginated response from the API.
+ * The backend returns { data: [], pagination: {} } — this helper extracts the
+ * array so callers that expect a plain array keep working. Pass
+ * `rawPagination: true` in options to get the full envelope.
+ */
+function extractList(response, rawPagination = false) {
+  if (rawPagination) return response
+  if (response && Array.isArray(response.data)) return response.data
+  if (Array.isArray(response)) return response
+  return []
+}
+
 export const pacienteService = {
-  // Listar pacientes
-  async getAll(filters) {
-    return api.getPacientes(filters)
+  async getAll(filters, { paginated = false } = {}) {
+    const response = await api.getPacientes(filters)
+    return extractList(response, paginated)
   },
 
-  // Buscar paciente por ID
   async getById(id) {
     return api.getPacienteById(id)
   },
 
-  // Criar paciente
   async create(paciente) {
     return api.createPaciente(paciente)
   },
 
-  // Atualizar paciente
   async update(id, paciente) {
     return api.updatePaciente(id, paciente)
   },
 
-  // Desativar paciente (soft delete)
   async deactivate(id) {
     return api.deletePaciente(id)
   },
 
-  // Reativar paciente
   async reactivate(id) {
     return api.updatePaciente(id, { ativo: true })
   },
 
-  // Buscar por CPF
   async getByCPF(cpf) {
     try {
-      const data = await api.getPacientes({ search: cpf, ativo: true })
+      const data = await this.getAll({ search: cpf, ativo: true })
       return data.length > 0 ? data[0] : null
     } catch {
       return null
     }
   },
 
-  // Buscar histórico de agendamentos do paciente
   async getAgendamentos(pacienteId) {
     try {
       const result = await api.getAgendamentos({ paciente_id: pacienteId })
@@ -51,10 +57,8 @@ export const pacienteService = {
     }
   },
 
-  // Estatísticas do paciente
   async getStats(pacienteId) {
     const agendamentos = await this.getAgendamentos(pacienteId)
-
     return {
       total_consultas: agendamentos.length,
       consultas_realizadas: agendamentos.filter(a => a.status === 'concluida').length,
@@ -63,7 +67,6 @@ export const pacienteService = {
     }
   },
 
-  // Relacionamento com Profissionais
   async getProfissionais(pacienteId) {
     return api.getPacienteProfissionais(pacienteId)
   },
@@ -78,5 +81,5 @@ export const pacienteService = {
 
   async syncProfissionais(pacienteId, profissionalIds) {
     return api.syncPacienteProfissionais(pacienteId, profissionalIds)
-  }
+  },
 }
