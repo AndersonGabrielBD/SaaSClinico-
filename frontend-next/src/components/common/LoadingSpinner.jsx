@@ -19,17 +19,17 @@ export function LoadingSkeleton({ rows = 4, className = '' }) {
   return (
     <div className={`space-y-3 ${className}`}>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="bg-white rounded-xl p-5 border border-neutral-100">
+        <div key={i} className="bg-white rounded-2xl p-5 border border-neutral-100 animate-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
           <div className="flex items-center gap-4 mb-3">
-            <div className="w-10 h-10 rounded-full bg-neutral-100 animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-neutral-100 animate-pulse" />
             <div className="flex-1 space-y-2">
-              <div className="h-3.5 bg-neutral-100 rounded-full animate-pulse w-1/3" />
-              <div className="h-3 bg-neutral-100 rounded-full animate-pulse w-1/4" />
+              <div className="h-3.5 bg-neutral-100 rounded-lg animate-pulse w-1/3" />
+              <div className="h-3 bg-neutral-100 rounded-lg animate-pulse w-1/4" />
             </div>
           </div>
           <div className="space-y-2">
-            <div className="h-3 bg-neutral-100 rounded-full animate-pulse w-full" />
-            <div className="h-3 bg-neutral-100 rounded-full animate-pulse w-5/6" />
+            <div className="h-3 bg-neutral-100 rounded-lg animate-pulse w-full" />
+            <div className="h-3 bg-neutral-100 rounded-lg animate-pulse w-5/6" />
           </div>
         </div>
       ))}

@@ -114,10 +114,10 @@ export default function TiposAtendimentoPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-neutral-900">Tipos de Atendimento</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">
+          <h1 className="page-title">Tipos de Atendimento</h1>
+          <p className="page-subtitle">
             Personalize os tipos disponíveis nos agendamentos
           </p>
         </div>
@@ -131,7 +131,7 @@ export default function TiposAtendimentoPage() {
 
       {/* Info banner when showing defaults */}
       {!loading && tipos.length > 0 && isPadrao(tipos[0]) && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-700">
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-sm text-blue-700">
           Exibindo tipos <strong>padrão do sistema</strong>. Crie tipos personalizados para substituí-los.
         </div>
       )}
@@ -148,7 +148,7 @@ export default function TiposAtendimentoPage() {
           actionLabel="Criar primeiro tipo"
         />
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)] divide-y divide-neutral-50">
+        <div className="bg-white rounded-2xl border border-neutral-100 shadow-card divide-y divide-neutral-50 animate-fade-in">
           {tipos.map((tipo, index) => (
             <div
               key={tipo.id || tipo.nome}
@@ -159,7 +159,7 @@ export default function TiposAtendimentoPage() {
               <GripVertical className="w-4 h-4 text-neutral-300 flex-shrink-0" />
 
               <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-primary-50 text-primary-500 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-primary-50 text-primary-500 flex items-center justify-center flex-shrink-0">
                   <Tag className="w-3.5 h-3.5" />
                 </div>
                 <span className="text-sm font-medium text-neutral-900 truncate">{tipo.nome}</span>
@@ -170,7 +170,7 @@ export default function TiposAtendimentoPage() {
                 )}
               </div>
 
-              <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0 ${
+              <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-lg flex-shrink-0 ${
                 tipo.ativo !== false
                   ? 'bg-green-100 text-green-700'
                   : 'bg-neutral-100 text-neutral-500'
@@ -228,7 +228,7 @@ export default function TiposAtendimentoPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+            <label className="block text-sm font-semibold text-neutral-700 mb-1.5">
               Nome *
             </label>
             <input
@@ -236,7 +236,7 @@ export default function TiposAtendimentoPage() {
               value={formData.nome}
               onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
               placeholder="Ex: Consulta, Avaliação, Terapia..."
-              className="w-full h-9 px-3 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              className="input-field"
               required
               autoFocus
             />

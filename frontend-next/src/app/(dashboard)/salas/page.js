@@ -119,10 +119,10 @@ export default function SalasPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-neutral-900">Salas</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">
+          <h1 className="page-title">Salas</h1>
+          <p className="page-subtitle">
             Gerencie as salas disponíveis para agendamento
           </p>
         </div>
@@ -166,14 +166,14 @@ export default function SalasPage() {
           {salas.map((sala) => (
             <div
               key={sala.id}
-              className={`bg-white rounded-xl border shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden transition-opacity ${
+              className={`bg-white rounded-2xl border border-neutral-100 shadow-card overflow-hidden transition-opacity animate-fade-in ${
                 sala.ativo === false ? 'opacity-60' : ''
               }`}
             >
               {/* Card header */}
               <div className="flex items-start justify-between p-4 pb-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                     sala.ativo !== false ? 'bg-primary-50 text-primary-500' : 'bg-neutral-100 text-neutral-400'
                   }`}>
                     <DoorOpen className="w-4 h-4" />
@@ -185,7 +185,7 @@ export default function SalasPage() {
                     )}
                   </div>
                 </div>
-                <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0 ml-2 ${
+                <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-lg flex-shrink-0 ml-2 ${
                   sala.ativo !== false
                     ? 'bg-green-100 text-green-700'
                     : 'bg-neutral-100 text-neutral-500'
@@ -204,7 +204,7 @@ export default function SalasPage() {
 
               {/* Actions */}
               {(canEdit || canDelete) && (
-                <div className="flex items-center gap-1 px-3 py-2 border-t border-neutral-50 bg-neutral-50/50">
+                <div className="flex items-center gap-1 px-3 py-2 border-t border-neutral-50 bg-neutral-50/50 rounded-b-2xl">
                   {canEdit && (
                     <>
                       <Button
@@ -256,7 +256,7 @@ export default function SalasPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+            <label className="block text-sm font-semibold text-neutral-700 mb-1.5">
               Nome da sala *
             </label>
             <input
@@ -264,14 +264,14 @@ export default function SalasPage() {
               value={formData.nome}
               onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
               placeholder="Ex: Sala 1, Consultório A..."
-              className="w-full h-9 px-3 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              className="input-field"
               required
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+            <label className="block text-sm font-semibold text-neutral-700 mb-1.5">
               Descrição
             </label>
             <input
@@ -279,12 +279,12 @@ export default function SalasPage() {
               value={formData.descricao}
               onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
               placeholder="Descrição opcional..."
-              className="w-full h-9 px-3 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              className="input-field"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+            <label className="block text-sm font-semibold text-neutral-700 mb-1.5">
               Capacidade
             </label>
             <input
@@ -293,7 +293,7 @@ export default function SalasPage() {
               max="100"
               value={formData.capacidade}
               onChange={(e) => setFormData({ ...formData, capacidade: parseInt(e.target.value) || 1 })}
-              className="w-full h-9 px-3 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              className="input-field"
             />
           </div>
 

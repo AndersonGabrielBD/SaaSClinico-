@@ -107,12 +107,12 @@ export default function ProntuariosPage() {
     : prontuarios
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Prontuários</h1>
-          <p className="text-neutral-600 mt-1">
+          <h1 className="page-title">Prontuários</h1>
+          <p className="page-subtitle">
             Gerencie os prontuários e evoluções dos pacientes
           </p>
         </div>
@@ -122,58 +122,58 @@ export default function ProntuariosPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-neutral-600">Total</p>
-              <p className="text-2xl font-bold text-neutral-900">{prontuarios.length}</p>
-            </div>
-            <FileText className="w-8 h-8 text-primary-500" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="stat-card flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Total</p>
+            <p className="text-xl font-bold text-neutral-900">{prontuarios.length}</p>
           </div>
         </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-neutral-600">Este Mês</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {prontuarios.filter(p => {
-                  const date = parseDateSafe(p.data_criacao || p.created_at)
-                  if (!date) return false
-                  const now = new Date()
-                  return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-                }).length}
-              </p>
-            </div>
-            <FileText className="w-8 h-8 text-blue-500" />
+        <div className="stat-card flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Este Mês</p>
+            <p className="text-xl font-bold text-blue-600">
+              {prontuarios.filter(p => {
+                const date = parseDateSafe(p.data_criacao || p.created_at)
+                if (!date) return false
+                const now = new Date()
+                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+              }).length}
+            </p>
           </div>
         </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-neutral-600">Pacientes Atendidos</p>
-              <p className="text-2xl font-bold text-green-600">
-                {new Set(prontuarios.map(p => p.paciente_id)).size}
-              </p>
-            </div>
-            <FileText className="w-8 h-8 text-green-500" />
+        <div className="stat-card flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Pacientes Atendidos</p>
+            <p className="text-xl font-bold text-green-600">
+              {new Set(prontuarios.map(p => p.paciente_id)).size}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200">
+      <div className="bg-white rounded-2xl border border-neutral-100 shadow-card p-5">
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search */}
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por título, tipo ou paciente..."
-                className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                className="input-field pl-10"
               />
             </div>
           </div>
@@ -183,7 +183,7 @@ export default function ProntuariosPage() {
             <select
               value={selectedPaciente}
               onChange={(e) => setSelectedPaciente(e.target.value)}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              className="select-field"
             >
               <option value="">Todos os pacientes</option>
               {pacientes.map((p) => (
@@ -210,7 +210,7 @@ export default function ProntuariosPage() {
           } : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-5 [&>*]:!rounded-2xl">
           {filteredProntuarios.map((prontuario) => (
             <ProntuarioCard
               key={prontuario.id}
@@ -244,11 +244,11 @@ export default function ProntuariosPage() {
         size="sm"
       >
         <div className="flex flex-col items-center text-center gap-4 py-2">
-          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center">
             <AlertTriangle className="w-6 h-6 text-red-600" />
           </div>
           <div>
-            <p className="text-sm font-medium text-neutral-900">Tem certeza que deseja excluir este prontuário?</p>
+            <p className="text-sm font-bold text-neutral-900">Tem certeza que deseja excluir este prontuário?</p>
             <p className="text-sm text-neutral-500 mt-1">Esta ação não pode ser desfeita.</p>
           </div>
           <div className="flex gap-3 w-full">

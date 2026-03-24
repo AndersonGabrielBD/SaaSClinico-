@@ -148,6 +148,26 @@ def listar_pacotes():
         return jsonify({'error': str(e)}), 500
 
 
+@pacote_bp.route('/resumo-financeiro', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao'])
+def resumo_financeiro_pacotes():
+    try:
+        user = get_current_user()
+        data_inicio = request.args.get('data_inicio')
+        data_fim = request.args.get('data_fim')
+        if not data_inicio or not data_fim:
+            return jsonify({'error': 'data_inicio e data_fim são obrigatórios (YYYY-MM-DD)'}), 400
+        service = PacoteService()
+        resumo = service.obter_resumo_financeiro_pacotes(
+            user['clinica_id'], data_inicio, data_fim
+        )
+        return jsonify(resumo), 200
+    except Exception as e:
+        logger.error(f"resumo_financeiro_pacotes: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @pacote_bp.route('/<pacote_id>', methods=['GET'])
 @require_auth
 @require_roles(['admin', 'recepcao'])
@@ -265,6 +285,8 @@ def marcar_pago(pacote_id):
             valor_pago=dados.valor_pago,
             registrado_por=user['user_id'],
             observacoes=dados.observacoes,
+            metodo_pagamento_restante=dados.metodo_pagamento_restante,
+            data_prevista_pagamento_restante=dados.data_prevista_pagamento_restante,
         )
         return jsonify(pacote), 200
     except ValidationError as e:

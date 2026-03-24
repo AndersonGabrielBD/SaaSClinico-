@@ -11,10 +11,10 @@ const iconMap = {
 }
 
 const colorMap = {
-  success: 'bg-green-50 border-green-200 text-green-800',
-  error: 'bg-red-50 border-red-200 text-red-800',
-  warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-  info: 'bg-blue-50 border-blue-200 text-blue-800'
+  success: 'bg-white border-green-200 text-green-800',
+  error: 'bg-white border-red-200 text-red-800',
+  warning: 'bg-white border-yellow-200 text-yellow-800',
+  info: 'bg-white border-blue-200 text-blue-800'
 }
 
 const iconColorMap = {
@@ -22,6 +22,13 @@ const iconColorMap = {
   error: 'text-red-500',
   warning: 'text-yellow-500',
   info: 'text-blue-500'
+}
+
+const accentMap = {
+  success: 'bg-green-500',
+  error: 'bg-red-500',
+  warning: 'bg-yellow-500',
+  info: 'bg-blue-500',
 }
 
 export default function Toast({ 
@@ -60,14 +67,17 @@ export default function Toast({
       className={`
         fixed bottom-6 right-6 z-50 
         flex items-center gap-3 
-        px-4 py-3 rounded-lg shadow-lg border
+        pl-1 pr-4 py-1 rounded-2xl shadow-float border overflow-hidden
         ${colorMap[type]}
         transform transition-all duration-300 ease-out
-        ${isLeaving ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}
+        ${isLeaving ? 'translate-y-2 opacity-0 scale-95' : 'translate-y-0 opacity-100 scale-100'}
       `}
     >
-      <Icon className={`w-5 h-5 flex-shrink-0 ${iconColorMap[type]}`} />
-      <p className="text-sm font-medium">{message}</p>
+      <div className={`w-1 self-stretch rounded-full ${accentMap[type]}`} />
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${type === 'success' ? 'bg-green-50' : type === 'error' ? 'bg-red-50' : type === 'warning' ? 'bg-yellow-50' : 'bg-blue-50'}`}>
+        <Icon className={`w-5 h-5 ${iconColorMap[type]}`} />
+      </div>
+      <p className="text-sm font-medium text-neutral-800 py-2.5">{message}</p>
       <button
         onClick={() => {
           setIsLeaving(true)
@@ -76,9 +86,9 @@ export default function Toast({
             onClose?.()
           }, 300)
         }}
-        className="p-1 hover:bg-black/5 rounded transition-colors"
+        className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors ml-2"
       >
-        <X className="w-4 h-4" />
+        <X className="w-3.5 h-3.5 text-neutral-400" />
       </button>
     </div>
   )
