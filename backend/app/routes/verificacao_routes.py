@@ -67,17 +67,26 @@ def verificar_conflito_agendamento():
 @verificacao_bp.route('/profissionais', methods=['GET'])
 @require_auth
 def get_profissionais():
-    """Busca profissionais (fono/medico) usando RPC otimizada"""
+    """Busca profissionais (fono/medico/profissional) da clínica"""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
         
         ativo = request.args.get('ativo', 'true').lower() == 'true'
         
-        repo = BaseRepository('usuarios', clinica_id)
-        profissionais = repo.get_profissionais(ativo)
+        from database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        query = client.table('usuarios') \
+            .select('id, nome_completo, role, especialidade, ativo') \
+            .eq('clinica_id', clinica_id) \
+            .in_('role', ['fono', 'medico', 'profissional'])
         
-        return jsonify(profissionais), 200
+        if ativo:
+            query = query.eq('ativo', True)
+        
+        response = query.order('nome_completo').execute()
+        
+        return jsonify(response.data or []), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
