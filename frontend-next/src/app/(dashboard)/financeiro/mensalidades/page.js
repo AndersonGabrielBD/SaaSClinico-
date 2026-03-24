@@ -388,12 +388,12 @@ export default function MensalidadesPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+      <div className="page-header">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900">Mensalidades</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">Gerencie cobranças mensais recorrentes dos pacientes</p>
+          <h1 className="page-title">Mensalidades</h1>
+          <p className="page-subtitle">Gerencie cobranças mensais recorrentes dos pacientes</p>
         </div>
         <div className="flex flex-wrap gap-2 self-start sm:self-auto">
           {abaAtiva === 'ativas' && mensalidades.length > 0 && (
@@ -415,7 +415,7 @@ export default function MensalidadesPage() {
           )}
           <button
             onClick={() => { setSelectedMensalidade(null); setShowModal(true) }}
-            className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-all shadow-sm"
           >
             <Plus className="w-4 h-4 flex-shrink-0" />
             <span className="hidden sm:inline">Nova Mensalidade</span>
@@ -424,7 +424,7 @@ export default function MensalidadesPage() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-lg shadow-sm p-1 flex gap-1">
+      <div className="bg-white rounded-2xl shadow-card border border-neutral-100 p-1.5 flex gap-1">
         {[
           { id: 'ativas', icon: Users, label: 'Ativas', count: mensalidades.length },
           { id: 'inativas', icon: Archive, label: 'Inativas', count: mensalidadesInativas.length },
@@ -433,8 +433,8 @@ export default function MensalidadesPage() {
           <button
             key={id}
             onClick={() => setAbaAtiva(id)}
-            className={`flex-1 px-2 sm:px-4 py-3 text-xs sm:text-sm font-medium rounded-md transition-all ${
-              abaAtiva === id ? 'bg-primary-50 text-primary-700' : 'text-neutral-600 hover:bg-neutral-50'
+            className={`flex-1 px-2 sm:px-4 py-3 text-xs sm:text-sm font-semibold rounded-xl transition-all ${
+              abaAtiva === id ? 'bg-primary-500 text-white shadow-sm' : 'text-neutral-600 hover:bg-neutral-50'
             }`}
           >
             <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
@@ -455,13 +455,13 @@ export default function MensalidadesPage() {
             { label: 'Pendente R$', value: formatCurrency(estatisticas.valor_total_pendente), icon: AlertCircle, color: 'red', isText: true },
             { label: 'Recebido Mês', value: formatCurrency(estatisticas.valor_total_recebido_mes), icon: TrendingUp, color: 'green', isText: true },
           ].map(({ label, value, icon: Icon, color, isText }) => (
-            <div key={label} className="bg-white p-4 rounded-xl border border-neutral-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <div className="flex items-center gap-2.5">
-                <div className={`p-2 bg-${color}-50 rounded-lg flex-shrink-0`}>
-                  <Icon className={`w-4 h-4 text-${color}-600`} />
+            <div key={label} className="stat-card">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl bg-${color}-50 flex items-center justify-center flex-shrink-0`}>
+                  <Icon className={`w-5 h-5 text-${color}-600`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-500 mb-0.5 truncate">{label}</p>
+                  <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-0.5 truncate">{label}</p>
                   <p className={`font-bold text-neutral-900 ${isText ? 'text-sm truncate' : 'text-xl'}`}>{value}</p>
                 </div>
               </div>
@@ -502,7 +502,7 @@ export default function MensalidadesPage() {
 
       {/* Calendário */}
       {abaAtiva === 'calendario' && (
-        <div className="bg-white rounded-lg shadow-sm border border-neutral-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-card border border-neutral-100 overflow-hidden animate-fade-in">
           <div className="p-4 border-b border-neutral-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-2">
               <button
@@ -511,7 +511,7 @@ export default function MensalidadesPage() {
                   const d = subMonths(new Date(prev.year, prev.month - 1, 1), 1)
                   return { year: d.getFullYear(), month: d.getMonth() + 1 }
                 })}
-                className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-600 transition-colors"
+                className="p-2 rounded-xl hover:bg-neutral-100 text-neutral-600 transition-colors"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -641,7 +641,7 @@ export default function MensalidadesPage() {
 
       {/* Alertas de vencimento próximo */}
       {abaAtiva === 'ativas' && proximosVencimentosFromDia.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-5 shadow-sm">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 shadow-sm animate-fade-in">
           <h3 className="flex items-center gap-2 text-yellow-900 font-semibold mb-4">
             <AlertCircle className="w-5 h-5" />
             Pagamentos Próximos do Vencimento
@@ -675,7 +675,7 @@ export default function MensalidadesPage() {
 
       {/* Lista de Mensalidades */}
       {(abaAtiva === 'ativas' || abaAtiva === 'inativas') && (
-        <div className="bg-white rounded-lg shadow-sm border border-neutral-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-card border border-neutral-100 overflow-hidden animate-fade-in">
           {/* Mobile */}
           <div className="block lg:hidden">
             {(abaAtiva === 'ativas' ? mensalidades : mensalidadesInativas).length === 0 ? (

@@ -432,11 +432,10 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden -mx-4 sm:-mx-6 -my-4 sm:-my-6">
+    <div className="flex h-[calc(100vh-4.5rem)] overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-6">
 
-      {/* ─── Overlay mobile ─────────────────────────────────────────── */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-20 lg:hidden transition-opacity" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* ─── SIDEBAR ────────────────────────────────────────────────── */}
@@ -445,9 +444,9 @@ export default function AgendaPage() {
         max-lg:top-0 max-lg:bottom-0 max-lg:left-0 lg:top-auto lg:bottom-auto lg:left-auto
         lg:h-full
         w-72 max-w-[85vw] flex-shrink-0
-        bg-white border-r border-neutral-100
+        bg-white border-r border-neutral-100 shadow-sidebar
         flex flex-col max-lg:overflow-hidden
-        transition-transform duration-200
+        transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Fechar mobile */}
@@ -464,7 +463,7 @@ export default function AgendaPage() {
             <button
               type="button"
               onClick={() => { handleCreate(); setSidebarOpen(false) }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" />
               Novo Agendamento
@@ -489,7 +488,7 @@ export default function AgendaPage() {
               value={filtros.profissional_id}
               onChange={(e) => setFiltros(f => ({ ...f, profissional_id: e.target.value }))}
               disabled={isProfissional}
-              className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white disabled:bg-neutral-50 disabled:cursor-not-allowed"
+              className="select-field disabled:bg-neutral-50 disabled:cursor-not-allowed"
             >
               <option value="">Todos</option>
               {profissionais.map(p => (
@@ -504,7 +503,7 @@ export default function AgendaPage() {
             <select
               value={filtros.sala_id}
               onChange={(e) => setFiltros(f => ({ ...f, sala_id: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white"
+              className="select-field"
             >
               <option value="">Todas</option>
               {salas.map(s => (
@@ -519,7 +518,7 @@ export default function AgendaPage() {
             <select
               value={filtros.status}
               onChange={(e) => setFiltros(f => ({ ...f, status: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white"
+              className="select-field"
             >
               <option value="">Todos</option>
               <option value="agendada">Agendada</option>
@@ -558,7 +557,7 @@ export default function AgendaPage() {
             <button
               type="button"
               onClick={() => { handleCreate(); setSidebarOpen(false) }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" />
               Novo Agendamento
@@ -568,7 +567,7 @@ export default function AgendaPage() {
       </aside>
 
       {/* ─── ÁREA PRINCIPAL ─────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-neutral-50/50">
+      <main className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-primary-50/20 via-neutral-50 to-blue-50/10">
         {/* Header */}
         <div className="bg-white border-b border-neutral-100 px-4 sm:px-6 py-3 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -629,16 +628,16 @@ export default function AgendaPage() {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Buscar paciente..."
-                    className="pl-8 pr-3 py-1.5 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-white w-48"
+                    className="pl-8 pr-3 py-1.5 text-sm border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-white w-48 transition-all"
                   />
                 </div>
               )}
 
               {/* Toggle view */}
-              <div className="flex bg-neutral-100 rounded-lg p-0.5">
+              <div className="flex bg-neutral-100 rounded-xl p-0.5">
                 <button
                   onClick={() => setViewMode('timeline')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === 'timeline' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'timeline' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
                   title="Linha do tempo"
                 >
                   <List className="w-3.5 h-3.5" />
@@ -646,7 +645,7 @@ export default function AgendaPage() {
                 </button>
                 <button
                   onClick={() => setViewMode('calendar')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === 'calendar' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
                   title="Calendário mensal"
                 >
                   <Calendar className="w-3.5 h-3.5" />
@@ -675,7 +674,7 @@ export default function AgendaPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar paciente..."
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500/20 outline-none bg-white"
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none bg-white transition-all"
               />
             </div>
           )}

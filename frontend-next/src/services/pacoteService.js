@@ -77,6 +77,12 @@ export const pacoteService = {
     return await api.put(`/pacotes/${id}/marcar-pendente`, {});
   },
 
+  async getResumoFinanceiroPacotes({ data_inicio, data_fim }) {
+    return await api.get('/pacotes/resumo-financeiro', {
+      params: { data_inicio, data_fim },
+    });
+  },
+
   // ==========================================================================
   // PACOTE ATIVO POR PACIENTE + PROFISSIONAL
   // ==========================================================================

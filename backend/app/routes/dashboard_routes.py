@@ -4,6 +4,9 @@ from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.services.mensalidade_service import MensalidadeService
 from database.supabase_client import get_supabase_client
+from datetime import date, timedelta
+from collections import defaultdict
+
 from app.utils.date_utils import today_brazil_str, start_of_week_brazil, days_ago_brazil
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -29,7 +32,10 @@ def _build_dashboard_stats(clinica_id):
     """
     client = get_supabase_client()
     hoje = today_brazil_str()
-    inicio_semana = start_of_week_brazil().isoformat()
+    segunda_feira = start_of_week_brazil()
+    domingo_semana = segunda_feira + timedelta(days=6)
+    inicio_semana = segunda_feira.isoformat()
+    fim_semana = domingo_semana.isoformat()
     trinta_dias_atras = days_ago_brazil(30).isoformat()
 
     # ── Total de pacientes ativos (COUNT no banco) ─────────────────────────
@@ -45,13 +51,53 @@ def _build_dashboard_stats(clinica_id):
     }
     consultas_hoje = sum(distribuicao_status.values())
 
-    # ── COUNT da semana (sem trazer dados) ──────────────────────────────────
+    # ── COUNT da semana (seg → dom desta semana; antes: só .gte, somava o futuro inteiro) ──
     semana_result = client.table('agendamentos')\
         .select('id', count='exact')\
         .eq('clinica_id', clinica_id)\
         .gte('data_agendamento', inicio_semana)\
+        .lte('data_agendamento', fim_semana)\
         .execute()
     consultas_semana = semana_result.count or 0
+
+    # ── Semana corrente (seg → sáb): agendados vs concluídos por dia (gráfico) ──
+    fim_sab = segunda_feira + timedelta(days=5)
+    inicio_seg_str = inicio_semana
+    fim_sab_str = fim_sab.isoformat()
+    por_dia_result = client.table('agendamentos')\
+        .select('data_agendamento, status')\
+        .eq('clinica_id', clinica_id)\
+        .gte('data_agendamento', inicio_seg_str)\
+        .lte('data_agendamento', fim_sab_str)\
+        .execute()
+    ag_por_dia = defaultdict(int)
+    conc_por_dia = defaultdict(int)
+    for row in (por_dia_result.data or []):
+        raw_d = row.get('data_agendamento')
+        if not raw_d:
+            continue
+        ds = raw_d[:10] if isinstance(raw_d, str) else str(raw_d)[:10]
+        try:
+            d = date.fromisoformat(ds)
+        except ValueError:
+            continue
+        wd = d.weekday()
+        if wd > 5:
+            continue
+        st = (row.get('status') or '').lower()
+        if st != 'cancelada':
+            ag_por_dia[wd] += 1
+        if st == 'concluida':
+            conc_por_dia[wd] += 1
+    dias_labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+    semana_por_dia = [
+        {
+            'name': dias_labels[wd],
+            'atendimentos': ag_por_dia[wd],
+            'concluidos': conc_por_dia[wd],
+        }
+        for wd in range(6)
+    ]
 
     # ── Taxa de comparecimento — só status, filtro no banco ─────────────────
     comp_result = client.table('agendamentos')\
@@ -97,6 +143,7 @@ def _build_dashboard_stats(clinica_id):
         'taxa_comparecimento': taxa_comparecimento,
         'distribuicao_status': distribuicao_status,
         'proximos_agendamentos': proximos_agendamentos,
+        'semana_por_dia': semana_por_dia,
 
         # Compatibilidade com payload antigo
         'agendamentos_hoje': consultas_hoje,

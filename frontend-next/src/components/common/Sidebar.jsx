@@ -14,7 +14,8 @@ import {
   Activity,
   DoorOpen,
   Tag,
-  Package
+  Package,
+  ChevronRight
 } from 'lucide-react'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule, getDefaultHomePath } from '@/utils/roles'
@@ -46,47 +47,52 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 lg:hidden transition-opacity"
           onClick={onClose}
           aria-hidden="true"
         />
       )}
       
-      {/* Sidebar */}
       <aside 
         className={`
           fixed lg:static inset-y-0 left-0 z-50
-          w-60 bg-white border-r border-neutral-100
+          w-[260px] bg-white
           flex flex-col
           transform transition-transform duration-300 ease-in-out
+          shadow-sidebar
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
         role="navigation"
         aria-label="Menu principal"
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-5 h-16 border-b border-neutral-100 flex-shrink-0">
-          <Link href={homeHref} className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0">
-              <Activity className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between px-5 h-[72px] flex-shrink-0">
+          <Link href={homeHref} className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center flex-shrink-0 shadow-sm group-hover:shadow-md transition-shadow">
+              <Activity className="w-5 h-5 text-white" />
             </div>
-            <span className="text-base font-bold text-neutral-900 tracking-tight">ClinFlow</span>
+            <div>
+              <span className="text-lg font-bold text-neutral-900 tracking-tight block leading-tight">ClinFlow</span>
+              <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider">Gestão Clínica</span>
+            </div>
           </Link>
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 hover:bg-neutral-100 rounded-md text-neutral-500"
+            className="lg:hidden p-1.5 hover:bg-neutral-100 rounded-lg text-neutral-400 transition-colors"
             aria-label="Fechar menu"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
-          <ul className="space-y-0.5">
+          <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest px-3 mb-3">
+            Menu
+          </p>
+          <ul className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -97,18 +103,26 @@ export default function Sidebar({ isOpen, onClose }) {
                     href={item.href}
                     onClick={() => onClose && onClose()}
                     className={`
-                      flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                      min-h-[42px] transition-all duration-150
+                      flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium
+                      min-h-[44px] transition-all duration-200 group relative
                       ${isActive 
-                        ? 'bg-primary-50 text-primary-700' 
+                        ? 'bg-primary-500 text-white shadow-sm' 
                         : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'
                       }
                     `}
                   >
-                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-neutral-400'}`} />
-                    <span>{item.name}</span>
+                    <div className={`
+                      w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
+                      ${isActive 
+                        ? 'bg-white/20' 
+                        : 'bg-neutral-100 group-hover:bg-neutral-200/70'
+                      }
+                    `}>
+                      <Icon className={`w-[18px] h-[18px] ${isActive ? 'text-white' : 'text-neutral-500 group-hover:text-neutral-700'}`} />
+                    </div>
+                    <span className="flex-1">{item.name}</span>
                     {isActive && (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-500" />
+                      <ChevronRight className="w-4 h-4 text-white/60" />
                     )}
                   </Link>
                 </li>
@@ -118,13 +132,14 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         {/* Bottom section */}
-        <div className="px-3 pb-4 flex-shrink-0">
-          <div className="border-t border-neutral-100 pt-3">
-            <p className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider px-3 mb-1">
-              Sistema
-            </p>
-            <p className="text-xs text-neutral-400 px-3">
-              Gestão de Clínicas
+        <div className="px-4 pb-5 flex-shrink-0">
+          <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="w-4 h-4 text-primary-600" />
+              <p className="text-xs font-bold text-primary-800">ClinFlow</p>
+            </div>
+            <p className="text-[11px] text-primary-600/80 leading-relaxed">
+              Sistema de gestão clínica completo
             </p>
           </div>
         </div>

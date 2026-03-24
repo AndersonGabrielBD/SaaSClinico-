@@ -8,6 +8,13 @@ import time
 logger = logging.getLogger(__name__)
 
 
+_FINANCE_PATCH_KEYS = frozenset({
+    'status', 'valor_pago', 'metodo_pagamento', 'valor_entrada',
+    'metodo_pagamento_restante', 'data_prevista_pagamento_restante',
+    'metodo_pagamento_complemento', 'data_pagamento', 'data_complemento',
+})
+
+
 class PacoteService:
     """Serviço para gerenciar tipos de profissional e pacotes de sessões."""
 
@@ -64,39 +71,58 @@ class PacoteService:
 
     def listar_tipos(self, clinica_id: str, ativo: Optional[bool] = None) -> List[Dict]:
         def operation():
-            # Join com usuarios para preencher profissional_nome (select('*') não traz o embed)
+            # Sem embed PostgREST (usuarios!profissional_id): em alguns ambientes o resource
+            # embutido falha ou responde de forma inconsistente; pacotes ativos usam SQL/RPC.
+            # Aqui: select simples em tipos_profissional + 1 batch em usuarios (mesmo padrão lógico da RPC).
             query = self.supabase.table('tipos_profissional') \
-                .select('*, usuarios!profissional_id(id, nome_completo)') \
+                .select('*') \
                 .eq('clinica_id', clinica_id) \
                 .order('nome')
             if ativo is not None:
                 query = query.eq('ativo', ativo)
             response = query.execute()
-            result = []
-            for row in (response.data or []):
-                prof = row.pop('usuarios', None)
-                if isinstance(prof, list):
-                    prof = prof[0] if prof else None
-                row['profissional_nome'] = prof.get('nome_completo') if prof else None
-                result.append(row)
-            return result
+            rows = list(response.data or [])
+            prof_ids = list({r['profissional_id'] for r in rows if r.get('profissional_id')})
+            id_to_name: Dict[str, str] = {}
+            if prof_ids:
+                uresp = self.supabase.table('usuarios') \
+                    .select('id, nome_completo') \
+                    .in_('id', prof_ids) \
+                    .eq('clinica_id', clinica_id) \
+                    .execute()
+                for u in (uresp.data or []):
+                    uid = u.get('id')
+                    if uid:
+                        id_to_name[uid] = u.get('nome_completo') or ''
+            for row in rows:
+                pid = row.get('profissional_id')
+                row['profissional_nome'] = id_to_name.get(pid) if pid else None
+            return rows
         return self._execute_with_retry(f"LISTAR_TIPOS:{clinica_id}", operation)
 
     def buscar_tipo(self, tipo_id: str, clinica_id: str) -> Dict:
         def operation():
             response = self.supabase.table('tipos_profissional') \
-                .select('*, usuarios(id, nome_completo)') \
+                .select('*') \
                 .eq('id', tipo_id) \
                 .eq('clinica_id', clinica_id) \
                 .single() \
                 .execute()
             if not response.data:
                 raise ValueError('Tipo de profissional não encontrado')
-            row = response.data
-            prof = row.pop('usuarios', None)
-            if isinstance(prof, list):
-                prof = prof[0] if prof else None
-            row['profissional_nome'] = prof.get('nome_completo') if prof else None
+            row = dict(response.data)
+            pid = row.get('profissional_id')
+            row['profissional_nome'] = None
+            if pid:
+                uresp = self.supabase.table('usuarios') \
+                    .select('id, nome_completo') \
+                    .eq('id', pid) \
+                    .eq('clinica_id', clinica_id) \
+                    .limit(1) \
+                    .execute()
+                ulist = uresp.data or []
+                if ulist:
+                    row['profissional_nome'] = ulist[0].get('nome_completo')
             return row
         return self._execute_with_retry(f"BUSCAR_TIPO:{tipo_id}", operation)
 
@@ -260,6 +286,12 @@ class PacoteService:
 
     def atualizar_pacote(self, pacote_id: str, clinica_id: str, dados: Dict) -> Dict:
         def operation():
+            finance_patch = {
+                k: dados.pop(k)
+                for k in list(dados.keys())
+                if k in _FINANCE_PATCH_KEYS
+            }
+
             itens = dados.pop('itens', None)
 
             if dados:
@@ -301,9 +333,171 @@ class PacoteService:
                         .eq('id', pacote_id) \
                         .execute()
 
+            if finance_patch:
+                self._aplicar_patch_financeiro(pacote_id, clinica_id, finance_patch)
+
             return self.buscar_pacote(pacote_id, clinica_id)
 
         return self._execute_with_retry(f"ATUALIZAR_PACOTE:{pacote_id}", operation)
+
+    def _metodo_pgto_ok(self, m: Optional[str]) -> bool:
+        return m in {'cartao', 'dinheiro', 'transferencia', 'pix', 'cheque'}
+
+    def _ts_iso_ou_none(self, val) -> Optional[str]:
+        if val is None or val == '':
+            return None
+        if isinstance(val, datetime):
+            return val.isoformat()
+        s = str(val).strip()
+        if not s:
+            return None
+        if 'T' in s or ' ' in s:
+            return s.replace(' ', 'T') if ' ' in s and 'T' not in s else s
+        return f'{s[:10]}T12:00:00+00:00'
+
+    def _date_pg_ou_none(self, val) -> Optional[str]:
+        if val is None or val == '':
+            return None
+        if hasattr(val, 'isoformat'):
+            return val.isoformat()[:10]
+        s = str(val).strip()
+        return s[:10] if s else None
+
+    def _aplicar_patch_financeiro(self, pacote_id: str, clinica_id: str, patch: Dict) -> None:
+        """Mescla patch com o registro atual e persiste, com validação por status."""
+        if not patch:
+            return
+
+        cur = self.supabase.table('pacotes') \
+            .select(
+                'valor_total, status, valor_pago, metodo_pagamento, valor_entrada, '
+                'metodo_pagamento_restante, data_prevista_pagamento_restante, '
+                'metodo_pagamento_complemento, data_pagamento, data_complemento'
+            ) \
+            .eq('id', pacote_id) \
+            .eq('clinica_id', clinica_id) \
+            .single() \
+            .execute()
+        if not cur.data:
+            raise ValueError('Pacote não encontrado')
+        row = dict(cur.data)
+        total = self._q2(Decimal(str(row.get('valor_total') or 0)))
+        if total <= 0:
+            raise ValueError('Valor total do pacote inválido para ajuste financeiro')
+
+        keys = (
+            'status', 'valor_pago', 'metodo_pagamento', 'valor_entrada',
+            'metodo_pagamento_restante', 'data_prevista_pagamento_restante',
+            'metodo_pagamento_complemento', 'data_pagamento', 'data_complemento',
+        )
+        merged = {}
+        for k in keys:
+            merged[k] = patch[k] if k in patch else row.get(k)
+
+        st = (merged.get('status') or 'pendente')
+        if st not in ('pendente', 'parcial', 'pago'):
+            raise ValueError('Status financeiro inválido')
+
+        if st == 'pendente':
+            payload = {
+                'status': 'pendente',
+                'valor_pago': None,
+                'metodo_pagamento': None,
+                'data_pagamento': None,
+                'valor_entrada': None,
+                'metodo_pagamento_restante': None,
+                'data_prevista_pagamento_restante': None,
+                'data_complemento': None,
+                'metodo_pagamento_complemento': None,
+            }
+        elif st == 'parcial':
+            vp = self._q2(Decimal(str(merged.get('valor_pago') if merged.get('valor_pago') is not None else 0)))
+            if vp <= 0 or vp >= total:
+                raise ValueError('Parcial: valor pago deve ser maior que zero e menor que o total do pacote')
+            m1 = merged.get('metodo_pagamento')
+            if not self._metodo_pgto_ok(m1):
+                raise ValueError('Informe a forma de pagamento da entrada')
+            mr = merged.get('metodo_pagamento_restante')
+            if not self._metodo_pgto_ok(mr):
+                raise ValueError('Informe a forma prevista para o saldo restante')
+            dprev = self._date_pg_ou_none(merged.get('data_prevista_pagamento_restante'))
+            if not dprev:
+                raise ValueError('Informe a data prevista para o saldo restante')
+            ve_raw = merged.get('valor_entrada')
+            if ve_raw is not None and str(ve_raw).strip() != '':
+                ve = self._q2(Decimal(str(ve_raw)))
+            else:
+                ve = vp
+            dpag = self._ts_iso_ou_none(merged.get('data_pagamento'))
+            if not dpag:
+                dpag = datetime.utcnow().isoformat()
+            payload = {
+                'status': 'parcial',
+                'valor_pago': float(vp),
+                'valor_entrada': float(ve),
+                'metodo_pagamento': m1,
+                'metodo_pagamento_restante': mr,
+                'data_prevista_pagamento_restante': dprev,
+                'data_pagamento': dpag,
+                'data_complemento': None,
+                'metodo_pagamento_complemento': None,
+            }
+        else:
+            vp = self._q2(Decimal(str(merged.get('valor_pago') if merged.get('valor_pago') is not None else 0)))
+            if vp != total:
+                raise ValueError(
+                    f'Quitado: valor pago deve ser igual ao total do pacote ({float(total):.2f})'
+                )
+            m1 = merged.get('metodo_pagamento')
+            if not self._metodo_pgto_ok(m1):
+                raise ValueError('Informe a forma de pagamento')
+            ve_raw = merged.get('valor_entrada')
+            ve = None
+            if ve_raw is not None and str(ve_raw).strip() != '':
+                ve = self._q2(Decimal(str(ve_raw)))
+            dpag = self._ts_iso_ou_none(merged.get('data_pagamento'))
+            if not dpag:
+                dpag = datetime.utcnow().isoformat()
+            dcomp = self._ts_iso_ou_none(merged.get('data_complemento'))
+            mcomp = merged.get('metodo_pagamento_complemento')
+
+            if ve is not None and 0 < ve < total:
+                if not self._metodo_pgto_ok(mcomp):
+                    raise ValueError('Pacote quitado em duas parcelas: informe o método da 2ª parcela')
+                if not dcomp:
+                    raise ValueError('Pacote quitado em duas parcelas: informe a data da 2ª parcela')
+                payload = {
+                    'status': 'pago',
+                    'valor_pago': float(vp),
+                    'valor_entrada': float(ve),
+                    'metodo_pagamento': m1,
+                    'metodo_pagamento_restante': None,
+                    'data_prevista_pagamento_restante': None,
+                    'data_pagamento': dpag,
+                    'data_complemento': dcomp,
+                    'metodo_pagamento_complemento': mcomp,
+                }
+            else:
+                payload = {
+                    'status': 'pago',
+                    'valor_pago': float(vp),
+                    'valor_entrada': None,
+                    'metodo_pagamento': m1,
+                    'metodo_pagamento_restante': None,
+                    'data_prevista_pagamento_restante': None,
+                    'data_pagamento': dpag,
+                    'data_complemento': dcomp,
+                    'metodo_pagamento_complemento': mcomp if self._metodo_pgto_ok(mcomp) else None,
+                }
+
+        resp = self.supabase.table('pacotes') \
+            .update(payload) \
+            .eq('id', pacote_id) \
+            .eq('clinica_id', clinica_id) \
+            .execute()
+        if not resp.data:
+            raise ValueError('Pacote não encontrado')
+        logger.info(f"[PACOTE] patch financeiro aplicado {pacote_id} → {payload.get('status')}")
 
     def ativar_pacote(self, pacote_id: str, clinica_id: str) -> Dict:
         def operation():
@@ -347,19 +541,109 @@ class PacoteService:
     # PAGAMENTO (inline no pacote)
     # =========================================================================
 
-    def marcar_pago(self, pacote_id: str, clinica_id: str,
-                    metodo_pagamento: str, valor_pago: Decimal,
-                    registrado_por: str, observacoes: Optional[str] = None) -> Dict:
+    def _q2(self, d: Decimal) -> Decimal:
+        return d.quantize(Decimal('0.01'))
+
+    def marcar_pago(
+        self,
+        pacote_id: str,
+        clinica_id: str,
+        metodo_pagamento: str,
+        valor_pago: Decimal,
+        registrado_por: str,
+        observacoes: Optional[str] = None,
+        metodo_pagamento_restante: Optional[str] = None,
+        data_prevista_pagamento_restante=None,
+    ) -> Dict:
         def operation():
-            payload = {
-                'status': 'pago',
-                'metodo_pagamento': metodo_pagamento,
-                'valor_pago': float(valor_pago),
-                'data_pagamento': datetime.utcnow().isoformat(),
-                'registrado_por': registrado_por,
-            }
-            if observacoes:
-                payload['observacoes'] = observacoes
+            cur = self.supabase.table('pacotes') \
+                .select('id, status, valor_total, valor_pago, valor_entrada, data_pagamento') \
+                .eq('id', pacote_id) \
+                .eq('clinica_id', clinica_id) \
+                .single() \
+                .execute()
+            if not cur.data:
+                raise ValueError('Pacote não encontrado')
+            row = cur.data
+            st = row.get('status') or 'pendente'
+            if st not in ('pendente', 'parcial'):
+                raise ValueError('Somente pacotes pendentes ou parciais podem receber pagamento')
+            total = self._q2(Decimal(str(row.get('valor_total') or 0)))
+            if total <= 0:
+                raise ValueError('Pacote sem valor total válido')
+
+            now_iso = datetime.utcnow().isoformat()
+
+            if st == 'parcial':
+                atual = self._q2(Decimal(str(row.get('valor_pago') or 0)))
+                add = self._q2(valor_pago)
+                novo = self._q2(atual + add)
+                restante_esperado = self._q2(total - atual)
+                if add <= 0 or novo > total:
+                    raise ValueError('Valor da quitação inválido para o saldo restante')
+                if novo < total:
+                    raise ValueError('Para pacote parcial, quite o saldo em uma única segunda parcela')
+                if self._q2(add) != restante_esperado:
+                    raise ValueError(
+                        f'Valor deve ser exatamente o saldo restante ({float(restante_esperado):.2f})'
+                    )
+                payload = {
+                    'status': 'pago',
+                    'valor_pago': float(novo),
+                    'metodo_pagamento_complemento': metodo_pagamento,
+                    'data_complemento': now_iso,
+                    'metodo_pagamento_restante': None,
+                    'data_prevista_pagamento_restante': None,
+                    'registrado_por': registrado_por,
+                }
+                if observacoes:
+                    payload['observacoes'] = observacoes
+            else:
+                entrada = self._q2(valor_pago)
+                if entrada <= 0 or entrada > total:
+                    raise ValueError('Valor pago inválido')
+                if entrada < total:
+                    _metodos = {'cartao', 'dinheiro', 'transferencia', 'pix', 'cheque'}
+                    if not metodo_pagamento_restante or metodo_pagamento_restante not in _metodos:
+                        raise ValueError(
+                            'Informe uma forma de pagamento válida para o saldo restante'
+                        )
+                    if data_prevista_pagamento_restante is None:
+                        raise ValueError(
+                            'Informe a data prevista para pagar o saldo restante'
+                        )
+                    payload = {
+                        'status': 'parcial',
+                        'metodo_pagamento': metodo_pagamento,
+                        'valor_pago': float(entrada),
+                        'valor_entrada': float(entrada),
+                        'data_pagamento': now_iso,
+                        'metodo_pagamento_restante': metodo_pagamento_restante,
+                        'data_prevista_pagamento_restante': data_prevista_pagamento_restante.isoformat()
+                        if hasattr(data_prevista_pagamento_restante, 'isoformat')
+                        else str(data_prevista_pagamento_restante),
+                        'data_complemento': None,
+                        'metodo_pagamento_complemento': None,
+                        'registrado_por': registrado_por,
+                    }
+                    if observacoes:
+                        payload['observacoes'] = observacoes
+                else:
+                    payload = {
+                        'status': 'pago',
+                        'metodo_pagamento': metodo_pagamento,
+                        'valor_pago': float(entrada),
+                        'valor_entrada': None,
+                        'data_pagamento': now_iso,
+                        'metodo_pagamento_restante': None,
+                        'data_prevista_pagamento_restante': None,
+                        'data_complemento': None,
+                        'metodo_pagamento_complemento': None,
+                        'registrado_por': registrado_por,
+                    }
+                    if observacoes:
+                        payload['observacoes'] = observacoes
+
             response = self.supabase.table('pacotes') \
                 .update(payload) \
                 .eq('id', pacote_id) \
@@ -367,7 +651,7 @@ class PacoteService:
                 .execute()
             if not response.data:
                 raise ValueError('Pacote não encontrado')
-            logger.info(f"Pacote {pacote_id} marcado como pago")
+            logger.info(f"Pacote {pacote_id} pagamento atualizado → {payload.get('status')}")
             return response.data[0]
         return self._execute_with_retry(f"MARCAR_PAGO:{pacote_id}", operation)
 
@@ -379,6 +663,11 @@ class PacoteService:
                 'valor_pago': None,
                 'data_pagamento': None,
                 'registrado_por': None,
+                'valor_entrada': None,
+                'metodo_pagamento_restante': None,
+                'data_prevista_pagamento_restante': None,
+                'data_complemento': None,
+                'metodo_pagamento_complemento': None,
             }
             response = self.supabase.table('pacotes') \
                 .update(payload) \
@@ -425,9 +714,25 @@ class PacoteService:
             }).execute()
             stats = result.data or {}
             return {
-                'total_pacotes_ativos':       int(stats.get('total_pacotes_ativos', 0)),
-                'total_pagamentos_pendentes': int(stats.get('total_pagamentos_pendentes', 0)),
-                'valor_total_pendente':       float(stats.get('valor_total_pendente', 0)),
-                'valor_total_recebido':       float(stats.get('valor_total_recebido', 0)),
+                'total_pacotes_ativos':        int(stats.get('total_pacotes_ativos', 0)),
+                'total_pagamentos_pendentes':  int(stats.get('total_pagamentos_pendentes', 0)),
+                'total_pacotes_parcial':       int(stats.get('total_pacotes_parcial', 0)),
+                'valor_total_pendente':        float(stats.get('valor_total_pendente', 0)),
+                'valor_total_recebido':        float(stats.get('valor_total_recebido', 0)),
+                'valor_saldo_aberto_parcial':  float(stats.get('valor_saldo_aberto_parcial', 0)),
             }
         return self._execute_with_retry(f"ESTATISTICAS_PACOTES:{clinica_id}", operation)
+
+    def obter_resumo_financeiro_pacotes(
+        self, clinica_id: str, data_inicio: str, data_fim: str
+    ) -> Dict:
+        def operation():
+            result = self.supabase.rpc('get_resumo_financeiro_pacotes', {
+                'p_clinica_id': clinica_id,
+                'p_data_inicio': data_inicio,
+                'p_data_fim': data_fim,
+            }).execute()
+            return result.data if isinstance(result.data, dict) else {}
+        return self._execute_with_retry(
+            f"RESUMO_FIN_PACOTES:{clinica_id}:{data_inicio}:{data_fim}", operation
+        )

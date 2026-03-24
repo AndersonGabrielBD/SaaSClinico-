@@ -155,16 +155,16 @@ export default function FrequenciaPage() {
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
+          <h1 className="page-title">
             Controle de Frequência
           </h1>
-          <p className="text-neutral-600 mt-1">
+          <p className="page-subtitle">
             Resumo por período para pagamento e acompanhamento de presenças e faltas
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg p-4 shadow-sm border border-neutral-200 overflow-hidden">
+      <div className="bg-white rounded-2xl p-4 shadow-card border border-neutral-100 overflow-hidden animate-fade-in">
         <div className="flex flex-col gap-4 min-w-0">
           <div className="flex flex-col lg:flex-row flex-wrap gap-3 lg:items-end">
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -178,7 +178,7 @@ export default function FrequenciaPage() {
                 value={dataInicio}
                 max={dataFim}
                 onChange={(e) => setDataInicio(e.target.value)}
-                className="px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl bg-white outline-none transition-all duration-150 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
               <span className="text-neutral-400 text-sm hidden sm:inline">até</span>
               <label className="text-xs text-neutral-500 sm:hidden">Fim</label>
@@ -187,7 +187,7 @@ export default function FrequenciaPage() {
                 value={dataFim}
                 min={dataInicio}
                 onChange={(e) => setDataFim(e.target.value)}
-                className="px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl bg-white outline-none transition-all duration-150 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             </div>
             <p className="text-sm font-medium text-neutral-700 capitalize lg:ml-2 truncate">
@@ -199,7 +199,7 @@ export default function FrequenciaPage() {
             <select
               value={profissionalSelecionado}
               onChange={(e) => setProfissionalSelecionado(e.target.value)}
-              className="w-full sm:w-auto min-w-[200px] px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="select-field w-full sm:w-auto min-w-[200px]"
             >
               <option value="todos">Todos os profissionais</option>
               {resumoPorProfissional.map(prof => (
@@ -212,7 +212,7 @@ export default function FrequenciaPage() {
             <button
               onClick={handleExportPdf}
               disabled={exportingPdf || loading || dataInicio > dataFim}
-              className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+              className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold bg-primary-500 text-white rounded-xl hover:bg-primary-600 hover:shadow-md active:scale-[0.97] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none whitespace-nowrap shadow-sm"
             >
               <FileDown className="w-4 h-4 flex-shrink-0" />
               {exportingPdf ? 'Gerando...' : 'Exportar PDF'}
@@ -222,9 +222,9 @@ export default function FrequenciaPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg p-5 shadow-sm border border-neutral-200">
+        <div className="stat-card animate-fade-in">
           <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-xl ${somenteFaltas ? 'bg-orange-100' : 'bg-blue-100'}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${somenteFaltas ? 'bg-orange-100' : 'bg-blue-100'}`}>
               {somenteFaltas ? <UserX className="w-6 h-6 text-orange-600" /> : <Calendar className="w-6 h-6 text-blue-600" />}
             </div>
             <div>
@@ -235,9 +235,9 @@ export default function FrequenciaPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-5 shadow-sm border border-neutral-200">
+        <div className="stat-card animate-fade-in">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-100 rounded-xl">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-100">
               <Users className="w-6 h-6 text-green-600" />
             </div>
             <div>
@@ -247,9 +247,9 @@ export default function FrequenciaPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-5 shadow-sm border border-neutral-200">
+        <div className="stat-card animate-fade-in">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-100 rounded-xl">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-purple-100">
               <User className="w-6 h-6 text-purple-600" />
             </div>
             <div>
@@ -260,14 +260,14 @@ export default function FrequenciaPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
-        <div className="border-b border-neutral-200">
+      <div className="bg-white rounded-2xl shadow-card border border-neutral-100 overflow-hidden animate-fade-in">
+        <div className="border-b border-neutral-100">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-2 pt-2">
             <div className="flex flex-wrap">
               <button
                 type="button"
                 onClick={() => setTipoRegistro('presencas')}
-                className={`px-4 py-3 text-sm font-medium transition-colors rounded-t-lg ${
+                className={`px-4 py-3 text-sm font-medium transition-colors rounded-xl ${
                   tipoRegistro === 'presencas'
                     ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50/50'
                     : 'text-neutral-600 hover:text-neutral-900'
@@ -278,7 +278,7 @@ export default function FrequenciaPage() {
               <button
                 type="button"
                 onClick={() => setTipoRegistro('faltas')}
-                className={`px-4 py-3 text-sm font-medium transition-colors rounded-t-lg flex items-center gap-1.5 ${
+                className={`px-4 py-3 text-sm font-medium transition-colors rounded-xl flex items-center gap-1.5 ${
                   tipoRegistro === 'faltas'
                     ? 'text-orange-700 border-b-2 border-orange-500 bg-orange-50/50'
                     : 'text-neutral-600 hover:text-neutral-900'
@@ -298,7 +298,7 @@ export default function FrequenciaPage() {
             <button
               type="button"
               onClick={() => setViewMode('profissional')}
-              className={`px-6 py-3 font-medium transition-colors flex-1 sm:flex-none ${
+              className={`px-6 py-3 font-medium transition-colors rounded-xl flex-1 sm:flex-none ${
                 viewMode === 'profissional'
                   ? 'text-primary-600 border-b-2 border-primary-600'
                   : 'text-neutral-600 hover:text-neutral-900'
@@ -309,7 +309,7 @@ export default function FrequenciaPage() {
             <button
               type="button"
               onClick={() => setViewMode('paciente')}
-              className={`px-6 py-3 font-medium transition-colors flex-1 sm:flex-none ${
+              className={`px-6 py-3 font-medium transition-colors rounded-xl flex-1 sm:flex-none ${
                 viewMode === 'paciente'
                   ? 'text-primary-600 border-b-2 border-primary-600'
                   : 'text-neutral-600 hover:text-neutral-900'
@@ -320,15 +320,15 @@ export default function FrequenciaPage() {
           </div>
         </div>
 
-        <div className="p-4 border-b border-neutral-200">
+        <div className="p-4 border-b border-neutral-100">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
             <input
               type="text"
               placeholder={viewMode === 'profissional' ? 'Buscar profissional...' : 'Buscar paciente...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="input-field pl-10"
             />
           </div>
         </div>
@@ -346,7 +346,7 @@ export default function FrequenciaPage() {
                 {profissionaisFiltrados.map((prof) => (
                   <div
                     key={prof.profissional_id}
-                    className="border border-neutral-200 rounded-lg overflow-hidden"
+                    className="border border-neutral-100 rounded-2xl overflow-hidden animate-fade-in"
                   >
                     <button
                       type="button"
@@ -354,7 +354,7 @@ export default function FrequenciaPage() {
                       className="w-full p-4 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors text-left"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 bg-primary-100 rounded-lg flex-shrink-0">
+                        <div className="p-2 bg-primary-100 rounded-xl flex-shrink-0">
                           <Users className="w-5 h-5 text-primary-600" />
                         </div>
                         <div className="min-w-0">
@@ -382,7 +382,7 @@ export default function FrequenciaPage() {
                     </button>
 
                     {expandedItems[prof.profissional_id] && (
-                      <div className="p-4 bg-white border-t border-neutral-200">
+                      <div className="p-4 bg-white border-t border-neutral-100">
                         {prof.pacientes?.length > 0 ? (
                           <div className="space-y-3">
                             <h4 className="font-medium text-neutral-700 mb-3">
@@ -391,7 +391,7 @@ export default function FrequenciaPage() {
                             {prof.pacientes.map((pac, idx) => (
                               <div
                                 key={idx}
-                                className="p-3 bg-neutral-50 rounded-lg border border-neutral-200"
+                                className="p-3 bg-neutral-50 rounded-2xl border border-neutral-100"
                               >
                                 <div className="flex items-center justify-between mb-2">
                                   <Link
@@ -400,7 +400,7 @@ export default function FrequenciaPage() {
                                   >
                                     {pac.paciente_nome}
                                   </Link>
-                                  <span className={`px-2 py-1 rounded text-sm font-semibold ${somenteFaltas ? 'bg-orange-100 text-orange-800' : 'bg-primary-100 text-primary-700'}`}>
+                                  <span className={`px-2 py-1 rounded-lg text-sm font-semibold ${somenteFaltas ? 'bg-orange-100 text-orange-800' : 'bg-primary-100 text-primary-700'}`}>
                                     {pac.datas?.length || 0}{' '}
                                     {(pac.datas?.length === 1 ? labelEventoSing : labelEvento)}
                                   </span>
@@ -409,7 +409,7 @@ export default function FrequenciaPage() {
                                   {pac.datas?.map((data, i) => (
                                     <span
                                       key={i}
-                                      className="inline-flex items-center gap-1 text-xs bg-white text-neutral-600 px-2 py-1 rounded border border-neutral-200"
+                                      className="inline-flex items-center gap-1 text-xs bg-white text-neutral-600 px-2 py-1 rounded-lg border border-neutral-100"
                                     >
                                       <Calendar className="w-3 h-3" />
                                       {(() => {
@@ -440,7 +440,7 @@ export default function FrequenciaPage() {
               {pacientesFiltrados.map((pac) => (
                 <div
                   key={pac.paciente_id}
-                  className="border border-neutral-200 rounded-lg overflow-hidden"
+                  className="border border-neutral-100 rounded-2xl overflow-hidden animate-fade-in"
                 >
                   <button
                     type="button"
@@ -448,7 +448,7 @@ export default function FrequenciaPage() {
                     className="w-full p-4 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors text-left"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
+                      <div className="p-2 bg-purple-100 rounded-xl flex-shrink-0">
                         <User className="w-5 h-5 text-purple-600" />
                       </div>
                       <div className="min-w-0">
@@ -476,7 +476,7 @@ export default function FrequenciaPage() {
                   </button>
 
                   {expandedItems[pac.paciente_id] && (
-                    <div className="p-4 bg-white border-t border-neutral-200">
+                    <div className="p-4 bg-white border-t border-neutral-100">
                       {pac.profissionais?.length > 0 ? (
                         <div className="space-y-3">
                           <h4 className="font-medium text-neutral-700 mb-3">
@@ -485,7 +485,7 @@ export default function FrequenciaPage() {
                           {pac.profissionais.map((prof, idx) => (
                             <div
                               key={idx}
-                              className="p-3 bg-neutral-50 rounded-lg border border-neutral-200"
+                              className="p-3 bg-neutral-50 rounded-2xl border border-neutral-100"
                             >
                               <div className="flex items-center justify-between mb-2">
                                 <div>
@@ -496,7 +496,7 @@ export default function FrequenciaPage() {
                                     {prof.especialidade || 'Profissional'}
                                   </p>
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${somenteFaltas ? 'bg-orange-100 text-orange-800' : 'bg-purple-100 text-purple-700'}`}>
+                                <span className={`px-3 py-1 rounded-lg text-sm font-semibold ${somenteFaltas ? 'bg-orange-100 text-orange-800' : 'bg-purple-100 text-purple-700'}`}>
                                   {prof.quantidade}{' '}
                                   {prof.quantidade === 1 ? labelEventoSing : labelEvento}
                                 </span>
@@ -505,7 +505,7 @@ export default function FrequenciaPage() {
                                 {prof.datas?.map((data, i) => (
                                   <span
                                     key={i}
-                                    className="inline-flex items-center gap-1 text-xs bg-white text-neutral-600 px-2 py-1 rounded border border-neutral-200"
+                                    className="inline-flex items-center gap-1 text-xs bg-white text-neutral-600 px-2 py-1 rounded-lg border border-neutral-100"
                                   >
                                     <Calendar className="w-3 h-3" />
                                     {(() => {
