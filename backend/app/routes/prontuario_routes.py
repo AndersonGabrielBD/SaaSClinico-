@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
+from app.utils.audit import log_access
 import logging
 from flask import send_file
 from app.services.pdf_service import PdfService
@@ -104,6 +105,7 @@ def get_prontuarios():
 @prontuario_bp.route('/<prontuario_id>', methods=['GET'])
 @require_auth
 @require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@log_access('prontuario', 'view', id_param='prontuario_id')
 def get_prontuario(prontuario_id):
     """Busca prontuário por ID"""
     import logging
@@ -219,15 +221,27 @@ def update_prontuario(prontuario_id):
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user.get('id')
         
         data = request.get_json()
         
         repo = BaseRepository('prontuarios', clinica_id)
         
-        # Verifica se existe
         existing = repo.get_by_id(prontuario_id)
         if not existing:
             return jsonify({'error': 'Prontuário não encontrado'}), 404
+        
+        if user_role in ['fono', 'medico', 'profissional']:
+            vinculos = repo.client.table('pacientes_profissionais') \
+                .select('paciente_id') \
+                .eq('profissional_id', user_id) \
+                .eq('clinica_id', clinica_id) \
+                .eq('ativo', True) \
+                .execute()
+            paciente_ids = [v['paciente_id'] for v in vinculos.data] if vinculos.data else []
+            if existing.get('paciente_id') not in paciente_ids:
+                return jsonify({'error': 'Sem permissão para editar este prontuário'}), 403
         
         prontuario = repo.update(prontuario_id, data)
         
@@ -245,8 +259,25 @@ def delete_prontuario(prontuario_id):
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user.get('id')
         
         repo = BaseRepository('prontuarios', clinica_id)
+        
+        if user_role in ['fono', 'medico', 'profissional']:
+            existing = repo.get_by_id(prontuario_id)
+            if not existing:
+                return jsonify({'error': 'Prontuário não encontrado'}), 404
+            vinculos = repo.client.table('pacientes_profissionais') \
+                .select('paciente_id') \
+                .eq('profissional_id', user_id) \
+                .eq('clinica_id', clinica_id) \
+                .eq('ativo', True) \
+                .execute()
+            paciente_ids = [v['paciente_id'] for v in vinculos.data] if vinculos.data else []
+            if existing.get('paciente_id') not in paciente_ids:
+                return jsonify({'error': 'Sem permissão para deletar este prontuário'}), 403
+        
         repo.delete(prontuario_id)
         
         return jsonify({'message': 'Prontuário deletado'}), 200
@@ -258,6 +289,7 @@ def delete_prontuario(prontuario_id):
 @prontuario_bp.route('/<prontuario_id>/export-pdf', methods=['GET'])
 @require_auth
 @require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@log_access('prontuario', 'export', id_param='prontuario_id')
 def export_prontuario_pdf(prontuario_id):
     """Exporta prontuário completo em PDF"""
     

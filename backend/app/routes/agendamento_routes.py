@@ -298,6 +298,10 @@ def export_agenda_pdf():
         
         logger.info(f"📄 [PDF] Exportando agenda para clinica_id={clinica_id}")
         
+        # Profissionais só veem sua própria agenda (mesmo filtro do GET /agendamentos)
+        if user.get('role') in ['fono', 'medico', 'profissional']:
+            profissional_id = user['user_id']
+
         # Buscar agendamentos com os filtros
         filters = {}
         if paciente_id:

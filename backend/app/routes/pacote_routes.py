@@ -310,6 +310,9 @@ def pacote_ativo_por_profissional():
         if not paciente_id or not profissional_id:
             return jsonify({'error': 'paciente_id e profissional_id são obrigatórios'}), 400
 
+        if user.get('role') in ['fono', 'medico', 'profissional']:
+            profissional_id = user['user_id']
+
         service = PacoteService()
         resultado = service.buscar_pacote_ativo_por_profissional(
             clinica_id=user['clinica_id'],

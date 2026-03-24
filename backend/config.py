@@ -9,10 +9,10 @@ class Config:
 
     # Flask — SECRET_KEY não tem fallback intencional: ausência é detectada em validate()
     SECRET_KEY = os.getenv('SECRET_KEY')
-    DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
     HOST = os.getenv('HOST', '0.0.0.0')
     PORT = int(os.getenv('PORT', 5000))
-    ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
+    ENVIRONMENT = os.getenv('ENVIRONMENT', 'production')
     
     # Supabase
     SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -20,8 +20,8 @@ class Config:
     SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
     SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
     
-    # CORS
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
+    # CORS — sem default permissivo; deve ser configurado explicitamente
+    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
     
     # Frontend
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')

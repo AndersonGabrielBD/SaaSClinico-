@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.services.relatorio_service import RelatorioService
+from app.utils.audit import log_access
 from io import BytesIO
 
 logger = logging.getLogger(__name__)
@@ -59,14 +60,21 @@ def listar_relatorios():
 
 @relatorios_bp.route('/<relatorio_id>', methods=['GET'])
 @require_auth
+@log_access('relatorio', 'view', id_param='relatorio_id')
 def buscar_relatorio(relatorio_id):
     """Busca um relatório específico"""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user['id']
         
         service = RelatorioService()
         relatorio = service.buscar_relatorio(relatorio_id, clinica_id)
+        
+        if user_role in ('profissional', 'fono', 'medico'):
+            if relatorio.get('profissional_id') != user_id:
+                return jsonify({'error': 'Sem permissão para acessar este relatório'}), 403
         
         return jsonify(relatorio), 200
         
@@ -147,18 +155,23 @@ def criar_relatorio():
 
 @relatorios_bp.route('/<relatorio_id>/download', methods=['GET'])
 @require_auth
+@log_access('relatorio', 'download', id_param='relatorio_id')
 def download_relatorio(relatorio_id):
     """Faz download do arquivo do relatório"""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user['id']
         
         service = RelatorioService()
         
-        # Buscar informações do relatório primeiro
         relatorio = service.buscar_relatorio(relatorio_id, clinica_id)
         
-        # Fazer download do arquivo
+        if user_role in ('profissional', 'fono', 'medico'):
+            if relatorio.get('profissional_id') != user_id:
+                return jsonify({'error': 'Sem permissão para baixar este relatório'}), 403
+        
         file_data = service.download_arquivo(relatorio_id, clinica_id)
         
         # Preparar para envio
@@ -179,7 +192,7 @@ def download_relatorio(relatorio_id):
 
 @relatorios_bp.route('/<relatorio_id>', methods=['PUT'])
 @require_auth
-@require_roles(['admin', 'profissional'])
+@require_roles(['admin', 'profissional', 'fono', 'medico'])
 def atualizar_relatorio(relatorio_id):
     """Atualiza informações do relatório (não o arquivo)"""
     try:
@@ -190,8 +203,7 @@ def atualizar_relatorio(relatorio_id):
         
         dados = request.get_json()
         
-        # Profissionais só podem editar próprios relatórios
-        if user_role == 'profissional':
+        if user_role in ('profissional', 'fono', 'medico'):
             relatorio = RelatorioService().buscar_relatorio(relatorio_id, clinica_id)
             if relatorio['profissional_id'] != user_id:
                 return jsonify({'error': 'Você só pode editar seus próprios relatórios'}), 403
@@ -210,7 +222,7 @@ def atualizar_relatorio(relatorio_id):
 
 @relatorios_bp.route('/<relatorio_id>', methods=['DELETE'])
 @require_auth
-@require_roles(['admin', 'profissional'])
+@require_roles(['admin', 'profissional', 'fono', 'medico'])
 def excluir_relatorio(relatorio_id):
     """Exclui relatório e arquivo"""
     try:
@@ -219,8 +231,7 @@ def excluir_relatorio(relatorio_id):
         user_id = user['id']
         user_role = user.get('role')
         
-        # Profissionais só podem excluir próprios relatórios
-        if user_role == 'profissional':
+        if user_role in ('profissional', 'fono', 'medico'):
             service = RelatorioService()
             relatorio = service.buscar_relatorio(relatorio_id, clinica_id)
             if relatorio['profissional_id'] != user_id:

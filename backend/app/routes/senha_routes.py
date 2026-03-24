@@ -22,8 +22,8 @@ def change_password():
         if not all([old_password, new_password, confirm_password]):
             return jsonify({'error': 'Todos os campos são obrigatórios'}), 400
         
-        if len(new_password) < 6:
-            return jsonify({'error': 'Senha deve ter no mínimo 6 caracteres'}), 400
+        if len(new_password) < 8:
+            return jsonify({'error': 'Senha deve ter no mínimo 8 caracteres'}), 400
         
         if new_password != confirm_password:
             return jsonify({'error': 'As senhas não coincidem'}), 400

@@ -14,7 +14,6 @@ import os
 import logging
 
 load_dotenv()
-Config.validate()  # Falha na subida se SUPABASE_SERVICE_ROLE_KEY etc. faltando
 
 _log_level = logging.WARNING if os.getenv('ENVIRONMENT', 'development') == 'production' else logging.INFO
 logging.basicConfig(
@@ -24,16 +23,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_app():
+def create_app(testing=False):
     """Factory para criar a aplicação Flask"""
+    if not testing:
+        Config.validate()
+
     app = Flask(__name__)
+    app.config['TESTING'] = testing
 
     app.config['SECRET_KEY'] = Config.SECRET_KEY
     app.config['JSON_SORT_KEYS'] = False
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
+    cors_origins = Config.CORS_ORIGINS.split(',') if Config.CORS_ORIGINS else ['http://localhost:3000']
     CORS(app,
-         origins="*",
+         origins=cors_origins,
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
          allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
          supports_credentials=False)
@@ -54,6 +58,7 @@ def create_app():
     from app.routes.profissional_routes import profissional_bp
     from app.routes.senha_routes import senha_bp
     from app.routes.pacote_routes import pacote_bp
+    from app.routes.lgpd_routes import lgpd_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(usuario_bp, url_prefix='/usuarios')
@@ -71,6 +76,7 @@ def create_app():
     app.register_blueprint(profissional_bp, url_prefix='/profissionais')
     app.register_blueprint(senha_bp, url_prefix='/senha')
     app.register_blueprint(pacote_bp, url_prefix='/pacotes')
+    app.register_blueprint(lgpd_bp)
 
     @app.route('/health')
     def health_check():
@@ -100,6 +106,7 @@ def create_app():
                 'frequencia': '/frequencia',
                 'profissionais': '/profissionais',
                 'pacotes': '/pacotes',
+                'lgpd': '/lgpd',
                 'health': '/health'
             }
         })
