@@ -8,7 +8,7 @@ import Modal from '@/components/common/Modal'
 import Toast from '@/components/common/Toast'
 import EmptyState from '@/components/common/EmptyState'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
-import { canPerformAction } from '@/utils/roles'
+import { canPerformAction, canAccessModule } from '@/utils/roles'
 import { getUserRole } from '@/utils/auth'
 import * as api from '@/lib/api'
 
