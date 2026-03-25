@@ -2,11 +2,13 @@
 
 import { useAuth } from '@/context/AuthContext'
 import { LogOut, User, Menu, ChevronDown, Search, Bell } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export default function Header({ onMenuClick }) {
   const { user, signOut } = useAuth()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userButtonRef = useRef(null)
+  const [userMenuPosition, setUserMenuPosition] = useState(null)
 
   const displayName = user?.nome || user?.email?.split('@')[0] || 'Usuário'
   const displayRole = user?.role === 'admin' ? 'Administrador'
@@ -20,6 +22,43 @@ export default function Header({ onMenuClick }) {
     .slice(0, 2)
     .join('')
     .toUpperCase()
+
+  const updateUserMenuPosition = () => {
+    const btn = userButtonRef.current
+    if (!btn || typeof window === 'undefined') return
+
+    const r = btn.getBoundingClientRect()
+    const padding = 8
+    const menuWidth = 224 // w-56
+    const maxWidth = Math.max(0, window.innerWidth - padding * 2)
+    const width = Math.min(menuWidth, maxWidth)
+    const left = Math.min(
+      Math.max(padding, r.right - width),
+      window.innerWidth - width - padding
+    )
+
+    setUserMenuPosition({
+      top: r.bottom + 8,
+      left,
+      width,
+    })
+  }
+
+  const toggleUserMenu = () => {
+    setUserMenuOpen((prev) => {
+      const next = !prev
+      if (next) updateUserMenuPosition()
+      else setUserMenuPosition(null)
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const onResize = () => updateUserMenuPosition()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [userMenuOpen])
 
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-neutral-100/80 h-[72px] px-4 md:px-6 flex items-center gap-4 sticky top-0 z-30">
@@ -45,7 +84,8 @@ export default function Header({ onMenuClick }) {
         {/* User section */}
         <div className="relative">
           <button
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            onClick={toggleUserMenu}
+            ref={userButtonRef}
             className="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-neutral-50 transition-colors"
           >
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -61,8 +101,15 @@ export default function Header({ onMenuClick }) {
           {/* Dropdown */}
           {userMenuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-neutral-100 rounded-2xl shadow-float z-20 py-1.5 overflow-hidden animate-scale-in">
+              <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
+              <div
+                className="fixed bg-white border border-neutral-100 rounded-2xl shadow-float z-50 py-1.5 overflow-hidden animate-scale-in w-56 max-w-[calc(100vw-16px)]"
+                style={{
+                  top: userMenuPosition?.top ?? 0,
+                  left: userMenuPosition?.left ?? 0,
+                  width: userMenuPosition?.width,
+                }}
+              >
                 <div className="px-4 py-3 border-b border-neutral-100">
                   <p className="text-sm font-semibold text-neutral-900 truncate">{displayName}</p>
                   <p className="text-xs text-neutral-400 truncate mt-0.5">{user?.email}</p>

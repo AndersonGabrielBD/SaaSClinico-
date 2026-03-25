@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { startOfMonth, endOfMonth, eachDayOfInterval, getDay, format, addMonths, subMonths, isSameMonth, isToday, getDate } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import ResponsiveTable from '@/components/common/ResponsiveTable'
 
 const formatCurrency = (value) => {
   if (!value && value !== 0) return 'R$ 0,00'
@@ -758,7 +759,7 @@ export default function MensalidadesPage() {
           </div>
 
           {/* Desktop */}
-          <div className="hidden lg:block overflow-x-auto">
+          <ResponsiveTable className="hidden lg:block">
             <table className="min-w-full divide-y divide-neutral-200">
               <thead className="bg-neutral-50">
                 <tr>
@@ -845,7 +846,7 @@ export default function MensalidadesPage() {
                 <p className="font-medium">{abaAtiva === 'ativas' ? 'Nenhuma mensalidade ativa.' : 'Nenhuma mensalidade inativa.'}</p>
               </div>
             )}
-          </div>
+          </ResponsiveTable>
         </div>
       )}
 

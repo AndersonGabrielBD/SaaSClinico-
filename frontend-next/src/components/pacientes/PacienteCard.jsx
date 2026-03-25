@@ -168,7 +168,7 @@ export default function PacienteCard({
         </Link>
         )}
         {paciente.ativo ? (
-          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto sm:ml-auto justify-start sm:justify-end">
             {canEdit && (
               <Button size="sm" variant="ghost" onClick={() => onEdit(paciente)} icon={<Edit className="w-3.5 h-3.5" />}>Editar</Button>
             )}
@@ -178,7 +178,15 @@ export default function PacienteCard({
           </div>
         ) : (
           canEdit && (
-            <Button size="sm" variant="ghost" onClick={() => onReactivate(paciente.id)} icon={<UserCheck className="w-3.5 h-3.5" />} className="ml-auto">Reativar</Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onReactivate(paciente.id)}
+                icon={<UserCheck className="w-3.5 h-3.5" />}
+                className="w-full sm:w-auto sm:ml-auto"
+              >
+                Reativar
+              </Button>
           )
         )}
       </div>

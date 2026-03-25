@@ -12,10 +12,10 @@ export default function DashboardLayout({ children }) {
 
   return (
     <ProtectedRoute>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen">
         <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
         
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <div className="flex-1 flex flex-col min-w-0">
           <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
           
           <main className="flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/30 via-neutral-50 to-blue-50/20">

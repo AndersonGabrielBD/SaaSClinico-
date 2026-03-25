@@ -110,11 +110,11 @@ class ProntuarioService:
             response = self.supabase.table("prontuarios").insert(prontuario_dict).execute()
             prontuario = response.data[0] if response.data else None
 
-            logger.info(f"✅ Prontuário criado: {prontuario['id']}")
+            logger.info(f"Prontuário criado: {prontuario['id']}")
             return prontuario
 
         except Exception as e:
-            logger.error(f"❌ Erro ao criar prontuário: {str(e)}")
+            logger.error(f" Erro ao criar prontuário: {str(e)}")
             raise
 
     async def atualizar_prontuario(
@@ -134,7 +134,7 @@ class ProntuarioService:
             return prontuario
 
         except Exception as e:
-            logger.error(f"❌ Erro ao atualizar prontuário: {str(e)}")
+            logger.error(f"Erro ao atualizar prontuário: {str(e)}")
             raise
 
     async def deletar_prontuario(self, prontuario_id: str, clinica_id: str) -> None:
@@ -145,10 +145,10 @@ class ProntuarioService:
             delete_query = delete_query.eq("clinica_id", clinica_id)
             delete_query.execute()
 
-            logger.info(f"✅ Prontuário deletado: {prontuario_id}")
+            logger.info(f"Prontuário deletado: {prontuario_id}")
 
         except Exception as e:
-            logger.error(f"❌ Erro ao deletar prontuário: {str(e)}")
+            logger.error(f" Erro ao deletar prontuário: {str(e)}")
             raise
 
     # ============== EVOLUÇÕES ==============

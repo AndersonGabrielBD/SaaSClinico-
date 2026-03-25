@@ -432,7 +432,7 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4.5rem)] overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-6">
+    <div className="flex h-[calc(100vh-4.5rem)] overflow-hidden -mx-0 sm:-mx-6 lg:-mx-8 -my-6">
 
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-20 lg:hidden transition-opacity" onClick={() => setSidebarOpen(false)} />
@@ -570,7 +570,7 @@ export default function AgendaPage() {
       <main className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-primary-50/20 via-neutral-50 to-blue-50/10">
         {/* Header */}
         <div className="bg-white border-b border-neutral-100 px-4 sm:px-6 py-3 flex-shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {/* Botão menu mobile */}
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-neutral-100 text-neutral-500">
               <Menu className="w-5 h-5" />
@@ -608,7 +608,7 @@ export default function AgendaPage() {
               <span className="text-sm font-semibold text-neutral-800">Visualização Mensal</span>
             )}
 
-            <div className="ml-auto flex items-center gap-2">
+              <div className="flex items-center gap-2 sm:ml-auto flex-shrink-0">
               {/* Contadores (só na timeline) */}
               {viewMode === 'timeline' && (
                 <div className="hidden sm:flex items-center gap-3 text-xs text-neutral-500 mr-2">
@@ -657,7 +657,7 @@ export default function AgendaPage() {
               <button
                 onClick={() => setShowPdfModal(true)}
                 disabled={exportingPdf}
-                className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-500 transition-colors disabled:opacity-50"
+                className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-500 transition-colors disabled:opacity-50 flex-shrink-0"
                 title="Exportar PDF"
               >
                 <FileDown className="w-4 h-4" />
