@@ -64,6 +64,7 @@ def create_app(testing=False):
     from app.routes.senha_routes import senha_bp
     from app.routes.pacote_routes import pacote_bp
     from app.routes.lgpd_routes import lgpd_bp
+    from app.routes.modelo_evolucao_routes import modelo_evolucao_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(usuario_bp, url_prefix='/usuarios')
@@ -82,6 +83,7 @@ def create_app(testing=False):
     app.register_blueprint(senha_bp, url_prefix='/senha')
     app.register_blueprint(pacote_bp, url_prefix='/pacotes')
     app.register_blueprint(lgpd_bp)
+    app.register_blueprint(modelo_evolucao_bp, url_prefix='/modelos-evolucao')
 
     @app.route('/health')
     def health_check():
@@ -112,6 +114,7 @@ def create_app(testing=False):
                 'profissionais': '/profissionais',
                 'pacotes': '/pacotes',
                 'lgpd': '/lgpd',
+                'modelos_evolucao': '/modelos-evolucao',
                 'health': '/health'
             }
         })

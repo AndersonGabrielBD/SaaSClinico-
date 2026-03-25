@@ -523,6 +523,17 @@ export const getMyEstatisticas = () => {
   return request('/profissionais/me/estatisticas');
 };
 
+export const getModelosEvolucao = () => request('/modelos-evolucao');
+
+export const createModeloEvolucao = (data) =>
+  request('/modelos-evolucao', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateModeloEvolucao = (id, data) =>
+  request(`/modelos-evolucao/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteModeloEvolucao = (id) =>
+  request(`/modelos-evolucao/${id}`, { method: 'DELETE' });
+
 // Export default para compatibilidade
 export default {
   login,
@@ -584,5 +595,9 @@ export default {
   getMyProntuarios,
   getProfissionalProntuarios,
   getMyEstatisticas,
+  getModelosEvolucao,
+  createModeloEvolucao,
+  updateModeloEvolucao,
+  deleteModeloEvolucao,
 };
 

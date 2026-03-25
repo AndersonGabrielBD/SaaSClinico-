@@ -15,17 +15,30 @@ import {
   DoorOpen,
   Tag,
   Package,
-  ChevronRight
+  ChevronRight,
+  LayoutTemplate,
 } from 'lucide-react'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule, getDefaultHomePath } from '@/utils/roles'
 import { useMemo } from 'react'
+
+function isMenuItemActive(pathname, href) {
+  if (pathname === href) return true
+  if (href === '/configuracoes') return false
+  return pathname.startsWith(`${href}/`)
+}
 
 const allMenuItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, module: 'dashboard' },
   { name: 'Pacientes', href: '/pacientes', icon: Users, module: 'pacientes' },
   { name: 'Agenda', href: '/agenda', icon: Calendar, module: 'agenda' },
   { name: 'Prontuários', href: '/prontuarios', icon: FileText, module: 'prontuarios' },
+  {
+    name: 'Modelos de evolução',
+    href: '/configuracoes/modelos-evolucao',
+    icon: LayoutTemplate,
+    module: 'modelos_evolucao',
+  },
   { name: 'Frequência', href: '/frequencia', icon: ClipboardCheck, module: 'frequencia' },
   { name: 'Mensalidades', href: '/financeiro/mensalidades', icon: DollarSign, module: 'financeiro' },
   { name: 'Pacotes', href: '/financeiro/pacotes', icon: Package, module: 'financeiro' },
@@ -95,7 +108,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <ul className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+              const isActive = isMenuItemActive(pathname, item.href)
               
               return (
                 <li key={item.href}>

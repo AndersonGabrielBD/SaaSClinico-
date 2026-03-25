@@ -2,12 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { prontuarioService } from '@/services/prontuarioService'
+import { modeloEvolucaoService } from '@/services/modeloEvolucaoService'
 import Button from '@/components/common/Button'
-import {
-  EVOLUCAO_TEMPLATES,
-  HUMOR_OPTIONS,
-  COMPORTAMENTO_OPTIONS,
-} from '@/constants/evolucaoTemplates'
+import { HUMOR_OPTIONS, COMPORTAMENTO_OPTIONS } from '@/constants/evolucaoTemplates'
 
 function toDatetimeLocalValue(iso) {
   if (!iso) return ''
@@ -61,6 +58,8 @@ export default function EvolucaoForm({
   const [copyLoading, setCopyLoading] = useState(false)
   const [error, setError] = useState('')
   const [templateId, setTemplateId] = useState('')
+  const [modelos, setModelos] = useState([])
+  const [modelosLoading, setModelosLoading] = useState(false)
   const [formData, setFormData] = useState(() => {
     if (evolucao) return mapRowToForm(evolucao)
     const base = mapRowToForm(null)
@@ -88,14 +87,38 @@ export default function EvolucaoForm({
     setFormData(merged)
   }, [evolucao?.id, seed, defaultsKey])
 
+  useEffect(() => {
+    if (!showTemplates || evolucao) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        setModelosLoading(true)
+        const rows = await modeloEvolucaoService.list()
+        if (!cancelled) setModelos(Array.isArray(rows) ? rows : [])
+      } catch {
+        if (!cancelled) setModelos([])
+      } finally {
+        if (!cancelled) setModelosLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [showTemplates, evolucao?.id])
+
   const applyTemplate = (id) => {
     setTemplateId(id)
     if (!id) return
-    const t = EVOLUCAO_TEMPLATES.find((x) => x.id === id)
+    const t = modelos.find((x) => x.id === id)
     if (!t) return
+    const v = t.valores_padrao || {}
     setFormData((prev) => ({
       ...prev,
-      ...t.values,
+      titulo_resumo: v.titulo_resumo ?? '',
+      conteudo: v.conteudo ?? '',
+      observacoes: v.observacoes ?? '',
+      humor: v.humor ?? '',
+      comportamento: v.comportamento ?? '',
       observacoes_confidenciais: prev.observacoes_confidenciais,
       data_sessao_local: prev.data_sessao_local,
     }))
@@ -176,12 +199,15 @@ export default function EvolucaoForm({
             <select
               value={templateId}
               onChange={(e) => applyTemplate(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
+              disabled={modelosLoading}
+              className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white disabled:opacity-60"
             >
-              <option value="">Selecione um modelo…</option>
-              {EVOLUCAO_TEMPLATES.map((t) => (
+              <option value="">
+                {modelosLoading ? 'Carregando modelos…' : 'Selecione um modelo…'}
+              </option>
+              {modelos.map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.label}
+                  {t.nome}
                 </option>
               ))}
             </select>
