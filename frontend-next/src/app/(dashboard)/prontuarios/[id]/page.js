@@ -17,20 +17,44 @@ import {
   Pill,
   Clock,
   UserCircle,
-  FileDown
+  FileDown,
+  ClipboardList,
+  Lock,
+  Plus
 } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
 import ProntuarioForm from '@/components/prontuarios/ProntuarioForm'
+import EvolucaoForm from '@/components/prontuarios/EvolucaoForm'
 import Toast from '@/components/common/Toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { parseDateSafe } from '@/lib/dateUtils'
-import { getUserRole } from '@/utils/auth'
+import { getUserRole, getUser, isAdmin } from '@/utils/auth'
 import { canAccessModule } from '@/utils/roles'
+
+function mapUltimaToFormDefaults(row) {
+  if (!row) return {}
+  return {
+    titulo_resumo: row.titulo_resumo || '',
+    conteudo: row.conteudo || '',
+    observacoes: row.observacoes || '',
+    observacoes_confidenciais: row.observacoes_confidenciais || '',
+    humor: row.humor || '',
+    comportamento: row.comportamento || '',
+    data_sessao: row.data_sessao || undefined,
+  }
+}
+
+function canMutateEvolucao(ev, user) {
+  if (!ev || ev.imutavel) return false
+  if (!user?.id) return false
+  if (isAdmin()) return true
+  return ev.criado_por === user.id
+}
 
 export default function ProntuarioDetailPage() {
   const params = useParams()
@@ -44,6 +68,13 @@ export default function ProntuarioDetailPage() {
   const [exportingPdf, setExportingPdf] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+  const [evolucoes, setEvolucoes] = useState([])
+  const [evolucaoModalOpen, setEvolucaoModalOpen] = useState(false)
+  const [editingEvolucao, setEditingEvolucao] = useState(null)
+  const [novaEvolucaoDefaults, setNovaEvolucaoDefaults] = useState({})
+  const [evolucaoFormSeed, setEvolucaoFormSeed] = useState(0)
+  const [evolucaoActionId, setEvolucaoActionId] = useState(null)
+  const [finalizarEvolucaoTarget, setFinalizarEvolucaoTarget] = useState(null)
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
@@ -60,18 +91,26 @@ export default function ProntuarioDetailPage() {
     }
   }, [prontuarioId, router])
 
+  const refreshEvolucoes = async () => {
+    if (!prontuarioId) return
+    try {
+      const list = await prontuarioService.getEvolucoes(prontuarioId)
+      setEvolucoes(Array.isArray(list) ? list : [])
+    } catch (e) {
+      console.error('Erro ao listar evoluções:', e)
+    }
+  }
+
   const loadProntuario = async () => {
     try {
       setLoading(true)
-      console.log('📚 [PRONTUARIO DETAIL] Carregando prontuário:', prontuarioId)
-      
-      // Buscar prontuário por ID usando a função RPC
-      const prontuarioData = await prontuarioService.getById(prontuarioId)
-      console.log('📚 [PRONTUARIO DETAIL] Dados recebidos:', prontuarioData)
-      
+      const [prontuarioData, evolucoesList] = await Promise.all([
+        prontuarioService.getById(prontuarioId),
+        prontuarioService.getEvolucoes(prontuarioId).catch(() => []),
+      ])
       setProntuario(prontuarioData)
-      
-      // Se tiver paciente_id, buscar dados do paciente
+      setEvolucoes(Array.isArray(evolucoesList) ? evolucoesList : [])
+
       if (prontuarioData.paciente_id) {
         const pacienteData = await pacienteService.getById(prontuarioData.paciente_id)
         setPaciente(pacienteData)
@@ -105,6 +144,65 @@ export default function ProntuarioDetailPage() {
   const handleSave = async () => {
     setEditModalOpen(false)
     await loadProntuario()
+  }
+
+  const openNovaEvolucao = async () => {
+    try {
+      const ultima = await prontuarioService.getUltimaEvolucao(prontuarioId)
+      setEditingEvolucao(null)
+      setNovaEvolucaoDefaults(mapUltimaToFormDefaults(ultima))
+      setEvolucaoFormSeed((s) => s + 1)
+      setEvolucaoModalOpen(true)
+    } catch (e) {
+      showToast(e.message || 'Erro ao preparar nova evolução', 'error')
+    }
+  }
+
+  const openEditEvolucao = (ev) => {
+    setEditingEvolucao(ev)
+    setEvolucaoModalOpen(true)
+  }
+
+  const closeEvolucaoModal = () => {
+    setEvolucaoModalOpen(false)
+    setEditingEvolucao(null)
+  }
+
+  const handleEvolucaoSaved = async () => {
+    const wasEdit = Boolean(editingEvolucao)
+    closeEvolucaoModal()
+    await refreshEvolucoes()
+    showToast(wasEdit ? 'Evolução atualizada' : 'Evolução registrada')
+  }
+
+  const confirmFinalizarEvolucao = async () => {
+    const ev = finalizarEvolucaoTarget
+    if (!ev) return
+    try {
+      setEvolucaoActionId(ev.id)
+      await prontuarioService.finalizarEvolucao(prontuarioId, ev.id)
+      setFinalizarEvolucaoTarget(null)
+      showToast('Evolução finalizada')
+      await refreshEvolucoes()
+    } catch (e) {
+      showToast(e.message || 'Erro ao finalizar', 'error')
+    } finally {
+      setEvolucaoActionId(null)
+    }
+  }
+
+  const handleDeleteEvolucao = async (ev) => {
+    if (!window.confirm('Excluir esta evolução? Esta ação não pode ser desfeita.')) return
+    try {
+      setEvolucaoActionId(ev.id)
+      await prontuarioService.deleteEvolucao(prontuarioId, ev.id)
+      showToast('Evolução excluída')
+      await refreshEvolucoes()
+    } catch (e) {
+      showToast(e.message || 'Erro ao excluir', 'error')
+    } finally {
+      setEvolucaoActionId(null)
+    }
   }
 
   const handleExportPdf = async () => {
@@ -373,6 +471,165 @@ export default function ProntuarioDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Evoluções clínicas */}
+      <div className="mt-8 bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <h2 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+            <ClipboardList className="w-5 h-5" />
+            Evoluções
+          </h2>
+          <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={openNovaEvolucao}>
+            Nova evolução
+          </Button>
+        </div>
+
+        {evolucoes.length === 0 ? (
+          <p className="text-sm text-neutral-500 py-4">
+            Nenhuma evolução registrada. Use &quot;Nova evolução&quot; para começar — a última evolução sua será
+            sugerida automaticamente.
+          </p>
+        ) : (
+          <ul className="space-y-4">
+            {evolucoes.map((ev) => {
+              const user = getUser()
+              const canEdit = canMutateEvolucao(ev, user)
+              const busy = evolucaoActionId === ev.id
+              const dataRef = ev.data_sessao || ev.data_criacao
+              const dataLabel = (() => {
+                const d = parseDateSafe(dataRef)
+                return d ? format(d, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '—'
+              })()
+              return (
+                <li
+                  key={ev.id}
+                  className="border border-neutral-200 rounded-lg p-4 bg-neutral-50/50"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="text-xs font-medium text-neutral-500">{dataLabel}</span>
+                        {ev.imutavel && (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                            <Lock className="w-3 h-3" />
+                            Finalizada
+                          </span>
+                        )}
+                      </div>
+                      {ev.titulo_resumo && (
+                        <p className="font-medium text-neutral-900">{ev.titulo_resumo}</p>
+                      )}
+                      {ev.criado_por_nome && (
+                        <p className="text-xs text-neutral-500 mt-1">Por {ev.criado_por_nome}</p>
+                      )}
+                      {(ev.humor || ev.comportamento) && (
+                        <p className="text-xs text-neutral-600 mt-2">
+                          {ev.humor && <span>Humor: {ev.humor}</span>}
+                          {ev.humor && ev.comportamento && ' · '}
+                          {ev.comportamento && <span>Comportamento: {ev.comportamento}</span>}
+                        </p>
+                      )}
+                      {ev.conteudo && (
+                        <p className="text-sm text-neutral-700 mt-2 whitespace-pre-wrap line-clamp-4">{ev.conteudo}</p>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => openEditEvolucao(ev)}
+                        >
+                          Editar
+                        </Button>
+                        {!ev.imutavel && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => setFinalizarEvolucaoTarget(ev)}
+                          >
+                            Finalizar
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => handleDeleteEvolucao(ev)}
+                        >
+                          Excluir
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      <Modal
+        isOpen={Boolean(finalizarEvolucaoTarget)}
+        onClose={() => setFinalizarEvolucaoTarget(null)}
+        title="Finalizar evolução"
+        size="sm"
+      >
+        <div className="flex flex-col gap-4 py-1">
+          <div className="flex justify-center">
+            <div className="w-11 h-11 rounded-full bg-amber-100 flex items-center justify-center">
+              <Lock className="w-5 h-5 text-amber-700" />
+            </div>
+          </div>
+          <p className="text-sm text-neutral-700 text-center">
+            Depois de finalizar, esta evolução <strong>não poderá mais ser editada nem excluída</strong>. Deseja
+            continuar?
+          </p>
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              disabled={Boolean(evolucaoActionId)}
+              onClick={() => setFinalizarEvolucaoTarget(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-1"
+              loading={Boolean(evolucaoActionId)}
+              onClick={confirmFinalizarEvolucao}
+            >
+              Finalizar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {evolucaoModalOpen && (
+        <Modal
+          isOpen={evolucaoModalOpen}
+          onClose={closeEvolucaoModal}
+          title={editingEvolucao ? 'Editar evolução' : 'Nova evolução'}
+          size="md"
+        >
+          <EvolucaoForm
+            key={editingEvolucao?.id || `nova-${evolucaoFormSeed}`}
+            prontuarioId={prontuarioId}
+            evolucao={editingEvolucao}
+            defaultValues={novaEvolucaoDefaults}
+            seed={evolucaoFormSeed}
+            showTemplates={!editingEvolucao}
+            onSuccess={handleEvolucaoSaved}
+            onCancel={closeEvolucaoModal}
+          />
+        </Modal>
+      )}
 
       {canAccessModule(getUserRole(), 'relatorios') && prontuario.paciente_id && (
       <div className="mt-8">

@@ -41,7 +41,15 @@ async function request(endpoint, options = {}) {
       throw new Error(error.error || error.message || 'Erro na requisição');
     }
 
-    return response.json();
+    const text = await response.text();
+    if (!text || !text.trim()) {
+      return null;
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
 
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') {
@@ -292,6 +300,42 @@ export const deleteProntuario = (id) => {
   });
 };
 
+export const getEvolucoes = (prontuarioId) => {
+  return request(`/prontuarios/${prontuarioId}/evolucoes`, { method: 'GET' });
+};
+
+/** Última evolução do usuário logado neste prontuário (pode ser null). */
+export const getUltimaEvolucao = (prontuarioId) => {
+  return request(`/prontuarios/${prontuarioId}/evolucoes/ultima`, { method: 'GET' });
+};
+
+export const createEvolucao = (prontuarioId, data) => {
+  return request(`/prontuarios/${prontuarioId}/evolucoes`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const updateEvolucao = (prontuarioId, evolucaoId, data) => {
+  return request(`/prontuarios/${prontuarioId}/evolucoes/${evolucaoId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+};
+
+export const finalizarEvolucao = (prontuarioId, evolucaoId) => {
+  return request(`/prontuarios/${prontuarioId}/evolucoes/${evolucaoId}/finalizar`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+};
+
+export const deleteEvolucao = (prontuarioId, evolucaoId) => {
+  return request(`/prontuarios/${prontuarioId}/evolucoes/${evolucaoId}`, {
+    method: 'DELETE',
+  });
+};
+
 // ============================================================================
 // USUÁRIOS / PROFISSIONAIS
 // ============================================================================
@@ -479,6 +523,17 @@ export const getMyEstatisticas = () => {
   return request('/profissionais/me/estatisticas');
 };
 
+export const getModelosEvolucao = () => request('/modelos-evolucao');
+
+export const createModeloEvolucao = (data) =>
+  request('/modelos-evolucao', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateModeloEvolucao = (id, data) =>
+  request(`/modelos-evolucao/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteModeloEvolucao = (id) =>
+  request(`/modelos-evolucao/${id}`, { method: 'DELETE' });
+
 // Export default para compatibilidade
 export default {
   login,
@@ -503,6 +558,12 @@ export default {
   createProntuario,
   updateProntuario,
   deleteProntuario,
+  getEvolucoes,
+  getUltimaEvolucao,
+  createEvolucao,
+  updateEvolucao,
+  finalizarEvolucao,
+  deleteEvolucao,
   getUsuarios,
   getUsuarioById,
   createUsuario,
@@ -534,5 +595,9 @@ export default {
   getMyProntuarios,
   getProfissionalProntuarios,
   getMyEstatisticas,
+  getModelosEvolucao,
+  createModeloEvolucao,
+  updateModeloEvolucao,
+  deleteModeloEvolucao,
 };
 

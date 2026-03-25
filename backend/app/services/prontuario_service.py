@@ -187,9 +187,21 @@ class ProntuarioService:
     ) -> EvolucaoResponse:
         """Cria nova evolução"""
         try:
+            pr = (
+                self.supabase.table("prontuarios")
+                .select("clinica_id")
+                .eq("id", prontuario_id)
+                .single()
+                .execute()
+                .data
+            )
+            if not pr:
+                raise Exception("Prontuário não encontrado")
+
             evolucao_dict = data.model_dump()
             evolucao_dict["prontuario_id"] = prontuario_id
             evolucao_dict["criado_por"] = user_id
+            evolucao_dict["clinica_id"] = pr["clinica_id"]
 
             response = self.supabase.table("evolucoes").insert(evolucao_dict).execute()
             evolucao = response.data[0] if response.data else None

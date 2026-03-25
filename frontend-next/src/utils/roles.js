@@ -43,6 +43,7 @@ const PERMISSIONS = {
     edit: ['fono', 'medico', 'profissional'],
     delete: ['admin', 'fono', 'medico', 'profissional']
   },
+  modelos_evolucao: ['admin', 'fono', 'medico', 'profissional'],
   relatorios: {
     view: ['admin', 'fono', 'medico', 'profissional'],
     create: ['admin', 'fono', 'medico', 'profissional'],

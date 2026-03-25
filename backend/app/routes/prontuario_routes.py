@@ -1,4 +1,5 @@
 # filepath: backend/app/routes/prontuario_routes.py
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
@@ -7,6 +8,77 @@ from app.utils.tenant_query import fetch_row_for_tenant
 import logging
 from flask import send_file
 from app.services.pdf_service import PdfService
+
+EVOLUCAO_WRITABLE_FIELDS = (
+    'conteudo',
+    'titulo_resumo',
+    'observacoes_confidenciais',
+    'observacoes',
+    'humor',
+    'comportamento',
+    'data_sessao',
+    'agendamento_id',
+)
+
+
+def _profissional_paciente_ids(client, clinica_id, user_id):
+    vinculos = client.table('pacientes_profissionais').select('paciente_id').eq(
+        'profissional_id', user_id
+    ).eq('clinica_id', clinica_id).eq('ativo', True).execute()
+    return [v['paciente_id'] for v in (vinculos.data or [])]
+
+
+def _assert_prontuario_evolucao_access(prontuario_id):
+    """
+    Retorna (repo, prontuario, None) ou (None, None, (jsonify_err, status)).
+    """
+    user = get_current_user()
+    clinica_id = user['clinica_id']
+    user_role = user.get('role')
+    user_id = user.get('id')
+    repo = BaseRepository('prontuarios', clinica_id)
+    prontuario = fetch_row_for_tenant(
+        repo.client, 'prontuarios', prontuario_id, clinica_id, select='*',
+    )
+    if not prontuario:
+        return None, None, (jsonify({'error': 'Prontuário não encontrado'}), 404)
+    if user_role in ['fono', 'medico', 'profissional']:
+        paciente_ids = _profissional_paciente_ids(repo.client, clinica_id, user_id)
+        if prontuario.get('paciente_id') not in paciente_ids:
+            return None, None, (jsonify({'error': 'Sem permissão para acessar este prontuário'}), 403)
+    return repo, prontuario, None
+
+
+def _map_evolucao_row(row):
+    if not row:
+        return row
+    if row.get('usuarios'):
+        row['criado_por_nome'] = row['usuarios'].get('nome_completo', 'Desconhecido')
+    return row
+
+
+def _can_mutate_evolucao(evolucao, user_role, user_id):
+    if evolucao.get('imutavel'):
+        return False, 'Esta evolução está finalizada e não pode ser alterada'
+    if user_role in ['fono', 'medico', 'profissional']:
+        if evolucao.get('criado_por') != user_id:
+            return False, 'Sem permissão para alterar esta evolução'
+    return True, None
+
+
+def _pick_evolucao_payload(data, require_conteudo=False):
+    if not isinstance(data, dict):
+        return None, (jsonify({'error': 'JSON inválido'}), 400)
+    out = {}
+    for k in EVOLUCAO_WRITABLE_FIELDS:
+        if k in data:
+            out[k] = data[k]
+    if require_conteudo:
+        conteudo = out.get('conteudo', data.get('conteudo'))
+        if not conteudo or not str(conteudo).strip():
+            return None, (jsonify({'error': 'conteudo é obrigatório'}), 400)
+        out['conteudo'] = str(conteudo).strip()
+    return out, None
 
 prontuario_bp = Blueprint('prontuarios', __name__)
 
@@ -367,4 +439,236 @@ def export_prontuario_pdf(prontuario_id):
         logger.error(f"❌ [PDF] Erro ao exportar prontuário: {str(e)}")
         import traceback
         logger.error(f"❌ [PDF] Traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+
+# --- Evoluções (aninhadas ao prontuário) ---
+
+
+@prontuario_bp.route('/<prontuario_id>/evolucoes/ultima', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
+def get_ultima_evolucao(prontuario_id):
+    """Última evolução do usuário logado neste prontuário (para pré-preenchimento)."""
+    try:
+        repo, _pr, err = _assert_prontuario_evolucao_access(prontuario_id)
+        if err:
+            return err
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_id = user.get('id')
+
+        q = (
+            repo.client.table('evolucoes')
+            .select('*, usuarios:criado_por(nome_completo)')
+            .eq('prontuario_id', prontuario_id)
+            .eq('clinica_id', clinica_id)
+            .eq('criado_por', user_id)
+            .order('data_criacao', desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = q.data or []
+        ev = rows[0] if rows else None
+        return jsonify(_map_evolucao_row(ev) if ev else None), 200
+    except Exception as e:
+        logger.error(f"❌ [EVOLUCAO] ultima: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@prontuario_bp.route('/<prontuario_id>/evolucoes', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
+def list_evolucoes(prontuario_id):
+    """Lista evoluções: admin vê todas na clínica; profissional só as suas."""
+    try:
+        repo, _pr, err = _assert_prontuario_evolucao_access(prontuario_id)
+        if err:
+            return err
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user.get('id')
+
+        q = (
+            repo.client.table('evolucoes')
+            .select('*, usuarios:criado_por(nome_completo)')
+            .eq('prontuario_id', prontuario_id)
+            .eq('clinica_id', clinica_id)
+        )
+        if user_role in ['fono', 'medico', 'profissional']:
+            q = q.eq('criado_por', user_id)
+        q = q.order('data_criacao', desc=True)
+        rows = q.execute().data or []
+        for row in rows:
+            _map_evolucao_row(row)
+        return jsonify(rows), 200
+    except Exception as e:
+        logger.error(f"❌ [EVOLUCAO] list: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@prontuario_bp.route('/<prontuario_id>/evolucoes', methods=['POST'])
+@require_auth
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
+def create_evolucao(prontuario_id):
+    try:
+        repo, _pr, err = _assert_prontuario_evolucao_access(prontuario_id)
+        if err:
+            return err
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_id = user.get('id')
+
+        data = request.get_json(silent=True) or {}
+        payload, perr = _pick_evolucao_payload(data, require_conteudo=True)
+        if perr:
+            return perr
+
+        insert_row = {
+            'clinica_id': clinica_id,
+            'prontuario_id': prontuario_id,
+            'criado_por': user_id,
+            'imutavel': False,
+            **payload,
+        }
+        if insert_row.get('data_sessao') in (None, ''):
+            insert_row['data_sessao'] = datetime.now(timezone.utc).isoformat()
+
+        resp = repo.client.table('evolucoes').insert(insert_row).execute()
+        created = resp.data[0] if resp.data else None
+        if not created:
+            return jsonify({'error': 'Falha ao criar evolução'}), 500
+        return jsonify(created), 201
+    except Exception as e:
+        logger.error(f"❌ [EVOLUCAO] create: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@prontuario_bp.route('/<prontuario_id>/evolucoes/<evolucao_id>/finalizar', methods=['POST'])
+@require_auth
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
+def finalizar_evolucao(prontuario_id, evolucao_id):
+    try:
+        repo, _pr, err = _assert_prontuario_evolucao_access(prontuario_id)
+        if err:
+            return err
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user.get('id')
+
+        ev = fetch_row_for_tenant(
+            repo.client, 'evolucoes', evolucao_id, clinica_id, select='*',
+        )
+        if not ev or ev.get('prontuario_id') != prontuario_id:
+            return jsonify({'error': 'Evolução não encontrada'}), 404
+
+        ok, msg = _can_mutate_evolucao(ev, user_role, user_id)
+        if not ok:
+            code = 400 if 'finalizada' in (msg or '') else 403
+            return jsonify({'error': msg}), code
+
+        upd = {
+            'imutavel': True,
+            'data_atualizacao': datetime.now(timezone.utc).isoformat(),
+        }
+        resp = (
+            repo.client.table('evolucoes')
+            .update(upd)
+            .eq('id', evolucao_id)
+            .eq('clinica_id', clinica_id)
+            .eq('prontuario_id', prontuario_id)
+            .execute()
+        )
+        row = resp.data[0] if resp.data else None
+        return jsonify(row), 200
+    except Exception as e:
+        logger.error(f"❌ [EVOLUCAO] finalizar: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@prontuario_bp.route('/<prontuario_id>/evolucoes/<evolucao_id>', methods=['PUT'])
+@require_auth
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
+def update_evolucao(prontuario_id, evolucao_id):
+    try:
+        repo, _pr, err = _assert_prontuario_evolucao_access(prontuario_id)
+        if err:
+            return err
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user.get('id')
+
+        ev = fetch_row_for_tenant(
+            repo.client, 'evolucoes', evolucao_id, clinica_id, select='*',
+        )
+        if not ev or ev.get('prontuario_id') != prontuario_id:
+            return jsonify({'error': 'Evolução não encontrada'}), 404
+
+        ok, msg = _can_mutate_evolucao(ev, user_role, user_id)
+        if not ok:
+            code = 400 if 'finalizada' in (msg or '') else 403
+            return jsonify({'error': msg}), code
+
+        data = request.get_json(silent=True) or {}
+        payload, perr = _pick_evolucao_payload(data, require_conteudo=False)
+        if perr:
+            return perr
+        if not payload:
+            return jsonify({'error': 'Nenhum campo para atualizar'}), 400
+
+        if 'conteudo' in payload:
+            if not str(payload['conteudo']).strip():
+                return jsonify({'error': 'conteudo não pode ser vazio'}), 400
+            payload['conteudo'] = str(payload['conteudo']).strip()
+
+        payload['data_atualizacao'] = datetime.now(timezone.utc).isoformat()
+
+        resp = (
+            repo.client.table('evolucoes')
+            .update(payload)
+            .eq('id', evolucao_id)
+            .eq('clinica_id', clinica_id)
+            .eq('prontuario_id', prontuario_id)
+            .execute()
+        )
+        row = resp.data[0] if resp.data else None
+        return jsonify(row), 200
+    except Exception as e:
+        logger.error(f"❌ [EVOLUCAO] update: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@prontuario_bp.route('/<prontuario_id>/evolucoes/<evolucao_id>', methods=['DELETE'])
+@require_auth
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
+def delete_evolucao(prontuario_id, evolucao_id):
+    try:
+        repo, _pr, err = _assert_prontuario_evolucao_access(prontuario_id)
+        if err:
+            return err
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+        user_role = user.get('role')
+        user_id = user.get('id')
+
+        ev = fetch_row_for_tenant(
+            repo.client, 'evolucoes', evolucao_id, clinica_id, select='*',
+        )
+        if not ev or ev.get('prontuario_id') != prontuario_id:
+            return jsonify({'error': 'Evolução não encontrada'}), 404
+
+        ok, msg = _can_mutate_evolucao(ev, user_role, user_id)
+        if not ok:
+            code = 400 if 'finalizada' in (msg or '') else 403
+            return jsonify({'error': msg}), code
+
+        repo.client.table('evolucoes').delete().eq('id', evolucao_id).eq(
+            'clinica_id', clinica_id
+        ).eq('prontuario_id', prontuario_id).execute()
+        return jsonify({'message': 'Evolução excluída'}), 200
+    except Exception as e:
+        logger.error(f"❌ [EVOLUCAO] delete: {e}")
         return jsonify({'error': str(e)}), 500
