@@ -4,28 +4,44 @@ from typing import Optional, List
 from datetime import datetime
 
 
-class EvolucaoBase(BaseModel):
-    descricao: str = Field(..., min_length=1, description="Descrição da evolução")
-    titulo: Optional[str] = None
-
-
-class EvolucaoCreate(EvolucaoBase):
-    prontuario_id: str
-    criado_por: str
+class EvolucaoCreate(BaseModel):
+    conteudo: str = Field(..., min_length=1, description="Texto principal da evolução")
+    titulo_resumo: Optional[str] = None
+    observacoes_confidenciais: Optional[str] = None
+    observacoes: Optional[str] = None
+    humor: Optional[str] = None
+    comportamento: Optional[str] = None
+    data_sessao: Optional[datetime] = None
+    agendamento_id: Optional[str] = None
 
 
 class EvolucaoUpdate(BaseModel):
-    descricao: Optional[str] = None
-    titulo: Optional[str] = None
+    conteudo: Optional[str] = None
+    titulo_resumo: Optional[str] = None
+    observacoes_confidenciais: Optional[str] = None
+    observacoes: Optional[str] = None
+    humor: Optional[str] = None
+    comportamento: Optional[str] = None
+    data_sessao: Optional[datetime] = None
+    agendamento_id: Optional[str] = None
 
 
-class EvolucaoResponse(EvolucaoBase):
+class EvolucaoResponse(BaseModel):
     id: str
+    clinica_id: str
     prontuario_id: str
-    criado_por: str
+    agendamento_id: Optional[str] = None
+    conteudo: str
+    titulo_resumo: Optional[str] = None
+    observacoes_confidenciais: Optional[str] = None
+    observacoes: Optional[str] = None
+    humor: Optional[str] = None
+    comportamento: Optional[str] = None
+    data_sessao: Optional[datetime] = None
+    imutavel: bool = False
     data_criacao: datetime
     data_atualizacao: datetime
-    imutavel: bool
+    criado_por: str
 
     class Config:
         from_attributes = True

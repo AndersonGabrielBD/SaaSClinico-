@@ -683,9 +683,23 @@ class PdfService:
                 
                 if evolucao.get('titulo_resumo'):
                     story.append(Paragraph(f"<i>{evolucao['titulo_resumo']}</i>", styles['Normal']))
+
+                if evolucao.get('data_sessao'):
+                    story.append(Paragraph(
+                        f"<b>Data da sessão:</b> {self._format_date(evolucao.get('data_sessao', ''))}",
+                        styles['Normal'],
+                    ))
+                if evolucao.get('humor'):
+                    story.append(Paragraph(f"<b>Humor:</b> {evolucao['humor']}", styles['Normal']))
+                if evolucao.get('comportamento'):
+                    story.append(Paragraph(f"<b>Comportamento:</b> {evolucao['comportamento']}", styles['Normal']))
                 
                 if evolucao.get('conteudo'):
                     story.append(Paragraph(evolucao['conteudo'], styles['Justify']))
+
+                if evolucao.get('observacoes'):
+                    story.append(Paragraph("<b>Observações:</b>", styles['Normal']))
+                    story.append(Paragraph(evolucao['observacoes'], styles['Justify']))
                 
                 story.append(Spacer(1, 0.5*cm))
         

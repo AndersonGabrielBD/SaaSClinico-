@@ -39,41 +39,34 @@ export const prontuarioService = {
   },
 
   // ============== EVOLUÇÕES ==============
-  // TODO: Implementar endpoints de evoluções no backend
 
-  // Listar evoluções de um prontuário
   async getEvolucoes(prontuarioId) {
-    // TODO: Implementar endpoint no backend
-    return []
+    return await api.getEvolucoes(prontuarioId)
   },
 
-  // Buscar evolução por ID
+  async getUltimaEvolucao(prontuarioId) {
+    return await api.getUltimaEvolucao(prontuarioId)
+  },
+
   async getEvolucaoById(prontuarioId, evolucaoId) {
-    // TODO: Implementar endpoint no backend
-    return null
+    const list = await api.getEvolucoes(prontuarioId)
+    return list.find((e) => e.id === evolucaoId) || null
   },
 
-  // Criar evolução
   async createEvolucao(prontuarioId, evolucao) {
-    // TODO: Implementar endpoint no backend
-    return null
+    return await api.createEvolucao(prontuarioId, evolucao)
   },
 
-  // Atualizar evolução (somente se não estiver imutável)
   async updateEvolucao(prontuarioId, evolucaoId, evolucao) {
-    // TODO: Implementar endpoint no backend
-    return null
+    return await api.updateEvolucao(prontuarioId, evolucaoId, evolucao)
   },
 
-  // Finalizar evolução (tornar imutável)
   async finalizarEvolucao(prontuarioId, evolucaoId) {
-    // TODO: Implementar endpoint no backend
-    return null
+    return await api.finalizarEvolucao(prontuarioId, evolucaoId)
   },
 
-  // Deletar evolução (somente se não estiver imutável)
   async deleteEvolucao(prontuarioId, evolucaoId) {
-    // TODO: Implementar endpoint no backend
+    return await api.deleteEvolucao(prontuarioId, evolucaoId)
   },
 
   // ============== ANEXOS ==============
