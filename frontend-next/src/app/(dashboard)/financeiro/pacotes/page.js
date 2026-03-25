@@ -27,6 +27,7 @@ import {
   LayoutList,
   Wallet,
 } from 'lucide-react'
+import ResponsiveTable from '@/components/common/ResponsiveTable'
 
 const formatCurrency = (value) => {
   if (!value && value !== 0) return 'R$ 0,00'
@@ -733,7 +734,7 @@ export default function PacotesPage() {
                   ))}
                 </div>
                 {/* Desktop */}
-                <div className="hidden lg:block overflow-x-auto">
+                <ResponsiveTable className="hidden lg:block">
                   <table className="min-w-full divide-y divide-neutral-100">
                     <thead className="bg-neutral-50/80">
                       <tr>
@@ -766,7 +767,7 @@ export default function PacotesPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ResponsiveTable>
               </>
             )}
           </div>

@@ -64,10 +64,19 @@ export default function AgendamentoCard({
     const el = actionsButtonRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
+    if (typeof window === 'undefined') return
+    const padding = 8
+    const desiredWidth = Math.max(r.width, 170)
+    const maxWidth = Math.max(0, window.innerWidth - padding * 2)
+    const width = Math.min(desiredWidth, maxWidth)
+    const left = Math.min(
+      Math.max(padding, r.right - width),
+      window.innerWidth - width - padding
+    )
     setDropdownRect({
       top: r.bottom + 4,
-      right: typeof window !== 'undefined' ? window.innerWidth - r.right : 0,
-      minWidth: Math.max(r.width, 170),
+      left,
+      width,
     })
   }, [])
 
@@ -81,10 +90,19 @@ export default function AgendamentoCard({
     }
     const el = e.currentTarget
     const r = el.getBoundingClientRect()
+    if (typeof window === 'undefined') return
+    const padding = 8
+    const desiredWidth = Math.max(r.width, 170)
+    const maxWidth = Math.max(0, window.innerWidth - padding * 2)
+    const width = Math.min(desiredWidth, maxWidth)
+    const left = Math.min(
+      Math.max(padding, r.right - width),
+      window.innerWidth - width - padding
+    )
     setDropdownRect({
       top: r.bottom + 4,
-      right: typeof window !== 'undefined' ? window.innerWidth - r.right : 0,
-      minWidth: Math.max(r.width, 170),
+      left,
+      width,
     })
     setShowActionsDropdown(true)
   }, [showActionsDropdown])
@@ -262,8 +280,9 @@ export default function AgendamentoCard({
                       style={{
                         zIndex: 100001,
                         top: dropdownRect.top,
-                        right: dropdownRect.right,
-                        minWidth: dropdownRect.minWidth,
+                        left: dropdownRect.left,
+                        width: dropdownRect.width,
+                        maxWidth: 'calc(100vw - 16px)',
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
