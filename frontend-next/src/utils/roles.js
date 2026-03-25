@@ -38,16 +38,16 @@ const PERMISSIONS = {
     delete: ['admin', 'recepcao']
   },
   prontuarios: {
-    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
+    view: ['admin', 'fono', 'medico', 'profissional'],
     create: ['fono', 'medico', 'profissional'],
     edit: ['fono', 'medico', 'profissional'],
     delete: ['admin', 'fono', 'medico', 'profissional']
   },
   relatorios: {
-    view: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
-    create: ['fono', 'medico', 'profissional'],
-    edit: ['fono', 'medico', 'profissional'],
-    delete: ['fono', 'medico', 'profissional']
+    view: ['admin', 'fono', 'medico', 'profissional'],
+    create: ['admin', 'fono', 'medico', 'profissional'],
+    edit: ['admin', 'fono', 'medico', 'profissional'],
+    delete: ['admin', 'fono', 'medico', 'profissional']
   },
   financeiro: {
     view: ['admin', 'recepcao'],

@@ -8,6 +8,7 @@ import logging
 from flask import Blueprint, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.utils.audit import audit_log_entry
+from app.utils.tenant_query import fetch_row_for_tenant
 from database.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -28,14 +29,10 @@ def export_patient_data(paciente_id):
         clinica_id = user['clinica_id']
         client = get_supabase_client()
 
-        paciente = client.table('pacientes') \
-            .select('*') \
-            .eq('id', paciente_id) \
-            .eq('clinica_id', clinica_id) \
-            .single() \
-            .execute()
-
-        if not paciente.data:
+        paciente_row = fetch_row_for_tenant(
+            client, 'pacientes', paciente_id, clinica_id, select='*'
+        )
+        if not paciente_row:
             return jsonify({'error': 'Paciente não encontrado'}), 404
 
         prontuarios = client.table('prontuarios') \
@@ -63,7 +60,7 @@ def export_patient_data(paciente_id):
             .execute()
 
         export_data = {
-            'paciente': paciente.data,
+            'paciente': paciente_row,
             'prontuarios': prontuarios.data or [],
             'agendamentos': agendamentos.data or [],
             'lancamentos_financeiros': lancamentos.data or [],
@@ -85,8 +82,8 @@ def export_patient_data(paciente_id):
         return jsonify(export_data), 200
 
     except Exception as e:
-        logger.error(f"[LGPD] Erro ao exportar dados: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"[LGPD] Erro ao exportar dados: {e}", exc_info=True)
+        return jsonify({'error': 'Falha ao processar a exportação.'}), 500
 
 
 @lgpd_bp.route('/anonymize/<paciente_id>', methods=['POST'])
@@ -105,17 +102,13 @@ def anonymize_patient(paciente_id):
         clinica_id = user['clinica_id']
         client = get_supabase_client()
 
-        paciente = client.table('pacientes') \
-            .select('id, nome_completo') \
-            .eq('id', paciente_id) \
-            .eq('clinica_id', clinica_id) \
-            .single() \
-            .execute()
-
-        if not paciente.data:
+        paciente_row = fetch_row_for_tenant(
+            client, 'pacientes', paciente_id, clinica_id, select='id, nome_completo'
+        )
+        if not paciente_row:
             return jsonify({'error': 'Paciente não encontrado'}), 404
 
-        nome_original = paciente.data.get('nome_completo', '')
+        nome_original = paciente_row.get('nome_completo', '')
 
         anon_data = {
             'nome_completo': f'[ANONIMIZADO-{paciente_id[:8]}]',
@@ -158,8 +151,8 @@ def anonymize_patient(paciente_id):
         }), 200
 
     except Exception as e:
-        logger.error(f"[LGPD] Erro ao anonimizar dados: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"[LGPD] Erro ao anonimizar dados: {e}", exc_info=True)
+        return jsonify({'error': 'Falha ao processar a anonimização.'}), 500
 
 
 @lgpd_bp.route('/audit-log', methods=['GET'])
@@ -193,5 +186,5 @@ def list_audit_log():
         return jsonify(response.data or []), 200
 
     except Exception as e:
-        logger.error(f"[LGPD] Erro ao listar audit log: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"[LGPD] Erro ao listar audit log: {e}", exc_info=True)
+        return jsonify({'error': 'Falha ao carregar o registro de auditoria.'}), 500

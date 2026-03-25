@@ -42,6 +42,11 @@ def create_app(testing=False):
          allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
          supports_credentials=False)
 
+    from app.extensions import limiter
+    if testing:
+        app.config['RATELIMIT_ENABLED'] = False
+    limiter.init_app(app)
+
     from app.routes.auth_routes import auth_bp
     from app.routes.paciente_routes import paciente_bp
     from app.routes.prontuario_routes import prontuario_bp
@@ -126,6 +131,13 @@ def create_app(testing=False):
     @app.errorhandler(404)
     def not_found(error):
         return jsonify({'error': 'Not Found', 'message': 'Recurso não encontrado'}), 404
+
+    @app.errorhandler(429)
+    def too_many_requests(error):
+        return jsonify({
+            'error': 'Muitas tentativas',
+            'message': 'Aguarde um momento e tente novamente.',
+        }), 429
 
     @app.errorhandler(500)
     def internal_error(error):

@@ -6,7 +6,7 @@ import { format, isValid, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { getUserRole } from '@/utils/auth'
-import { canPerformAction } from '@/utils/roles'
+import { canPerformAction, canAccessModule } from '@/utils/roles'
 import { useState, useEffect } from 'react'
 import { pacienteService } from '@/services/pacienteService'
 
@@ -44,6 +44,7 @@ export default function PacienteCard({
   const userRole = getUserRole()
   const canEdit = canPerformAction(userRole, 'pacientes', 'edit')
   const canDelete = canPerformAction(userRole, 'pacientes', 'delete')
+  const canSeeProntuarios = canAccessModule(userRole, 'prontuarios')
   
   const [profissionais, setProfissionais] = useState([])
   const [loadingProf, setLoadingProf] = useState(false)
@@ -161,9 +162,11 @@ export default function PacienteCard({
         <Link href={`/pacientes/${paciente.id}`}>
           <Button size="sm" variant="primary" icon={<Eye className="w-3.5 h-3.5" />}>Perfil</Button>
         </Link>
+        {canSeeProntuarios && (
         <Link href={`/prontuarios?paciente_id=${paciente.id}`}>
           <Button size="sm" variant="outline" icon={<FileText className="w-3.5 h-3.5" />}>Prontuários</Button>
         </Link>
+        )}
         {paciente.ativo ? (
           <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             {canEdit && (

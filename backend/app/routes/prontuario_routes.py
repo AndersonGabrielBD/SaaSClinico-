@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.utils.audit import log_access
+from app.utils.tenant_query import fetch_row_for_tenant
 import logging
 from flask import send_file
 from app.services.pdf_service import PdfService
@@ -11,7 +12,7 @@ prontuario_bp = Blueprint('prontuarios', __name__)
 
 @prontuario_bp.route('', methods=['GET'])
 @require_auth
-@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
 def get_prontuarios():
     """Lista prontuários da clínica"""
     import logging
@@ -72,7 +73,7 @@ def get_prontuarios():
                     p['criado_por_nome'] = p['usuarios'].get('nome_completo', 'Desconhecido')
                 prontuarios_data.append(p)
         else:
-            # Admin e recepção veem todos os prontuários
+            # Somente admin vê todos os prontuários da clínica
             repo = BaseRepository('prontuarios', clinica_id)
             prontuarios = repo.client.table('prontuarios') \
                 .select('*, pacientes(id, nome_completo), usuarios:criado_por(nome_completo)') \
@@ -104,7 +105,7 @@ def get_prontuarios():
 
 @prontuario_bp.route('/<prontuario_id>', methods=['GET'])
 @require_auth
-@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
 @log_access('prontuario', 'view', id_param='prontuario_id')
 def get_prontuario(prontuario_id):
     """Busca prontuário por ID"""
@@ -118,17 +119,15 @@ def get_prontuario(prontuario_id):
         user_id = user.get('id')
         
         repo = BaseRepository('prontuarios', clinica_id)
-        
-        # Buscar prontuário com join para trazer o nome do criador
-        response = repo.client.table('prontuarios') \
-            .select('*, usuarios:criado_por(nome_completo)') \
-            .eq('id', prontuario_id) \
-            .eq('clinica_id', clinica_id) \
-            .single() \
-            .execute()
-        
-        prontuario = response.data if response.data else None
-        
+
+        prontuario = fetch_row_for_tenant(
+            repo.client,
+            'prontuarios',
+            prontuario_id,
+            clinica_id,
+            select='*, usuarios:criado_por(nome_completo)',
+        )
+
         if not prontuario:
             return jsonify({'error': 'Prontuário não encontrado'}), 404
         
@@ -288,7 +287,7 @@ def delete_prontuario(prontuario_id):
 
 @prontuario_bp.route('/<prontuario_id>/export-pdf', methods=['GET'])
 @require_auth
-@require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
+@require_roles(['admin', 'fono', 'medico', 'profissional'])
 @log_access('prontuario', 'export', id_param='prontuario_id')
 def export_prontuario_pdf(prontuario_id):
     """Exporta prontuário completo em PDF"""
@@ -305,17 +304,16 @@ def export_prontuario_pdf(prontuario_id):
         
         # Buscar prontuário com dados relacionados
         repo = BaseRepository('prontuarios', clinica_id)
-        prontuario = repo.client.table('prontuarios') \
-            .select('*, pacientes(id, nome_completo, cpf, data_nascimento)') \
-            .eq('id', prontuario_id) \
-            .eq('clinica_id', clinica_id) \
-            .single() \
-            .execute()
-        
-        if not prontuario.data:
+        prontuario_data = fetch_row_for_tenant(
+            repo.client,
+            'prontuarios',
+            prontuario_id,
+            clinica_id,
+            select='*, pacientes(id, nome_completo, cpf, data_nascimento)',
+        )
+
+        if not prontuario_data:
             return jsonify({'error': 'Prontuário não encontrado'}), 404
-        
-        prontuario_data = prontuario.data
         
         # Verificar permissões (profissionais só acessam seus pacientes)
         if user_role in ['fono', 'medico', 'profissional']:
