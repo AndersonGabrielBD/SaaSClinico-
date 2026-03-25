@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { prontuarioService } from '@/services/prontuarioService'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
@@ -13,9 +14,11 @@ import ProntuarioCard from '@/components/prontuarios/ProntuarioCard'
 import ProntuarioForm from '@/components/prontuarios/ProntuarioForm'
 import Toast from '@/components/common/Toast'
 import { getUserRole } from '@/utils/auth'
+import { canAccessModule } from '@/utils/roles'
 import { parseDateSafe } from '@/lib/dateUtils'
 
 export default function ProntuariosPage() {
+  const router = useRouter()
   const [prontuarios, setProntuarios] = useState([])
   const [pacientes, setPacientes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -33,8 +36,13 @@ export default function ProntuariosPage() {
   }
 
   useEffect(() => {
+    const role = getUserRole()
+    if (role && !canAccessModule(role, 'prontuarios')) {
+      router.replace('/agenda')
+      return
+    }
     loadData()
-  }, [selectedPaciente])
+  }, [selectedPaciente, router])
 
   const loadData = async () => {
     try {

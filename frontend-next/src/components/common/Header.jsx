@@ -37,28 +37,11 @@ export default function Header({ onMenuClick }) {
         ClinFlow
       </div>
 
-      {/* Search bar - desktop */}
-      <div className="hidden lg:flex relative flex-1 max-w-md">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-        <input
-          type="text"
-          placeholder="Buscar pacientes, agendamentos..."
-          className="w-full pl-10 pr-4 py-2.5 text-sm bg-neutral-50 border border-neutral-200/60 rounded-xl 
-                     focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500/40 
-                     outline-none transition-all duration-200 placeholder:text-neutral-400"
-        />
-      </div>
 
       {/* Right section */}
       <div className="hidden lg:block flex-1" />
 
       <div className="flex items-center gap-2">
-        {/* Notifications */}
-        <button className="relative p-2.5 hover:bg-neutral-100 rounded-xl text-neutral-500 transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
-        </button>
-
         {/* User section */}
         <div className="relative">
           <button

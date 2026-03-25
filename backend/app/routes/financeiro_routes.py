@@ -1,10 +1,16 @@
 # filepath: backend/app/routes/financeiro_routes.py
+import logging
+
 from flask import Blueprint, request, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.services.mensalidade_service import MensalidadeService
+from app.utils.tenant_query import fetch_row_for_tenant
 from datetime import datetime, timedelta
 from app.utils.date_utils import today_brazil
+from database.supabase_client import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 financeiro_bp = Blueprint('financeiro', __name__)
 
@@ -134,17 +140,20 @@ def get_lancamento(lancamento_id):
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        
-        repo = BaseRepository('lancamentos_financeiros', clinica_id)
-        lancamento = repo.get_by_id(lancamento_id)
-        
+
+        client = get_supabase_client()
+        lancamento = fetch_row_for_tenant(
+            client, 'lancamentos_financeiros', lancamento_id, clinica_id
+        )
+
         if not lancamento:
             return jsonify({'error': 'Lançamento não encontrado'}), 404
-        
+
         return jsonify(lancamento), 200
-        
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error('[FINANCEIRO] get_lancamento: %s', e, exc_info=True)
+        return jsonify({'error': 'Erro ao buscar lançamento.'}), 500
 
 
 @financeiro_bp.route('/lancamentos', methods=['POST'])

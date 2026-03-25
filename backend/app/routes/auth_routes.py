@@ -1,17 +1,31 @@
 # filepath: backend/app/routes/auth_routes.py
+import hmac
 import logging
+
 from flask import Blueprint, request, jsonify
+
+from config import Config
 from database.supabase_client import get_supabase_client
+from app.extensions import limiter
 from app.utils.jwt_utils import create_token, require_auth, get_current_user
 from app.services.auth_service import AuthService
-from app.schemas.auth_schema import ResetPasswordRequest, ResetPasswordWithCode
 
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
 
+def _signup_invite_ok(provided: str, expected: str) -> bool:
+    if not expected:
+        return True
+    p = provided or ''
+    if len(p) != len(expected):
+        return False
+    return hmac.compare_digest(p, expected)
+
+
 @auth_bp.route('/login', methods=['POST'])
+@limiter.limit('15 per minute')
 def login():
     """Login via Supabase Auth. Returns a signed JWT and the user profile."""
     data = request.get_json(silent=True) or {}
@@ -81,12 +95,16 @@ def login():
 
 
 @auth_bp.route('/signup', methods=['POST'])
+@limiter.limit('5 per minute')
 def signup():
     """
     Self-registration: creates a Supabase Auth user, a clinic record and an
     admin profile in a single flow. For additional users, the clinic admin
     should invite them via the user management screen.
     """
+    if not Config.ALLOW_PUBLIC_SIGNUP:
+        return jsonify({'error': 'Cadastro público não está disponível.'}), 403
+
     data = request.get_json(silent=True) or {}
     email = data.get('email', '').strip()
     password = data.get('password', '')
@@ -95,6 +113,11 @@ def signup():
 
     if not all([email, password, nome, clinica_nome]):
         return jsonify({'error': 'Todos os campos são obrigatórios'}), 400
+
+    if Config.SIGNUP_INVITE_CODE and not _signup_invite_ok(
+        data.get('invite_code', ''), Config.SIGNUP_INVITE_CODE
+    ):
+        return jsonify({'error': 'Código de convite inválido.'}), 400
 
     supabase = get_supabase_client()
 
@@ -105,7 +128,9 @@ def signup():
             return jsonify({'error': 'Erro ao criar conta. Tente novamente.'}), 400
     except Exception as e:
         logger.warning(f"[AUTH] Falha no signup para {email}: {e}")
-        return jsonify({'error': f'Erro no registro: {str(e)}'}), 400
+        return jsonify({
+            'error': 'Não foi possível concluir o cadastro. Tente novamente ou contate o suporte.',
+        }), 400
 
     try:
         clinica_res = supabase.table('clinicas').insert({
@@ -166,6 +191,7 @@ def get_me():
 
 
 @auth_bp.route('/reset-password-request', methods=['POST'])
+@limiter.limit('5 per minute')
 def reset_password_request():
     """Requests a password reset code sent by email."""
     data = request.get_json(silent=True) or {}
@@ -179,6 +205,7 @@ def reset_password_request():
 
 
 @auth_bp.route('/reset-password', methods=['POST'])
+@limiter.limit('10 per minute')
 def reset_password():
     """Validates a reset code and changes the user's password."""
     data = request.get_json(silent=True) or {}

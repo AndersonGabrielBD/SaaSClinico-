@@ -1,7 +1,12 @@
 # filepath: backend/app/routes/senha_routes.py
+import logging
+
 from flask import Blueprint, request, jsonify
+
 from app.utils.jwt_utils import require_auth, get_current_user
 from database.supabase_client import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 senha_bp = Blueprint('senha', __name__)
 
@@ -42,6 +47,7 @@ def change_password():
                 'password': old_password
             })
         except Exception as auth_error:
+            logger.warning('[SENHA] Verificação de senha antiga falhou: %s', auth_error)
             return jsonify({'error': 'Senha antiga incorreta'}), 401
         
         # Se chegou aqui, a senha antiga está correta
@@ -58,7 +64,9 @@ def change_password():
             }), 200
             
         except Exception as update_error:
-            return jsonify({'error': f'Erro ao atualizar senha: {str(update_error)}'}), 500
-        
+            logger.error('[SENHA] Falha ao atualizar senha no Auth: %s', update_error, exc_info=True)
+            return jsonify({'error': 'Não foi possível atualizar a senha. Tente novamente.'}), 500
+
     except Exception as e:
-        return jsonify({'error': f'Erro ao trocar senha: {str(e)}'}), 500
+        logger.error('[SENHA] Erro inesperado em change_password: %s', e, exc_info=True)
+        return jsonify({'error': 'Não foi possível processar a solicitação.'}), 500

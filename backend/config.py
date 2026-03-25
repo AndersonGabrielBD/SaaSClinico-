@@ -4,6 +4,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env_bool(name: str, default: bool = True) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return v.strip().lower() not in ('false', '0', 'no', 'off')
+
+
 class Config:
     """Configuração centralizada da aplicação"""
 
@@ -34,7 +42,11 @@ class Config:
     # Files
     ALLOWED_FILE_TYPES = os.getenv('ALLOWED_FILE_TYPES', 'pdf,png,jpg,jpeg,doc,docx').split(',')
     MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
-    
+
+    # Signup: em produção use ALLOW_PUBLIC_SIGNUP=false e/ou SIGNUP_INVITE_CODE
+    ALLOW_PUBLIC_SIGNUP = _env_bool('ALLOW_PUBLIC_SIGNUP', True)
+    SIGNUP_INVITE_CODE = (os.getenv('SIGNUP_INVITE_CODE') or '').strip()
+
     @classmethod
     def validate(cls):
         """Valida se as variáveis obrigatórias estão configuradas para o backend."""

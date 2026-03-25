@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.services.relatorio_service import RelatorioService
 from app.utils.audit import log_access
+from app.utils.tenant_query import TenantResourceNotFound
 from io import BytesIO
 
 logger = logging.getLogger(__name__)
@@ -27,11 +28,11 @@ def allowed_file(filename):
 
 @relatorios_bp.route('', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'profissional', 'fono', 'medico'])
 def listar_relatorios():
     """
     Lista relatórios.
-    Admin/Recepcao: veem todos.
-    Profissional: vê apenas seus próprios relatórios.
+    Admin: vê todos. Profissional/fono/medico: apenas os próprios.
     """
     try:
         user = get_current_user()
@@ -60,6 +61,7 @@ def listar_relatorios():
 
 @relatorios_bp.route('/<relatorio_id>', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'profissional', 'fono', 'medico'])
 @log_access('relatorio', 'view', id_param='relatorio_id')
 def buscar_relatorio(relatorio_id):
     """Busca um relatório específico"""
@@ -77,7 +79,9 @@ def buscar_relatorio(relatorio_id):
                 return jsonify({'error': 'Sem permissão para acessar este relatório'}), 403
         
         return jsonify(relatorio), 200
-        
+
+    except TenantResourceNotFound as e:
+        return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"❌ Erro ao buscar relatório: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -85,12 +89,12 @@ def buscar_relatorio(relatorio_id):
 
 @relatorios_bp.route('', methods=['POST'])
 @require_auth
-@require_roles(['admin', 'recepcao', 'profissional', 'fono', 'medico'])
+@require_roles(['admin', 'profissional', 'fono', 'medico'])
 def criar_relatorio():
     """
     Cria novo relatório com upload de arquivo.
     Profissional/fono/medico criam apenas para si mesmos.
-    Admin e recepcao podem criar para qualquer profissional.
+    Admin pode criar para qualquer profissional.
     """
     try:
         user = get_current_user()
@@ -155,6 +159,7 @@ def criar_relatorio():
 
 @relatorios_bp.route('/<relatorio_id>/download', methods=['GET'])
 @require_auth
+@require_roles(['admin', 'profissional', 'fono', 'medico'])
 @log_access('relatorio', 'download', id_param='relatorio_id')
 def download_relatorio(relatorio_id):
     """Faz download do arquivo do relatório"""
@@ -184,7 +189,9 @@ def download_relatorio(relatorio_id):
             as_attachment=True,
             download_name=relatorio['nome_arquivo_original']
         )
-        
+
+    except TenantResourceNotFound as e:
+        return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"❌ Erro ao fazer download: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -214,7 +221,9 @@ def atualizar_relatorio(relatorio_id):
         )
         
         return jsonify(relatorio_atualizado), 200
-        
+
+    except TenantResourceNotFound as e:
+        return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"❌ Erro ao atualizar relatório: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -241,7 +250,9 @@ def excluir_relatorio(relatorio_id):
         service.excluir_relatorio(relatorio_id, clinica_id)
         
         return jsonify({'message': 'Relatório excluído com sucesso'}), 200
-        
+
+    except TenantResourceNotFound as e:
+        return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"❌ Erro ao excluir relatório: {str(e)}")
         return jsonify({'error': str(e)}), 500

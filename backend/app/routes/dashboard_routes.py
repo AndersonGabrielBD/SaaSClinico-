@@ -13,7 +13,7 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/stats', methods=['GET'])
 @require_auth
-@require_roles(['admin', 'recepcao'])
+@require_roles(['admin'])
 def get_dashboard_stats():
     """Retorna estatísticas do dashboard com payload padronizado"""
     try:
@@ -160,7 +160,7 @@ def _build_dashboard_stats(clinica_id):
 
 @dashboard_bp.route('/recent', methods=['GET'])
 @require_auth
-@require_roles(['admin', 'recepcao'])
+@require_roles(['admin'])
 def get_recent_activity():
     """Retorna atividades recentes"""
     try:

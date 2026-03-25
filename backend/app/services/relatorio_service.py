@@ -3,7 +3,9 @@ from typing import List, Dict, Optional
 from datetime import datetime
 import os
 import uuid
+
 from database.supabase_client import get_supabase_client
+from app.utils.tenant_query import fetch_row_for_tenant, TenantResourceNotFound
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +79,8 @@ class RelatorioService:
                 ''') \
                 .eq('clinica_id', clinica_id)
             
-            # Filtro por role: profissional vê apenas seus relatórios
-            if user_role and user_role not in ['admin', 'recepcao']:
+            # Filtro por role: só admin vê todos; demais roles com acesso vêem só os próprios
+            if user_role and str(user_role).lower() != 'admin':
                 query = query.eq('profissional_id', user_id)
             
             # Filtros adicionais
@@ -113,18 +115,20 @@ class RelatorioService:
     def buscar_relatorio(self, relatorio_id: str, clinica_id: str) -> Dict:
         """Busca um relatório específico"""
         try:
-            response = self.supabase.table('relatorios') \
-                .select('''
+            relatorio = fetch_row_for_tenant(
+                self.supabase,
+                'relatorios',
+                relatorio_id,
+                clinica_id,
+                select='''
                     *,
                     pacientes(nome_completo, cpf),
                     usuarios!profissional_id(nome_completo, especialidade)
-                ''') \
-                .eq('id', relatorio_id) \
-                .eq('clinica_id', clinica_id) \
-                .single() \
-                .execute()
-            
-            relatorio = response.data
+                ''',
+            )
+            if not relatorio:
+                raise TenantResourceNotFound('Relatório não encontrado')
+
             paciente = relatorio.pop('pacientes', None)
             profissional = relatorio.pop('usuarios', None)
             
@@ -138,11 +142,13 @@ class RelatorioService:
             
             logger.info(f"✅ Relatório {relatorio_id} encontrado")
             return relatorio
-            
+
+        except TenantResourceNotFound:
+            raise
         except Exception as e:
             logger.error(f"❌ Erro ao buscar relatório: {str(e)}")
             raise
-    
+
     def download_arquivo(self, relatorio_id: str, clinica_id: str) -> bytes:
         """Faz download do arquivo do relatório"""
         try:

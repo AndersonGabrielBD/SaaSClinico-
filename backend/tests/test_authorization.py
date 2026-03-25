@@ -27,6 +27,18 @@ class TestRecepcionistRestrictions:
         resp = client.get('/pacientes', headers=auth_header(RECEPCAO_A_ID))
         assert resp.status_code == 200
 
+    def test_recepcao_cannot_list_prontuarios(self, client):
+        resp = client.get('/prontuarios', headers=auth_header(RECEPCAO_A_ID))
+        assert resp.status_code == 403
+
+    def test_recepcao_cannot_access_dashboard(self, client):
+        resp = client.get('/dashboard/stats', headers=auth_header(RECEPCAO_A_ID))
+        assert resp.status_code == 403
+
+    def test_recepcao_cannot_list_relatorios(self, client):
+        resp = client.get('/relatorios', headers=auth_header(RECEPCAO_A_ID))
+        assert resp.status_code == 403
+
 
 class TestProfessionalRestrictions:
     """Profissional NÃO pode criar agendamento, gerenciar usuarios etc."""

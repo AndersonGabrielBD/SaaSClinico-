@@ -29,6 +29,8 @@ import Toast from '@/components/common/Toast'
 import { format, differenceInYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { parseDateSafe } from '@/lib/dateUtils'
+import { getUserRole } from '@/utils/auth'
+import { canAccessModule } from '@/utils/roles'
 
 export default function PacienteDetailPage() {
   const params = useParams()
@@ -41,6 +43,10 @@ export default function PacienteDetailPage() {
   const [loading, setLoading] = useState(true)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  const userRole = getUserRole()
+  const canViewProntuarios = canAccessModule(userRole, 'prontuarios')
+  const canViewRelatorios = canAccessModule(userRole, 'relatorios')
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type })
@@ -59,10 +65,14 @@ export default function PacienteDetailPage() {
       // Buscar dados do paciente
       const pacienteData = await pacienteService.getById(pacienteId)
       setPaciente(pacienteData)
-      
-      // Buscar prontuários do paciente
-      const prontuariosData = await prontuarioService.getAll({ paciente_id: pacienteId })
-      setProntuarios(prontuariosData)
+
+      const role = getUserRole()
+      if (canAccessModule(role, 'prontuarios')) {
+        const prontuariosData = await prontuarioService.getAll({ paciente_id: pacienteId })
+        setProntuarios(prontuariosData)
+      } else {
+        setProntuarios([])
+      }
       
       // Buscar estatísticas
       const statsData = await pacienteService.getStats(pacienteId)
@@ -307,7 +317,7 @@ export default function PacienteDetailPage() {
 
         {/* Right Column - Sidebar */}
         <div className="space-y-6">
-          {/* Prontuários */}
+          {canViewProntuarios && (
           <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
             <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5" />
@@ -346,6 +356,7 @@ export default function PacienteDetailPage() {
               Ver Todos os Prontuários
             </Link>
           </div>
+          )}
 
           {/* Metadados */}
           <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
@@ -415,10 +426,11 @@ export default function PacienteDetailPage() {
         </div>
       </div>
 
-      {/* Relatórios do Paciente */}
+      {canViewRelatorios && (
       <div className="mt-8">
         <RelatoriosList pacienteId={pacienteId} />
       </div>
+      )}
 
       {/* Frequência de Atendimentos */}
       <div className="mt-8">

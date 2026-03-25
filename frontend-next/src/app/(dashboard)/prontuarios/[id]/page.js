@@ -29,6 +29,8 @@ import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { parseDateSafe } from '@/lib/dateUtils'
+import { getUserRole } from '@/utils/auth'
+import { canAccessModule } from '@/utils/roles'
 
 export default function ProntuarioDetailPage() {
   const params = useParams()
@@ -48,10 +50,15 @@ export default function ProntuarioDetailPage() {
   }
 
   useEffect(() => {
+    const role = getUserRole()
+    if (role && !canAccessModule(role, 'prontuarios')) {
+      router.replace('/agenda')
+      return
+    }
     if (prontuarioId) {
       loadProntuario()
     }
-  }, [prontuarioId])
+  }, [prontuarioId, router])
 
   const loadProntuario = async () => {
     try {
@@ -367,10 +374,11 @@ export default function ProntuarioDetailPage() {
         </div>
       </div>
 
-      {/* Relatórios do Paciente */}
+      {canAccessModule(getUserRole(), 'relatorios') && prontuario.paciente_id && (
       <div className="mt-8">
         <RelatoriosList pacienteId={prontuario.paciente_id} />
       </div>
+      )}
 
       {/* Frequência de Atendimentos */}
       <div className="mt-8">
