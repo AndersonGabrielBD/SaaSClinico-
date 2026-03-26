@@ -56,8 +56,27 @@ export default function Header({ onMenuClick }) {
   useEffect(() => {
     if (!userMenuOpen) return
     const onResize = () => updateUserMenuPosition()
+
+    // Reposiciona apenas no desktop para evitar qualquer impacto perceptível no mobile.
+    // (O bug comum é o menu ficar "solto" quando a página/containers rolam.)
+    const isDesktop = window.matchMedia('(min-width: 1024px)').matches
+
+    const onScroll = () => {
+      if (!isDesktop) return
+      updateUserMenuPosition()
+    }
+
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    if (isDesktop) {
+      document.addEventListener('scroll', onScroll, true)
+    }
+
+    return () => {
+      window.removeEventListener('resize', onResize)
+      if (isDesktop) {
+        document.removeEventListener('scroll', onScroll, true)
+      }
+    }
   }, [userMenuOpen])
 
   return (
