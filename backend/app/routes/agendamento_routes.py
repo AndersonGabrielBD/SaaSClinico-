@@ -1,4 +1,7 @@
 # filepath: backend/app/routes/agendamento_routes.py
+import logging
+import traceback
+
 from flask import Blueprint, request, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
@@ -6,7 +9,94 @@ from datetime import datetime
 from app.utils.date_utils import today_brazil
 from database.supabase_client import get_supabase_client
 
+logger = logging.getLogger(__name__)
+
 agendamento_bp = Blueprint('agendamentos', __name__)
+
+_AGENDAMENTOS_SELECT_EMBEDS = """
+    id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, observacoes,
+    paciente_id, profissional_id, sala_id, clinica_id, recorrencia_id, recorrencia_tipo,
+    pacote_item_id, motivo_cancelamento,
+    paciente:pacientes(id, nome_completo, telefone_principal),
+    profissional:usuarios!profissional_id(id, nome_completo, especialidade),
+    sala:salas(id, nome)
+"""
+
+
+def _normalize_agendamento_embeds(ag):
+    """Garante paciente_nome / profissional_nome e objetos {id, nome_completo} como antes do embed."""
+    pac = ag.get('paciente') if isinstance(ag.get('paciente'), dict) else None
+    prof = ag.get('profissional') if isinstance(ag.get('profissional'), dict) else None
+
+    nome_pac = (pac or {}).get('nome_completo')
+    nome_prof = (prof or {}).get('nome_completo')
+
+    ag['paciente_nome'] = nome_pac
+    ag['profissional_nome'] = nome_prof
+
+    pid = ag.get('paciente_id')
+    ag['paciente'] = (
+        {'id': pid, 'nome_completo': nome_pac} if pid and nome_pac else None
+    )
+
+    prid = ag.get('profissional_id')
+    ag['profissional'] = (
+        {'id': prid, 'nome_completo': nome_prof} if prid and nome_prof else None
+    )
+
+
+def _list_agendamentos_legacy(client, user, clinica_id, paciente_id, profissional_id, status,
+                              data_agendamento, data_inicio, data_fim):
+    """3 round-trips ao PostgREST (fallback se embed falhar)."""
+    query = client.table('agendamentos')\
+        .select('id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, observacoes, paciente_id, profissional_id, sala_id, clinica_id, recorrencia_id, recorrencia_tipo, pacote_item_id, motivo_cancelamento')\
+        .eq('clinica_id', clinica_id)\
+        .order('data_agendamento', desc=False)\
+        .order('horario_inicio', desc=False)
+
+    if user.get('role') in ['fono', 'medico', 'profissional']:
+        query = query.eq('profissional_id', user['user_id'])
+    else:
+        if paciente_id:
+            query = query.eq('paciente_id', paciente_id)
+        if profissional_id:
+            query = query.eq('profissional_id', profissional_id)
+    if status:
+        query = query.eq('status', status)
+    if data_agendamento:
+        query = query.eq('data_agendamento', data_agendamento)
+    elif data_inicio or data_fim:
+        if data_inicio:
+            query = query.gte('data_agendamento', data_inicio)
+        if data_fim:
+            query = query.lte('data_agendamento', data_fim)
+
+    agendamentos = query.execute().data or []
+
+    pac_ids = list({ag['paciente_id'] for ag in agendamentos if ag.get('paciente_id')})
+    prof_ids = list({ag['profissional_id'] for ag in agendamentos if ag.get('profissional_id')})
+
+    pacientes_map = {}
+    if pac_ids:
+        rows = client.table('pacientes').select('id, nome_completo').eq('clinica_id', clinica_id).in_('id', pac_ids).execute().data or []
+        pacientes_map = {r['id']: r['nome_completo'] for r in rows}
+
+    profissionais_map = {}
+    if prof_ids:
+        rows = client.table('usuarios').select('id, nome_completo').eq('clinica_id', clinica_id).in_('id', prof_ids).execute().data or []
+        profissionais_map = {r['id']: r['nome_completo'] for r in rows}
+
+    for ag in agendamentos:
+        nome_pac = pacientes_map.get(ag.get('paciente_id'))
+        ag['paciente_nome'] = nome_pac
+        ag['paciente'] = {'id': ag['paciente_id'], 'nome_completo': nome_pac} if nome_pac else None
+
+        nome_prof = profissionais_map.get(ag.get('profissional_id'))
+        ag['profissional_nome'] = nome_prof
+        ag['profissional'] = {'id': ag['profissional_id'], 'nome_completo': nome_prof} if nome_prof else None
+
+    return agendamentos
+
 
 @agendamento_bp.route('', methods=['GET'])
 @require_auth
@@ -16,21 +106,23 @@ def get_agendamentos():
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        
-        # Query params
+
         paciente_id = request.args.get('paciente_id')
         profissional_id = request.args.get('profissional_id')
         status = request.args.get('status')
         data_agendamento = request.args.get('data_agendamento')
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
-        
+
         client = get_supabase_client()
-        query = client.table('agendamentos')\
-            .select('id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, observacoes, paciente_id, profissional_id, sala_id, clinica_id, recorrencia_id, recorrencia_tipo, pacote_item_id, motivo_cancelamento')\
-            .eq('clinica_id', clinica_id)\
-            .order('data_agendamento', desc=False)\
+
+        query = (
+            client.table('agendamentos')
+            .select(_AGENDAMENTOS_SELECT_EMBEDS)
+            .eq('clinica_id', clinica_id)
+            .order('data_agendamento', desc=False)
             .order('horario_inicio', desc=False)
+        )
 
         if user.get('role') in ['fono', 'medico', 'profissional']:
             query = query.eq('profissional_id', user['user_id'])
@@ -49,36 +141,25 @@ def get_agendamentos():
             if data_fim:
                 query = query.lte('data_agendamento', data_fim)
 
-        agendamentos = query.execute().data or []
-
-        # Enriquece com nomes via batch lookup
-        pac_ids = list({ag['paciente_id'] for ag in agendamentos if ag.get('paciente_id')})
-        prof_ids = list({ag['profissional_id'] for ag in agendamentos if ag.get('profissional_id')})
-
-        pacientes_map = {}
-        if pac_ids:
-            rows = client.table('pacientes').select('id, nome_completo').eq('clinica_id', clinica_id).in_('id', pac_ids).execute().data or []
-            pacientes_map = {r['id']: r['nome_completo'] for r in rows}
-
-        profissionais_map = {}
-        if prof_ids:
-            rows = client.table('usuarios').select('id, nome_completo').eq('clinica_id', clinica_id).in_('id', prof_ids).execute().data or []
-            profissionais_map = {r['id']: r['nome_completo'] for r in rows}
-
-        for ag in agendamentos:
-            nome_pac = pacientes_map.get(ag.get('paciente_id'))
-            ag['paciente_nome'] = nome_pac
-            ag['paciente'] = {'id': ag['paciente_id'], 'nome_completo': nome_pac} if nome_pac else None
-
-            nome_prof = profissionais_map.get(ag.get('profissional_id'))
-            ag['profissional_nome'] = nome_prof
-            ag['profissional'] = {'id': ag['profissional_id'], 'nome_completo': nome_prof} if nome_prof else None
+        try:
+            agendamentos = query.execute().data or []
+            for ag in agendamentos:
+                _normalize_agendamento_embeds(ag)
+        except Exception as embed_err:
+            logger.warning(
+                "[AGENDAMENTO] Embed falhou, usando listagem legada: %s",
+                embed_err,
+            )
+            logger.warning(f"[AGENDAMENTO] Falha ao normalizar embeds: {embed_err}")
+            agendamentos = _list_agendamentos_legacy(
+                client, user, clinica_id, paciente_id, profissional_id, status,
+                data_agendamento, data_inicio, data_fim,
+            )
 
         return jsonify(agendamentos), 200
 
     except Exception as e:
-        import logging, traceback
-        logging.getLogger(__name__).error(f"[AGENDAMENTO] Erro ao listar: {traceback.format_exc()}")
+        logger.error(f"[AGENDAMENTO] Erro ao listar: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 

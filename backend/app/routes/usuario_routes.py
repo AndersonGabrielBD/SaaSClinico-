@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
+from database.supabase_client import get_supabase_client
 
 usuario_bp = Blueprint('usuarios', __name__)
 
@@ -25,22 +26,27 @@ def get_usuarios():
         
         logger.info(f"👥 [USUARIOS] Filtros - ativo={ativo}, role={role}")
         
-        # Filtros
         filters = {}
         if ativo is not None:
             filters['ativo'] = ativo.lower() == 'true'
-        
-        repo = BaseRepository('usuarios', clinica_id)
-        usuarios = repo.get_all(filters=filters, order_by='nome_completo')
-        
-        logger.info(f"👥 [USUARIOS] Encontrados {len(usuarios)} usuários antes do filtro de role")
-        
-        # Filtro de role (pode ser múltiplos separados por vírgula: "fono,medico")
+
         if role:
-            roles = [r.strip() for r in role.split(',')]
-            logger.info(f"👥 [USUARIOS] Filtrando por roles: {roles}")
-            usuarios = [u for u in usuarios if u.get('role') in roles]
-            logger.info(f"👥 [USUARIOS] {len(usuarios)} usuários após filtro de role")
+            roles = [r.strip() for r in role.split(',') if r.strip()]
+            logger.info(f"👥 [USUARIOS] Filtrando no banco por roles: {roles}")
+            if not roles:
+                usuarios = []
+            else:
+                client = get_supabase_client()
+                q = client.table('usuarios').select('*').eq('clinica_id', clinica_id)
+                if ativo is not None:
+                    q = q.eq('ativo', ativo.lower() == 'true')
+                q = q.in_('role', roles).order('nome_completo')
+                usuarios = q.execute().data or []
+            logger.info(f"👥 [USUARIOS] {len(usuarios)} usuários (role no PostgREST)")
+        else:
+            repo = BaseRepository('usuarios', clinica_id)
+            usuarios = repo.get_all(filters=filters, order_by='nome_completo')
+            logger.info(f"👥 [USUARIOS] {len(usuarios)} usuários (RPC/listagem geral)")
         
         # Remover senhas dos resultados
         for u in usuarios:
