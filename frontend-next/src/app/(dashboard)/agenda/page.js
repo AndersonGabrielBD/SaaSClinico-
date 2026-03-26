@@ -241,23 +241,26 @@ export default function AgendaPage() {
     setToast({ show: true, message, type })
   }, [])
 
-  // Carrega profissionais e salas para os filtros
+  // Carrega profissionais e salas para os filtros (em paralelo)
   useEffect(() => {
     const loadFiltros = async () => {
-      try {
-        const profData = await apiMethods.getProfissionais({ ativo: true })
-        // backend retorna array direto; some wrappers retornam { data: [...] }
+      const [profResult, salaResult] = await Promise.allSettled([
+        apiMethods.getProfissionais({ ativo: true }),
+        apiMethods.getSalas({ ativo: true }),
+      ])
+      if (profResult.status === 'fulfilled') {
+        const profData = profResult.value
         const profList = Array.isArray(profData) ? profData : (profData?.data ?? [])
         setProfissionais(profList)
-      } catch (e) {
-        console.error('Erro ao carregar profissionais:', e)
+      } else {
+        console.error('Erro ao carregar profissionais:', profResult.reason)
       }
-      try {
-        const salaData = await apiMethods.getSalas({ ativo: true })
+      if (salaResult.status === 'fulfilled') {
+        const salaData = salaResult.value
         const salaList = Array.isArray(salaData) ? salaData : (salaData?.data ?? [])
         setSalas(salaList)
-      } catch (e) {
-        console.error('Erro ao carregar salas:', e)
+      } else {
+        console.error('Erro ao carregar salas:', salaResult.reason)
       }
     }
     loadFiltros()
