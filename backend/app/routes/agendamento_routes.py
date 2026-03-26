@@ -23,10 +23,22 @@ _AGENDAMENTOS_SELECT_EMBEDS = """
 """
 
 
+def _unwrap_embed(obj):
+    """PostgREST pode devolver objeto ou lista em embeds; normaliza para dict ou None."""
+    if obj is None:
+        return None
+    if isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, dict):
+                return item
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
 def _normalize_agendamento_embeds(ag):
     """Garante paciente_nome / profissional_nome e objetos {id, nome_completo} como antes do embed."""
-    pac = ag.get('paciente') if isinstance(ag.get('paciente'), dict) else None
-    prof = ag.get('profissional') if isinstance(ag.get('profissional'), dict) else None
+    pac = _unwrap_embed(ag.get('paciente'))
+    prof = _unwrap_embed(ag.get('profissional'))
 
     nome_pac = (pac or {}).get('nome_completo')
     nome_prof = (prof or {}).get('nome_completo')
@@ -43,6 +55,61 @@ def _normalize_agendamento_embeds(ag):
     ag['profissional'] = (
         {'id': prid, 'nome_completo': nome_prof} if prid and nome_prof else None
     )
+
+
+def _needs_nome_enrichment(agendamentos: list) -> bool:
+    """True se algum item tem FK mas ainda sem nome (embed veio null ou vazio)."""
+    for ag in agendamentos:
+        if ag.get('paciente_id') and not ag.get('paciente_nome'):
+            return True
+        if ag.get('profissional_id') and not ag.get('profissional_nome'):
+            return True
+    return False
+
+
+def _enrich_nomes_batch(client, clinica_id, agendamentos: list) -> None:
+    """
+    Preenche paciente_nome / profissional_nome quando o embed não retornou dados.
+    Mesma lógica do legado, mas só 2 queries extras e sem re-listar agendamentos.
+    """
+    pac_ids = list({ag['paciente_id'] for ag in agendamentos if ag.get('paciente_id') and not ag.get('paciente_nome')})
+    prof_ids = list({ag['profissional_id'] for ag in agendamentos if ag.get('profissional_id') and not ag.get('profissional_nome')})
+
+    pacientes_map = {}
+    if pac_ids:
+        rows = (
+            client.table('pacientes')
+            .select('id, nome_completo')
+            .eq('clinica_id', clinica_id)
+            .in_('id', pac_ids)
+            .execute()
+            .data
+            or []
+        )
+        pacientes_map = {r['id']: r.get('nome_completo') for r in rows}
+
+    profissionais_map = {}
+    if prof_ids:
+        rows = (
+            client.table('usuarios')
+            .select('id, nome_completo')
+            .eq('clinica_id', clinica_id)
+            .in_('id', prof_ids)
+            .execute()
+            .data
+            or []
+        )
+        profissionais_map = {r['id']: r.get('nome_completo') for r in rows}
+
+    for ag in agendamentos:
+        if not ag.get('paciente_nome') and ag.get('paciente_id'):
+            nome = pacientes_map.get(ag['paciente_id'])
+            ag['paciente_nome'] = nome
+            ag['paciente'] = {'id': ag['paciente_id'], 'nome_completo': nome} if nome else None
+        if not ag.get('profissional_nome') and ag.get('profissional_id'):
+            nome = profissionais_map.get(ag['profissional_id'])
+            ag['profissional_nome'] = nome
+            ag['profissional'] = {'id': ag['profissional_id'], 'nome_completo': nome} if nome else None
 
 
 def _list_agendamentos_legacy(client, user, clinica_id, paciente_id, profissional_id, status,
@@ -145,6 +212,8 @@ def get_agendamentos():
             agendamentos = query.execute().data or []
             for ag in agendamentos:
                 _normalize_agendamento_embeds(ag)
+            if agendamentos and _needs_nome_enrichment(agendamentos):
+                _enrich_nomes_batch(client, clinica_id, agendamentos)
         except Exception as embed_err:
             logger.warning(
                 "[AGENDAMENTO] Embed falhou, usando listagem legada: %s",
