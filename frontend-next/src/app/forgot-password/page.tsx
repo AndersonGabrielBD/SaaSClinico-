@@ -2,8 +2,8 @@
 import ResetPassword from '@/components/ResetPassword';
 
 export const metadata = {
-  title: 'Recuperar Senha | clinnext',
-  description: 'Recupere acesso à sua conta clinnext com um código de reset',
+  title: 'Recuperar Senha | ClinNext',
+  description: 'Recupere acesso à sua conta ClinNext com um código de reset',
 };
 
 export default function ForgotPasswordPage() {

@@ -89,7 +89,7 @@ export default function ResetPassword() {
           <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
             <KeyRound className="w-4 h-4 text-white" />
           </div>
-          <span className="text-white font-bold text-base tracking-tight">clinnext</span>
+          <span className="text-white font-bold text-base tracking-tight">ClinNext</span>
         </div>
         <div>
           <h2 className="text-3xl font-bold text-white leading-snug mb-3">
@@ -101,7 +101,7 @@ export default function ResetPassword() {
               : 'Digite o código recebido por e-mail e defina sua nova senha.'}
           </p>
         </div>
-        <p className="text-white/40 text-xs">© 2026 clinnext</p>
+        <p className="text-white/40 text-xs">© 2026 ClinNext</p>
       </div>
 
       {/* Painel direito — formulário */}
@@ -112,7 +112,7 @@ export default function ResetPassword() {
             <div className="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center">
               <KeyRound className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-neutral-900 tracking-tight">clinnext</span>
+            <span className="font-bold text-neutral-900 tracking-tight">ClinNext</span>
           </div>
 
           {/* Indicador de passos */}

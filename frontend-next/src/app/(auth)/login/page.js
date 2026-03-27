@@ -82,7 +82,7 @@ export default function LoginPage() {
             <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
               <Activity className="w-6 h-6 text-white" />
             </div>
-            <span className="text-white font-bold text-lg tracking-tight">clinnext</span>
+            <span className="text-white font-bold text-lg tracking-tight">ClinNext</span>
           </div>
         </div>
         <div className="relative z-10">
@@ -93,7 +93,7 @@ export default function LoginPage() {
             Plataforma completa para clínicas. Agenda, prontuários, financeiro e muito mais.
           </p>
         </div>
-        <p className="text-white/30 text-xs relative z-10">© 2026 clinnext — Gestão de Clínicas</p>
+        <p className="text-white/30 text-xs relative z-10">© 2026 ClinNext — Gestão de Clínicas</p>
       </div>
 
       {/* Right panel — form */}
@@ -105,7 +105,7 @@ export default function LoginPage() {
               <Activity className="w-6 h-6 text-white" />
             </div>
             <div>
-              <span className="font-bold text-neutral-900 tracking-tight text-lg block">clinnext</span>
+              <span className="font-bold text-neutral-900 tracking-tight text-lg block">ClinNext</span>
               <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider">Gestão Clínica</span>
             </div>
           </div>
