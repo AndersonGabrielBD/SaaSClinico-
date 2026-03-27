@@ -1,8 +1,9 @@
 'use client'
 
 import { useAuth } from '@/context/AuthContext'
-import { LogOut, User, Menu, ChevronDown, Search, Bell } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { LogOut, Menu, ChevronDown } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export default function Header({ onMenuClick }) {
   const { user, signOut } = useAuth()
@@ -47,11 +48,17 @@ export default function Header({ onMenuClick }) {
   const toggleUserMenu = () => {
     setUserMenuOpen((prev) => {
       const next = !prev
-      if (next) updateUserMenuPosition()
-      else setUserMenuPosition(null)
+      if (!next) setUserMenuPosition(null)
       return next
     })
   }
+
+  // fixed + coordenadas de viewport só batem se o menu estiver no body; senão
+  // backdrop-filter no header cria novo containing block e o menu “escapa” pra direita.
+  useLayoutEffect(() => {
+    if (!userMenuOpen) return
+    updateUserMenuPosition()
+  }, [userMenuOpen])
 
   useEffect(() => {
     if (!userMenuOpen) return
@@ -117,34 +124,41 @@ export default function Header({ onMenuClick }) {
             <ChevronDown className={`hidden md:block w-4 h-4 text-neutral-400 transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Dropdown */}
-          {userMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div
-                className="fixed bg-white border border-neutral-100 rounded-2xl shadow-float z-50 py-1.5 overflow-hidden animate-scale-in w-56 max-w-[calc(100vw-16px)]"
-                style={{
-                  top: userMenuPosition?.top ?? 0,
-                  left: userMenuPosition?.left ?? 0,
-                  width: userMenuPosition?.width,
-                }}
-              >
-                <div className="px-4 py-3 border-b border-neutral-100">
-                  <p className="text-sm font-semibold text-neutral-900 truncate">{displayName}</p>
-                  <p className="text-xs text-neutral-400 truncate mt-0.5">{user?.email}</p>
+          {/* Dropdown — portal no body: fixed usa a viewport (header tem backdrop-filter) */}
+          {userMenuOpen &&
+            typeof document !== 'undefined' &&
+            createPortal(
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
+                <div
+                  className="fixed bg-white border border-neutral-100 rounded-2xl shadow-float z-50 py-1.5 overflow-hidden animate-scale-in w-56 max-w-[calc(100vw-16px)]"
+                  style={{
+                    top: userMenuPosition?.top ?? 0,
+                    left: userMenuPosition?.left ?? 0,
+                    width: userMenuPosition?.width,
+                  }}
+                >
+                  <div className="px-4 py-3 border-b border-neutral-100">
+                    <p className="text-sm font-semibold text-neutral-900 truncate">{displayName}</p>
+                    <p className="text-xs text-neutral-400 truncate mt-0.5">{user?.email}</p>
+                  </div>
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        signOut()
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sair do sistema
+                    </button>
+                  </div>
                 </div>
-                <div className="py-1">
-                  <button
-                    onClick={() => { setUserMenuOpen(false); signOut() }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sair do sistema
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+              </>,
+              document.body
+            )}
         </div>
       </div>
     </header>
