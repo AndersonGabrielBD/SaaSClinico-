@@ -13,7 +13,7 @@ export default function SuportePage() {
   const [feedback, setFeedback] = useState(null)
 
   const mailtoHref = () => {
-    const subj = encodeURIComponent(assunto.trim() || 'Problema no ClinFlow')
+    const subj = encodeURIComponent(assunto.trim() || 'Problema no clinnext')
     const body = encodeURIComponent(descricao.trim() || '')
     return `mailto:${SUPPORT_EMAIL}?subject=${subj}&body=${body}`
   }

@@ -1,9 +1,9 @@
 {
-  "name": "clinflow-next",
+  "name": "clinnext-next",
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Frontend Next.js para ClinFlow - SaaS de clínicas de fonoaudiologia",
+  "description": "Frontend Next.js para clinnext - SaaS de clínicas de fonoaudiologia",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -1,38 +1,38 @@
 # filepath: backend/app/utils/exceptions.py
 
-class ClinFlowException(Exception):
-    """Exceção base para ClinFlow"""
+class clinnextException(Exception):
+    """Exceção base para clinnext"""
     def __init__(self, message, status_code=500):
         self.message = message
         self.status_code = status_code
         super().__init__(self.message)
 
 
-class UnauthorizedException(ClinFlowException):
+class UnauthorizedException(clinnextException):
     """Usuário não autenticado"""
     def __init__(self, message="Não autenticado"):
         super().__init__(message, 401)
 
 
-class ForbiddenException(ClinFlowException):
+class ForbiddenException(clinnextException):
     """Usuário sem permissão"""
     def __init__(self, message="Sem permissão"):
         super().__init__(message, 403)
 
 
-class NotFoundException(ClinFlowException):
+class NotFoundException(clinnextException):
     """Recurso não encontrado"""
     def __init__(self, message="Recurso não encontrado"):
         super().__init__(message, 404)
 
 
-class ConflictException(ClinFlowException):
+class ConflictException(clinnextException):
     """Conflito (ex: agendamento duplicado, CPF já existe)"""
     def __init__(self, message="Conflito"):
         super().__init__(message, 409)
 
 
-class ValidationException(ClinFlowException):
+class ValidationException(clinnextException):
     """Dados inválidos"""
     def __init__(self, message="Dados inválidos"):
         super().__init__(message, 400)

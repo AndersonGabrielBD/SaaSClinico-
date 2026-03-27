@@ -89,7 +89,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <Activity className="w-5 h-5 text-white" />
             </div>
             <div>
-              <span className="text-lg font-bold text-neutral-900 tracking-tight block leading-tight">ClinFlow</span>
+              <span className="text-lg font-bold text-neutral-900 tracking-tight block leading-tight">clinnext</span>
               <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider">Gestão Clínica</span>
             </div>
           </Link>
@@ -151,7 +151,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
               <Activity className="w-4 h-4 text-primary-600" />
-              <p className="text-xs font-bold text-primary-800">ClinFlow</p>
+              <p className="text-xs font-bold text-primary-800">clinnext</p>
             </div>
             <p className="text-[11px] text-primary-600/80 leading-relaxed">
               Sistema de gestão clínica completo
