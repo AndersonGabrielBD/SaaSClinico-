@@ -1,5 +1,5 @@
 """
-ClinFlow Backend
+clinnext Backend
 Multi-tenant speech therapy clinic management system
 Built with Flask + Supabase
 """
@@ -98,7 +98,7 @@ def create_app(testing=False):
     @app.route('/')
     def root():
         return jsonify({
-            'name': 'ClinFlow API',
+            'name': 'clinnext API',
             'version': '1.0.0',
             'endpoints': {
                 'auth': '/auth',
@@ -150,7 +150,7 @@ def create_app(testing=False):
         logger.error(f'Internal Server Error: {str(error)}')
         return jsonify({'error': 'Internal Server Error', 'message': 'Erro interno do servidor'}), 500
 
-    logger.info('🚀 ClinFlow Backend iniciado')
+    logger.info('🚀 clinnext Backend iniciado')
     logger.info(f'📊 Ambiente: {os.getenv("ENVIRONMENT", "development")}')
 
     return app

@@ -14,8 +14,8 @@ class EmailService:
     
     RESEND_API_KEY = os.getenv('RESEND_API_KEY')
     RESEND_API_URL = 'https://api.resend.com/emails'
-    FROM_EMAIL = os.getenv('FROM_EMAIL', 'noreply@clinflow.com')
-    FROM_NAME = os.getenv('FROM_NAME', 'ClinFlow')
+    FROM_EMAIL = os.getenv('FROM_EMAIL', 'noreply@clinnext.com')
+    FROM_NAME = os.getenv('FROM_NAME', 'clinnext')
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     SUPPORT_INBOX = os.getenv('SUPPORT_EMAIL', 'clinicasaas655@gmail.com')
 
@@ -50,7 +50,7 @@ class EmailService:
             <!DOCTYPE html>
             <html lang="pt-BR"><head><meta charset="UTF-8"></head>
             <body style="font-family:system-ui,sans-serif;line-height:1.5;color:#333;">
-              <h2 style="color:#1b4332;">Novo relatório — ClinFlow</h2>
+              <h2 style="color:#1b4332;">Novo relatório — clinnext</h2>
               <p><strong>Usuário:</strong> {safe_nome}<br/>
               <strong>E-mail:</strong> {safe_email}<br/>
               <strong>Perfil:</strong> {safe_role}<br/>
@@ -61,8 +61,8 @@ class EmailService:
             """
 
             subj = assunto.strip() if assunto else "Report de problema"
-            if not subj.lower().startswith("[clinflow]"):
-                subj = f"[ClinFlow] {subj}"
+            if not subj.lower().startswith("[clinnext]"):
+                subj = f"[clinnext] {subj}"
 
             payload = {
                 "from": f"{EmailService.FROM_NAME} <{EmailService.FROM_EMAIL}>",
@@ -136,9 +136,9 @@ class EmailService:
             payload = {
                 "from": f"{EmailService.FROM_NAME} <{EmailService.FROM_EMAIL}>",
                 "to": email,
-                "subject": "🔐 Código de Recuperação de Senha - ClinFlow",
+                "subject": "🔐 Código de Recuperação de Senha - clinnext",
                 "html": html_content,
-                "reply_to": "suporte@clinflow.com"
+                "reply_to": "suporte@clinnext.com"
             }
             
             # Fazer requisição para Resend
@@ -348,7 +348,7 @@ class EmailService:
                         <strong>Como usar:</strong>
                     </p>
                     <ol style="color: #555; font-size: 14px; line-height: 1.8; margin-left: 20px; margin-bottom: 20px;">
-                        <li>Acesse a página de recuperação de senha do ClinFlow</li>
+                        <li>Acesse a página de recuperação de senha do clinnext</li>
                         <li>Cole o código acima: <strong>{reset_code}</strong></li>
                         <li>Defina uma nova senha forte</li>
                         <li>Faça login com sua nova senha</li>
@@ -369,9 +369,9 @@ class EmailService:
                 <!-- Footer -->
                 <div class="footer">
                     <p>
-                        © {ano_atual} ClinFlow - Software para Clínicas de Fonoaudiologia<br>
-                        <a href="https://clinflow.com" style="color: #2D6A4F; text-decoration: none;">clinflow.com</a> | 
-                        <a href="mailto:suporte@clinflow.com" style="color: #2D6A4F; text-decoration: none;">suporte@clinflow.com</a>
+                        © {ano_atual} clinnext - Software para Clínicas de Fonoaudiologia<br>
+                        <a href="https://clinnext.com" style="color: #2D6A4F; text-decoration: none;">clinnext.com</a> | 
+                        <a href="mailto:suporte@clinnext.com" style="color: #2D6A4F; text-decoration: none;">suporte@clinnext.com</a>
                     </p>
                     <p style="margin-top: 10px; color: #999;">
                         Este é um email automático. Não responda diretamente nesta caixa.

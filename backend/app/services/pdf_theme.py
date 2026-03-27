@@ -137,7 +137,7 @@ def fetch_logo_image(logo_url: Optional[str], timeout: float = 3.0) -> Optional[
         r = requests.get(
             str(logo_url).strip(),
             timeout=timeout,
-            headers={"User-Agent": "ClinFlow-PDF/1.0"},
+            headers={"User-Agent": "clinnext-PDF/1.0"},
         )
         r.raise_for_status()
         buf = BytesIO(r.content)

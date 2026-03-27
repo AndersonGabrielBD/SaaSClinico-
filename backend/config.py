@@ -36,8 +36,8 @@ class Config:
     
     # Email (Resend)
     RESEND_API_KEY = os.getenv('RESEND_API_KEY')
-    FROM_EMAIL = os.getenv('FROM_EMAIL', 'noreply@clinflow.com')
-    FROM_NAME = os.getenv('FROM_NAME', 'ClinFlow')
+    FROM_EMAIL = os.getenv('FROM_EMAIL', 'noreply@clinnext.com')
+    FROM_NAME = os.getenv('FROM_NAME', 'clinnext')
     
     # Files
     ALLOWED_FILE_TYPES = os.getenv('ALLOWED_FILE_TYPES', 'pdf,png,jpg,jpeg,doc,docx').split(',')

@@ -1,5 +1,5 @@
 """
-Fixtures compartilhadas para testes do ClinFlow.
+Fixtures compartilhadas para testes do clinnext.
 
 Usa mocks do Supabase para rodar sem banco real.
 Dois tenants (clínica A e B) com usuários de diferentes roles.
