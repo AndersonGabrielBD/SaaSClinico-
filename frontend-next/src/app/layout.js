@@ -5,7 +5,7 @@ import { AuthProvider } from '@/context/AuthContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'clinnext - Gestão de Clínicas de Fonoaudiologia',
+  title: 'ClinNext - Gestão de Clínicas de Fonoaudiologia',
   description: 'SaaS Multi-tenant para gestão completa de clínicas de fonoaudiologia',
   icons: {
     icon: '/favicon.svg',
