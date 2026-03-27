@@ -68,14 +68,7 @@ export default function SuportePage() {
             <div>
               <h2 className="text-lg font-bold text-neutral-900">Reportar um problema</h2>
               <p className="text-sm text-neutral-500 mt-1 leading-relaxed">
-                O relatório é enviado automaticamente para{' '}
-                <a
-                  href={`mailto:${SUPPORT_EMAIL}`}
-                  className="text-primary-600 font-medium hover:underline"
-                >
-                  {SUPPORT_EMAIL}
-                </a>
-                . Inclua o máximo de detalhes (tela, horário, o que você esperava).
+                O relatório é enviado automaticamente para o nosso time de suporte. Inclua o máximo de detalhes (tela, horário, o que você esperava).
               </p>
             </div>
           </div>

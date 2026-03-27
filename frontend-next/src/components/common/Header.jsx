@@ -99,7 +99,7 @@ export default function Header({ onMenuClick }) {
 
       {/* Mobile logo */}
       <div className="lg:hidden absolute left-1/2 -translate-x-1/2 font-bold text-sm text-neutral-900 tracking-tight">
-        ClinFlow
+        ClinNext
       </div>
 
 
