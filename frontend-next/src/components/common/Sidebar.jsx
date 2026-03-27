@@ -17,7 +17,7 @@ import {
   Package,
   ChevronRight,
   LayoutTemplate,
-  LifeBuoy,
+  Headphones,
 } from 'lucide-react'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule, getDefaultHomePath } from '@/utils/roles'
@@ -45,7 +45,7 @@ const allMenuItems = [
   { name: 'Pacotes', href: '/financeiro/pacotes', icon: Package, module: 'financeiro' },
   { name: 'Salas', href: '/salas', icon: DoorOpen, module: 'salas' },
   { name: 'Tipos de Atend.', href: '/tipos-atendimento', icon: Tag, module: 'tipos_atendimento' },
-  { name: 'Suporte', href: '/suporte', icon: LifeBuoy, module: 'suporte' },
+  { name: 'Suporte', href: '/suporte', icon: Headphones, module: 'suporte' },
   { name: 'Configurações', href: '/configuracoes', icon: Settings, module: 'configuracoes' },
 ]
 
