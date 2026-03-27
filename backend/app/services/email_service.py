@@ -1,4 +1,5 @@
 # filepath: backend/app/services/email_service.py
+import html as html_module
 import logging
 import os
 from typing import Optional
@@ -16,7 +17,89 @@ class EmailService:
     FROM_EMAIL = os.getenv('FROM_EMAIL', 'noreply@clinflow.com')
     FROM_NAME = os.getenv('FROM_NAME', 'ClinFlow')
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-    
+    SUPPORT_INBOX = os.getenv('SUPPORT_EMAIL', 'clinicasaas655@gmail.com')
+
+    @staticmethod
+    def send_bug_report(
+        *,
+        assunto: str,
+        descricao: str,
+        reporter_email: str,
+        reporter_nome: str,
+        reporter_role: str,
+        clinica_id: str,
+    ) -> dict:
+        """Envia relatório de bug ao inbox de suporte via Resend."""
+        try:
+            if not EmailService.RESEND_API_KEY:
+                logger.warning("[EMAIL] RESEND_API_KEY não configurada — bug report não enviado.")
+                return {
+                    "sucesso": False,
+                    "mensagem": "Serviço de email não configurado",
+                    "email_id": None,
+                }
+
+            to_addr = EmailService.SUPPORT_INBOX
+            safe_desc = html_module.escape(descricao).replace("\n", "<br/>")
+            safe_nome = html_module.escape(reporter_nome or "")
+            safe_email = html_module.escape(reporter_email or "")
+            safe_role = html_module.escape((reporter_role or "").strip())
+            safe_clinica = html_module.escape(str(clinica_id or ""))
+
+            html_content = f"""
+            <!DOCTYPE html>
+            <html lang="pt-BR"><head><meta charset="UTF-8"></head>
+            <body style="font-family:system-ui,sans-serif;line-height:1.5;color:#333;">
+              <h2 style="color:#1b4332;">Novo relatório — ClinFlow</h2>
+              <p><strong>Usuário:</strong> {safe_nome}<br/>
+              <strong>E-mail:</strong> {safe_email}<br/>
+              <strong>Perfil:</strong> {safe_role}<br/>
+              <strong>Clínica (ID):</strong> {safe_clinica}</p>
+              <hr style="border:none;border-top:1px solid #e9ecef;"/>
+              <div style="margin-top:12px;">{safe_desc}</div>
+            </body></html>
+            """
+
+            subj = assunto.strip() if assunto else "Report de problema"
+            if not subj.lower().startswith("[clinflow]"):
+                subj = f"[ClinFlow] {subj}"
+
+            payload = {
+                "from": f"{EmailService.FROM_NAME} <{EmailService.FROM_EMAIL}>",
+                "to": to_addr,
+                "subject": subj[:200],
+                "html": html_content,
+                "reply_to": reporter_email if reporter_email else EmailService.FROM_EMAIL,
+            }
+
+            headers = {
+                "Authorization": f"Bearer {EmailService.RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            }
+
+            response = requests.post(
+                EmailService.RESEND_API_URL,
+                json=payload,
+                headers=headers,
+                timeout=15,
+            )
+
+            if response.status_code in [200, 201]:
+                email_id = response.json().get("id")
+                logger.info(f"[EMAIL] Bug report enviado para {to_addr} (id={email_id})")
+                return {"sucesso": True, "mensagem": "Enviado", "email_id": email_id}
+
+            error_msg = response.json().get("message", "Erro desconhecido")
+            logger.error(f"[EMAIL] Falha bug report: {error_msg}")
+            return {"sucesso": False, "mensagem": f"Erro ao enviar: {error_msg}", "email_id": None}
+
+        except requests.exceptions.Timeout:
+            logger.error("[EMAIL] Timeout ao conectar com Resend (bug report)")
+            return {"sucesso": False, "mensagem": "Timeout ao enviar email", "email_id": None}
+        except Exception as e:
+            logger.error(f"[EMAIL] Erro bug report: {e}")
+            return {"sucesso": False, "mensagem": f"Erro ao enviar email: {str(e)}", "email_id": None}
+
     @staticmethod
     def send_reset_password_email(
         email: str,

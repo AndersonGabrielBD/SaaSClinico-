@@ -80,7 +80,8 @@ const PERMISSIONS = {
     edit: ['admin', 'recepcao'],
     delete: ['admin', 'recepcao']
   },
-  configuracoes: ['admin']
+  configuracoes: ['admin'],
+  suporte: ['admin', 'recepcao', 'fono', 'medico', 'profissional'],
 };
 
 /**
