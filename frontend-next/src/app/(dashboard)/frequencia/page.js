@@ -199,7 +199,7 @@ export default function FrequenciaPage() {
             <select
               value={profissionalSelecionado}
               onChange={(e) => setProfissionalSelecionado(e.target.value)}
-              className="select-field w-full sm:w-auto min-w-[200px]"
+              className="select-field w-full min-w-0 sm:w-auto sm:min-w-[200px]"
             >
               <option value="todos">Todos os profissionais</option>
               {resumoPorProfissional.map(prof => (

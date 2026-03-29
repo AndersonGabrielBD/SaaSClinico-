@@ -28,6 +28,7 @@ class EmailService:
         reporter_nome: str,
         reporter_role: str,
         clinica_id: str,
+        clinica_nome: str,
     ) -> dict:
         """Envia relatório de bug ao inbox de suporte via Resend."""
         try:
@@ -45,6 +46,7 @@ class EmailService:
             safe_email = html_module.escape(reporter_email or "")
             safe_role = html_module.escape((reporter_role or "").strip())
             safe_clinica = html_module.escape(str(clinica_id or ""))
+            safe_clinica_nome = html_module.escape(str(clinica_nome or ""))
 
             html_content = f"""
             <!DOCTYPE html>
@@ -55,6 +57,7 @@ class EmailService:
               <strong>E-mail:</strong> {safe_email}<br/>
               <strong>Perfil:</strong> {safe_role}<br/>
               <strong>Clínica (ID):</strong> {safe_clinica}</p>
+              <strong> Nome da Clínica:</strong> {safe_clinica_nome}<br/>
               <hr style="border:none;border-top:1px solid #e9ecef;"/>
               <div style="margin-top:12px;">{safe_desc}</div>
             </body></html>

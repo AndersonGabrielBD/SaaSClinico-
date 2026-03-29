@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { agendamentoService } from '@/services/agendamentoService'
-import { Plus, Search, FileDown, AlertTriangle, ChevronLeft, ChevronRight, Menu, X, Calendar, Clock, List } from 'lucide-react'
+import { Plus, Search, FileDown, AlertTriangle, ChevronLeft, ChevronRight, SlidersHorizontal, X, Calendar, Clock, List } from 'lucide-react'
 import Button from '@/components/common/Button'
 import Modal from '@/components/common/Modal'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
@@ -573,10 +573,15 @@ export default function AgendaPage() {
       <main className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-primary-50/20 via-neutral-50 to-blue-50/10">
         {/* Header */}
         <div className="bg-white border-b border-neutral-100 px-4 sm:px-6 py-3 flex-shrink-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Botão menu mobile */}
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-neutral-100 text-neutral-500">
-              <Menu className="w-5 h-5" />
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            {/* Filtros (painel lateral) — distinto do menu do app no Header */}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+            >
+              <SlidersHorizontal className="h-4 w-4 shrink-0 text-neutral-500" aria-hidden />
+              Filtros
             </button>
 
             {/* Navegação de data — visível apenas no modo timeline */}

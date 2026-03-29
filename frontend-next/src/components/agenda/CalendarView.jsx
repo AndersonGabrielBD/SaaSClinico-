@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { formatTimeHHmm } from '@/lib/dateUtils'
@@ -89,28 +89,33 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
   return (
     <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
       {/* Header do Calendário */}
-      <div className="border-b border-neutral-200 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="border-b border-neutral-200 p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:justify-start sm:gap-3">
             <button
+              type="button"
               onClick={handlePrevMonth}
-              className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+              className="shrink-0 p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+              aria-label="Mês anterior"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-xl font-semibold text-neutral-900 min-w-[200px] text-center">
+            <h2 className="min-w-0 flex-1 text-center text-base font-semibold capitalize text-neutral-900 sm:flex-none sm:text-xl sm:min-w-[12rem]">
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
             </h2>
             <button
+              type="button"
               onClick={handleNextMonth}
-              className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+              className="shrink-0 p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+              aria-label="Próximo mês"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
           <button
+            type="button"
             onClick={handleToday}
-            className="px-4 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            className="w-full shrink-0 px-4 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors sm:w-auto"
           >
             Hoje
           </button>
@@ -128,13 +133,13 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
       </div>
 
       {/* Grid do Calendário */}
-      <div className="p-4">
+      <div className="overflow-x-hidden p-2 sm:p-4">
         {/* Cabeçalho dos dias da semana */}
-        <div className="grid grid-cols-7 gap-2 mb-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1 sm:mb-2">
           {diasSemana.map((dia) => (
             <div
               key={dia}
-              className="text-center text-sm font-semibold text-neutral-600 py-2"
+              className="text-center text-[10px] font-semibold text-neutral-600 py-1 sm:text-sm sm:py-2"
             >
               {dia}
             </div>
@@ -142,7 +147,7 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
         </div>
 
         {/* Dias do mês */}
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {calendarDays.map((day) => {
             const dateStr = format(day, 'yyyy-MM-dd')
             const agendamentosNoDia = agendamentosPorData[dateStr] || []
@@ -155,7 +160,7 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
                 key={day.toString()}
                 onClick={() => handleDayClick(day)}
                 className={`
-                  min-h-[120px] p-2 border rounded-lg cursor-pointer transition-all
+                  min-h-[64px] sm:min-h-[88px] md:min-h-[100px] lg:min-h-[120px] p-1 sm:p-2 border rounded-md sm:rounded-lg cursor-pointer transition-all
                   ${!isCurrentMonth ? 'bg-neutral-50 opacity-50' : 'bg-white hover:bg-primary-50'}
                   ${isToday ? 'border-primary-500 border-2 bg-primary-50' : 'border-neutral-200'}
                   ${isSelected ? 'ring-2 ring-primary-500' : ''}
@@ -163,14 +168,14 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
               >
                 {/* Número do dia */}
                 <div className={`
-                  text-sm font-semibold mb-2
+                  text-xs sm:text-sm font-semibold mb-0.5 sm:mb-2
                   ${isToday ? 'text-primary-600' : isCurrentMonth ? 'text-neutral-900' : 'text-neutral-400'}
                 `}>
                   {format(day, 'd')}
                 </div>
 
-                {/* Agendamentos */}
-                <div className="space-y-1">
+                {/* Agendamentos — compacto no mobile */}
+                <div className="hidden sm:block space-y-1">
                   {agendamentosNoDia.slice(0, 3).map((ag) => (
                     <div
                       key={ag.id}
@@ -185,7 +190,7 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
                       `}
                     >
                       <div className="flex items-center gap-1 mb-0.5">
-                        <Clock className="w-3 h-3" />
+                        <Clock className="w-3 h-3 shrink-0" />
                         <span className="font-medium">
                           {formatTimeHHmm(ag.horario_inicio)}
                         </span>
@@ -195,12 +200,17 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
                       </div>
                     </div>
                   ))}
-                  
-                  {/* Indicador de mais agendamentos */}
                   {agendamentosNoDia.length > 3 && (
                     <div className="text-xs text-primary-600 font-medium pl-1">
                       +{agendamentosNoDia.length - 3} mais
                     </div>
+                  )}
+                </div>
+                <div className="sm:hidden">
+                  {agendamentosNoDia.length > 0 && (
+                    <p className="text-[10px] font-medium leading-tight text-primary-600">
+                      {agendamentosNoDia.length} agend.
+                    </p>
                   )}
                 </div>
               </div>
@@ -210,17 +220,17 @@ export default function CalendarView({ agendamentos, onAgendamentoClick, selecte
       </div>
 
       {/* Footer com estatísticas */}
-      <div className="border-t border-neutral-200 p-4 bg-neutral-50">
-        <div className="flex justify-between text-sm text-neutral-600">
-          <span>
+      <div className="border-t border-neutral-200 p-3 sm:p-4 bg-neutral-50">
+        <div className="flex flex-col gap-2 text-sm text-neutral-600 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:gap-y-1">
+          <span className="text-center sm:text-left">
             <strong className="text-neutral-900">{agendamentos.length}</strong> agendamento(s) neste mês
           </span>
-          <span>
+          <span className="text-center sm:text-left">
             <strong className="text-neutral-900">
               {agendamentos.filter(a => ['agendada', 'confirmada'].includes(a.status)).length}
             </strong> agendado(s)
           </span>
-          <span>
+          <span className="text-center sm:text-left">
             <strong className="text-neutral-900">
               {agendamentos.filter(a => a.status === 'concluida').length}
             </strong> concluído(s)

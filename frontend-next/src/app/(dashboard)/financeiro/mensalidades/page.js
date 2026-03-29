@@ -504,19 +504,19 @@ export default function MensalidadesPage() {
       {/* Calendário */}
       {abaAtiva === 'calendario' && (
         <div className="bg-white rounded-2xl shadow-card border border-neutral-100 overflow-hidden animate-fade-in">
-          <div className="p-4 border-b border-neutral-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
+          <div className="p-4 border-b border-neutral-100 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 w-full items-center justify-center gap-2 sm:justify-start">
               <button
                 type="button"
                 onClick={() => setCalendarioMesAno(prev => {
                   const d = subMonths(new Date(prev.year, prev.month - 1, 1), 1)
                   return { year: d.getFullYear(), month: d.getMonth() + 1 }
                 })}
-                className="p-2 rounded-xl hover:bg-neutral-100 text-neutral-600 transition-colors"
+                className="shrink-0 p-2 rounded-xl hover:bg-neutral-100 text-neutral-600 transition-colors"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <h2 className="text-lg font-semibold text-neutral-900 min-w-[200px] text-center">
+              <h2 className="min-w-0 flex-1 text-center text-base font-semibold capitalize text-neutral-900 sm:flex-none sm:text-lg sm:min-w-[12rem]">
                 {format(new Date(calendarioMesAno.year, calendarioMesAno.month - 1, 1), 'MMMM yyyy', { locale: ptBR })}
               </h2>
               <button
@@ -525,12 +525,12 @@ export default function MensalidadesPage() {
                   const d = addMonths(new Date(prev.year, prev.month - 1, 1), 1)
                   return { year: d.getFullYear(), month: d.getMonth() + 1 }
                 })}
-                className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-600 transition-colors"
+                className="shrink-0 p-2 rounded-lg hover:bg-neutral-100 text-neutral-600 transition-colors"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex items-center gap-3 text-sm text-neutral-600">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-neutral-600 sm:justify-end">
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500" /> Pago</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500" /> Pendente</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-neutral-400" /> Previsto</span>
@@ -715,7 +715,7 @@ export default function MensalidadesPage() {
                       <div className="flex flex-wrap gap-2 pt-2">
                         {abaAtiva === 'ativas' ? (
                           <>
-                            <button onClick={() => handleEditarMensalidade(mensalidade)} className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100">
+                            <button onClick={() => handleEditarMensalidade(mensalidade)} className="flex-1 min-w-0 basis-[calc(50%-0.25rem)] sm:min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100">
                               <Edit className="w-4 h-4" /> Editar
                             </button>
                             {statusPagamento !== 'sem_pagamento' && (
@@ -723,20 +723,20 @@ export default function MensalidadesPage() {
                                 <button
                                   onClick={() => pagamentoMes && abrirModalMarcarPago({ ...pagamentoMes, paciente_nome: mensalidade.paciente_nome, valor_pago: pagamentoMes.valor_pago ?? mensalidade.valor_mensalidade, valor_mensalidade: mensalidade.valor_mensalidade })}
                                   disabled={statusPagamento === 'pago'}
-                                  className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 disabled:opacity-40"
+                                  className="flex-1 min-w-0 basis-[calc(50%-0.25rem)] sm:min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 disabled:opacity-40"
                                 >
                                   <CheckCircle className="w-4 h-4" /> Marcar pago
                                 </button>
                                 <button
                                   onClick={() => handleSalvarStatusPagamento(mensalidade, 'pendente')}
                                   disabled={statusPagamento !== 'pago'}
-                                  className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-yellow-700 bg-yellow-50 rounded-lg hover:bg-yellow-100 disabled:opacity-40"
+                                  className="flex-1 min-w-0 basis-[calc(50%-0.25rem)] sm:min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-yellow-700 bg-yellow-50 rounded-lg hover:bg-yellow-100 disabled:opacity-40"
                                 >
                                   <Clock className="w-4 h-4" /> Voltar pendente
                                 </button>
                               </>
                             )}
-                            <button onClick={() => handleToggleAtivo(mensalidade)} className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100">
+                            <button onClick={() => handleToggleAtivo(mensalidade)} className="flex-1 min-w-0 basis-[calc(50%-0.25rem)] sm:min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100">
                               <Archive className="w-4 h-4" /> Inativar
                             </button>
                           </>
