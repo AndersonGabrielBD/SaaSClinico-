@@ -23,6 +23,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -31,6 +32,7 @@ body {
   background: linear-gradient(135deg, #f0faf5 0%, #F8F9FA 40%, #f0f4ff 100%);
   color: #212529;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 ::-webkit-scrollbar {

@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }) {
         <div className="flex-1 flex flex-col min-w-0">
           <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
           
-          <main className="flex-1 overflow-y-auto bg-gradient-to-br from-primary-50/30 via-neutral-50 to-blue-50/20">
+          <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y bg-gradient-to-br from-primary-50/30 via-neutral-50 to-blue-50/20">
             <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-6">
               {children}
             </div>
