@@ -121,23 +121,26 @@ export default function FrequenciaCard({ pacienteId }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-semibold">Frequência de Atendimentos</h3>
-        <div className="flex items-center gap-2">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-base font-semibold leading-snug text-neutral-900 sm:text-lg">
+          Frequência de atendimentos
+        </h3>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
           <Link
             href="/frequencia"
-            className="px-4 py-2 border border-primary-600 text-primary-600 rounded-lg hover:bg-primary-50 flex items-center gap-2 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary-600 px-3 py-2 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 sm:px-4 sm:text-sm"
           >
-            <ExternalLink className="w-4 h-4" />
-            Ver Resumo
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+            Ver resumo
           </Link>
           {canManageFrequencia && (
             <button
+              type="button"
               onClick={handleOpenRegistroModal}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              className="rounded-lg bg-primary-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-700 sm:px-4 sm:text-sm"
             >
-              Registrar Frequência
+              Registrar frequência
             </button>
           )}
         </div>
@@ -145,39 +148,39 @@ export default function FrequenciaCard({ pacienteId }) {
 
       {/* Estatísticas Gerais */}
       {estatisticas && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow border border-neutral-200">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded">
-                <Calendar className="w-5 h-5 text-blue-600" />
+        <div className="grid grid-cols-1 gap-2 sm:gap-4 md:grid-cols-3">
+          <div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="rounded bg-blue-100 p-1.5 sm:p-2">
+                <Calendar className="h-4 w-4 text-blue-600 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <p className="text-sm text-neutral-600">Total de Consultas</p>
-                <p className="text-2xl font-bold">{estatisticas.total_atendimentos}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg shadow border border-neutral-200">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-neutral-600">Comparecimentos</p>
-                <p className="text-2xl font-bold">{estatisticas.total_comparecimentos}</p>
+              <div className="min-w-0">
+                <p className="text-xs text-neutral-600 sm:text-sm">Total de consultas</p>
+                <p className="text-xl font-bold tabular-nums sm:text-2xl">{estatisticas.total_atendimentos}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow border border-neutral-200">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 rounded">
-                <TrendingUp className="w-5 h-5 text-yellow-600" />
+          <div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="rounded bg-green-100 p-1.5 sm:p-2">
+                <CheckCircle className="h-4 w-4 text-green-600 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <p className="text-sm text-neutral-600">Taxa de Presença</p>
-                <p className="text-2xl font-bold">{estatisticas.percentual_presenca}%</p>
+              <div className="min-w-0">
+                <p className="text-xs text-neutral-600 sm:text-sm">Comparecimentos</p>
+                <p className="text-xl font-bold tabular-nums sm:text-2xl">{estatisticas.total_comparecimentos}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="rounded bg-yellow-100 p-1.5 sm:p-2">
+                <TrendingUp className="h-4 w-4 text-yellow-600 sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-neutral-600 sm:text-sm">Taxa de presença</p>
+                <p className="text-xl font-bold tabular-nums sm:text-2xl">{estatisticas.percentual_presenca}%</p>
               </div>
             </div>
           </div>
@@ -185,16 +188,16 @@ export default function FrequenciaCard({ pacienteId }) {
       )}
 
       {/* Lista de Frequências com opção de deletar */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
         <FrequenciaLista pacienteId={pacienteId} user={user} />
       </div>
 
       {/* Estatísticas por Profissional */}
       {estatisticasPorProfissional.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="font-semibold mb-3 flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Frequência por Profissional
+        <div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
+          <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold sm:mb-3 sm:text-base">
+            <User className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+            Frequência por profissional
           </h4>
           <div className="space-y-3">
             {estatisticasPorProfissional.map((prof) => (
@@ -205,17 +208,17 @@ export default function FrequenciaCard({ pacienteId }) {
                     {prof.percentual_presenca}%
                   </span>
                 </div>
-                <div className="flex gap-4 text-sm text-neutral-600">
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-600 sm:text-sm">
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
+                    <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                     {prof.total_atendimentos} consultas
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-600 sm:h-4 sm:w-4" />
                     {prof.total_comparecimentos} presenças
                   </span>
                   <span className="flex items-center gap-1">
-                    <XCircle className="w-4 h-4 text-red-600" />
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-red-600 sm:h-4 sm:w-4" />
                     {prof.total_faltas} faltas
                   </span>
                 </div>
@@ -233,9 +236,9 @@ export default function FrequenciaCard({ pacienteId }) {
 
       {/* Modal de Registro */}
       {showRegistroModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Registrar Frequência</h2>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-lg sm:p-6">
+            <h2 className="mb-3 text-lg font-bold sm:mb-4 sm:text-xl">Registrar frequência</h2>
             
             {/* Info de quem registrou */}
             {user && (

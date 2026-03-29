@@ -260,107 +260,124 @@ export default function ProntuarioDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-16 sm:pb-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/prontuarios">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4" />
+      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-2 sm:gap-4">
+          <Link href="/prontuarios" className="shrink-0">
+            <Button variant="ghost" size="sm" className="h-9 px-2 sm:px-3">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-neutral-900">{prontuario.titulo}</h1>
-            <p className="text-neutral-600 mt-1 flex items-center gap-2">
-              <User className="w-4 h-4" />
-              {paciente?.nome_completo || 'Paciente não encontrado'}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold leading-snug text-neutral-900 sm:text-xl md:text-2xl">
+              {prontuario.titulo}
+            </h1>
+            <p className="mt-1 flex items-center gap-2 text-sm text-neutral-600">
+              <User className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+              <span className="truncate">{paciente?.nome_completo || 'Paciente não encontrado'}</span>
             </p>
           </div>
         </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleExportPdf} 
-            variant="outline" 
-            icon={<FileDown className="w-4 h-4" />}
+
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-2">
+          <Button
+            onClick={handleExportPdf}
+            variant="outline"
+            size="sm"
+            title="Exportar PDF"
+            className="!h-9 !min-h-0 py-2 text-[11px] sm:!h-11 sm:text-sm"
+            icon={<FileDown className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />}
             disabled={exportingPdf}
           >
-            {exportingPdf ? 'Gerando...' : 'Exportar PDF'}
+            {exportingPdf ? '...' : 'PDF'}
           </Button>
-          <Button onClick={handleEdit} variant="secondary" icon={<Edit className="w-4 h-4" />}>
+          <Button
+            onClick={handleEdit}
+            variant="secondary"
+            size="sm"
+            className="!h-9 !min-h-0 py-2 text-[11px] sm:!h-11 sm:text-sm"
+            icon={<Edit className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />}
+          >
             Editar
           </Button>
-          <Button onClick={handleDelete} variant="danger" icon={<Trash2 className="w-4 h-4" />}>
+          <Button
+            onClick={handleDelete}
+            variant="danger"
+            size="sm"
+            className="!h-9 !min-h-0 py-2 text-[11px] sm:!h-11 sm:text-sm"
+            icon={<Trash2 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />}
+          >
             Excluir
           </Button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
         {/* Left Column - Main Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Descrição */}
           {prontuario.descricao && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                <FileText className="w-5 h-5" />
+            <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:mb-3 sm:text-lg">
+                <FileText className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Descrição
               </h2>
-              <p className="text-neutral-700 whitespace-pre-wrap">{prontuario.descricao}</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap sm:text-base">{prontuario.descricao}</p>
             </div>
           )}
 
           {/* Queixas */}
           {prontuario.queixas && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
+            <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:mb-3 sm:text-lg">
+                <AlertTriangle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Queixas
               </h2>
-              <p className="text-neutral-700 whitespace-pre-wrap">{prontuario.queixas}</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap sm:text-base">{prontuario.queixas}</p>
             </div>
           )}
 
           {/* Diagnóstico Preliminar */}
           {prontuario.diagnostico_preliminar && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-3">
+            <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="mb-2 text-base font-semibold text-neutral-900 sm:mb-3 sm:text-lg">
                 Diagnóstico Preliminar
               </h2>
-              <p className="text-neutral-700 whitespace-pre-wrap">{prontuario.diagnostico_preliminar}</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap sm:text-base">{prontuario.diagnostico_preliminar}</p>
             </div>
           )}
 
           {/* Histórico Clínico */}
           {prontuario.historico_clinico && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-3">
+            <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="mb-2 text-base font-semibold text-neutral-900 sm:mb-3 sm:text-lg">
                 Histórico Clínico
               </h2>
-              <p className="text-neutral-700 whitespace-pre-wrap">{prontuario.historico_clinico}</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap sm:text-base">{prontuario.historico_clinico}</p>
             </div>
           )}
 
           {/* Alergias */}
           {prontuario.alergias && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-red-200 bg-red-50">
-              <h2 className="text-lg font-semibold text-red-900 mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm sm:p-6">
+              <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-red-900 sm:mb-3 sm:text-lg">
+                <AlertTriangle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Alergias
               </h2>
-              <p className="text-red-800 whitespace-pre-wrap font-medium">{prontuario.alergias}</p>
+              <p className="text-sm font-medium whitespace-pre-wrap text-red-800 sm:text-base">{prontuario.alergias}</p>
             </div>
           )}
 
           {/* Medicações */}
           {prontuario.medicacoes && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                <Pill className="w-5 h-5" />
+            <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:mb-3 sm:text-lg">
+                <Pill className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Medicações
               </h2>
-              <p className="text-neutral-700 whitespace-pre-wrap">{prontuario.medicacoes}</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap sm:text-base">{prontuario.medicacoes}</p>
             </div>
           )}
         </div>
@@ -369,9 +386,9 @@ export default function ProntuarioDetailPage() {
         <div className="space-y-6">
           {/* Informações do Paciente */}
           {paciente && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5" />
+            <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:mb-4 sm:text-lg">
+                <User className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Informações do Paciente
               </h2>
               <div className="space-y-3">
@@ -413,9 +430,9 @@ export default function ProntuarioDetailPage() {
           )}
 
           {/* Metadados do Prontuário */}
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-            <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5" />
+          <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+            <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:mb-4 sm:text-lg">
+              <Clock className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
               Informações do Registro
             </h2>
             <div className="space-y-3">
@@ -457,9 +474,9 @@ export default function ProntuarioDetailPage() {
 
           {/* Agendamento Relacionado */}
           {prontuario.agendamento_id && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
+            <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
+              <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:mb-4 sm:text-lg">
+                <Calendar className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Agendamento Relacionado
               </h2>
               <Link href={`/agendamentos/${prontuario.agendamento_id}`}>
@@ -473,13 +490,19 @@ export default function ProntuarioDetailPage() {
       </div>
 
       {/* Evoluções clínicas */}
-      <div className="mt-8 bg-white rounded-lg p-6 shadow-sm border border-neutral-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h2 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
-            <ClipboardList className="w-5 h-5" />
+      <div className="mt-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:mt-8 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg">
+            <ClipboardList className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
             Evoluções
           </h2>
-          <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={openNovaEvolucao}>
+          <Button
+            variant="primary"
+            size="sm"
+            className="w-full shrink-0 !h-9 py-2 text-xs sm:w-auto sm:!h-11 sm:text-sm"
+            icon={<Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+            onClick={openNovaEvolucao}
+          >
             Nova evolução
           </Button>
         </div>
@@ -632,13 +655,13 @@ export default function ProntuarioDetailPage() {
       )}
 
       {canAccessModule(getUserRole(), 'relatorios') && prontuario.paciente_id && (
-      <div className="mt-8">
+      <div className="mt-6 sm:mt-8">
         <RelatoriosList pacienteId={prontuario.paciente_id} />
       </div>
       )}
 
       {/* Frequência de Atendimentos */}
-      <div className="mt-8">
+      <div className="mt-6 sm:mt-8">
         <FrequenciaCard pacienteId={prontuario.paciente_id} />
       </div>
 

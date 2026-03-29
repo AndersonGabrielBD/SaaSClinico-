@@ -154,15 +154,18 @@ export default function RelatoriosList({ pacienteId }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-semibold">Relatórios do Paciente</h3>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-base font-semibold leading-snug text-neutral-900 sm:text-lg">
+          Relatórios do paciente
+        </h3>
         <button
+          type="button"
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-700 sm:w-auto sm:px-4 sm:text-sm"
         >
-          <Plus className="w-4 h-4" />
-          Upload Relatório
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          Upload relatório
         </button>
       </div>
 
@@ -175,48 +178,54 @@ export default function RelatoriosList({ pacienteId }) {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-2 sm:gap-3">
           {relatorios.map((relatorio) => (
-            <div key={relatorio.id} className="bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start">
-                <div className="flex items-start gap-3 flex-1">
-                  <div className="text-3xl">{getFileIcon(relatorio.tipo_arquivo)}</div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-neutral-900">{relatorio.titulo}</h4>
-                    <p className="text-sm text-neutral-600 mt-1">
+            <div
+              key={relatorio.id}
+              className="rounded-lg border border-neutral-200 bg-white p-3 transition-shadow hover:shadow-md sm:p-4"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
+                  <div className="text-2xl leading-none sm:text-3xl">{getFileIcon(relatorio.tipo_arquivo)}</div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-semibold text-neutral-900 sm:text-base">{relatorio.titulo}</h4>
+                    <p className="mt-1 text-xs text-neutral-600 sm:text-sm">
                       Profissional: {relatorio.profissional_nome || 'Não informado'}
                     </p>
                     {relatorio.observacoes && (
-                      <p className="text-sm text-neutral-500 mt-1 italic">
+                      <p className="mt-1 text-xs italic text-neutral-500 sm:text-sm">
                         {relatorio.observacoes}
                       </p>
                     )}
-                    <p className="text-xs text-neutral-400 mt-2">
-                      Enviado em {(() => {
+                    <p className="mt-2 text-[11px] text-neutral-500 sm:text-xs">
+                      Enviado em{' '}
+                      {(() => {
                         const date = parseDateSafe(relatorio.data_upload)
                         if (!date) return 'Data inválida'
                         return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
                       })()}
                     </p>
-                    <p className="text-xs text-neutral-400">
-                      Arquivo: {relatorio.nome_arquivo_original}
+                    <p className="text-[11px] text-neutral-500 break-all sm:text-xs">
+                      {relatorio.nome_arquivo_original}
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 justify-end gap-1 border-t border-neutral-100 pt-2 sm:border-0 sm:pt-0">
                   <button
+                    type="button"
                     onClick={() => handleDownload(relatorio.id, relatorio.nome_arquivo_original)}
-                    className="p-2 text-green-600 hover:bg-green-50 rounded"
+                    className="rounded-lg p-2 text-green-600 hover:bg-green-50"
                     title="Download"
                   >
-                    <Download className="w-5 h-5" />
+                    <Download className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleDelete(relatorio.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    className="rounded-lg p-2 text-red-600 hover:bg-red-50"
                     title="Excluir"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
                 </div>
               </div>
@@ -227,9 +236,9 @@ export default function RelatoriosList({ pacienteId }) {
 
       {/* Modal de Upload */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Upload de Relatório</h2>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-lg sm:p-6">
+            <h2 className="mb-3 text-lg font-bold sm:mb-4 sm:text-xl">Upload de relatório</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
