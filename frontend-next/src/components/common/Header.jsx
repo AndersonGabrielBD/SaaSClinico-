@@ -87,7 +87,7 @@ export default function Header({ onMenuClick }) {
   }, [userMenuOpen])
 
   return (
-    <header className="bg-white/80 backdrop-blur-md border-b border-neutral-100/80 h-[72px] px-4 md:px-6 flex items-center gap-4 sticky top-0 z-30">
+    <header className="relative z-40 flex h-[72px] shrink-0 items-center gap-4 border-b border-neutral-100/80 bg-white/80 px-4 backdrop-blur-md md:px-6">
       {/* Left — mobile hamburger */}
       <button
         onClick={onMenuClick}
