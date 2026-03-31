@@ -17,6 +17,11 @@ export default function Header({ onMenuClick }) {
     : user?.role === 'fono' ? 'Fonoaudiólogo'
     : user?.role || 'Profissional'
 
+  const firstName = (user?.nome || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)[0] || user?.email?.split('@')[0] || 'Usuário'
+
   const initials = displayName
     .split(' ')
     .map(n => n[0])
@@ -87,7 +92,7 @@ export default function Header({ onMenuClick }) {
   }, [userMenuOpen])
 
   return (
-    <header className="relative z-40 flex h-[72px] shrink-0 items-center gap-4 border-b border-neutral-100/80 bg-white/80 px-4 backdrop-blur-md md:px-6">
+    <header className="relative z-[45] flex h-[72px] shrink-0 items-center gap-4 border-b border-neutral-100/80 bg-white/80 px-4 backdrop-blur-md max-lg:fixed max-lg:inset-x-0 max-lg:top-0 md:px-6">
       {/* Left — mobile hamburger */}
       <button
         onClick={onMenuClick}
@@ -140,7 +145,7 @@ export default function Header({ onMenuClick }) {
                 >
                   <div className="px-4 py-3 border-b border-neutral-100">
                     <p className="text-sm font-semibold text-neutral-900 truncate">{displayName}</p>
-                    <p className="text-xs text-neutral-400 truncate mt-0.5">{user?.email}</p>
+                    <p className="text-xs text-neutral-400 truncate mt-0.5">{firstName}</p>
                   </div>
                   <div className="py-1">
                     <button
