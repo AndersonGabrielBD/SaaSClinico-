@@ -63,8 +63,8 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+        <div
+          className="fixed inset-0 z-30 touch-none overscroll-none bg-black/30 backdrop-blur-sm transition-opacity lg:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
