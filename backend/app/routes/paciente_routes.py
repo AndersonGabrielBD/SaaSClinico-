@@ -10,6 +10,17 @@ _PAGE_SIZE_DEFAULT = 100
 _PAGE_SIZE_MAX = 500
 
 
+def _normalize_cpf_payload(data):
+    """CPF vazio ou só espaços vira NULL no banco (evita UNIQUE em string vazia)."""
+    if not isinstance(data, dict) or 'cpf' not in data:
+        return
+    v = data.get('cpf')
+    if v is None:
+        return
+    s = str(v).strip()
+    data['cpf'] = s if s else None
+
+
 @paciente_bp.route('', methods=['GET'])
 @require_auth
 @require_roles(['admin', 'recepcao', 'fono', 'medico', 'profissional'])
@@ -96,7 +107,8 @@ def create_paciente():
         clinica_id = user['clinica_id']
         
         data = request.get_json()
-        
+        _normalize_cpf_payload(data)
+
         # Validações básicas
         if not data.get('nome_completo'):
             return jsonify({'error': 'Campo nome_completo é obrigatório'}), 400
@@ -128,7 +140,8 @@ def update_paciente(paciente_id):
         clinica_id = user['clinica_id']
         
         data = request.get_json()
-        
+        _normalize_cpf_payload(data)
+
         repo = BaseRepository('pacientes', clinica_id)
         
         # Verifica se existe
