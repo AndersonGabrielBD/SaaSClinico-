@@ -2,6 +2,26 @@
 // API Base URL - Flask roda na porta 5000
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
+/** Extrai texto legível de erros JSON (Flask { error }, PostgREST { message, code }). */
+function apiErrorMessage(body) {
+  if (body == null) return 'Erro na requisição';
+  if (typeof body === 'string') return body;
+  if (typeof body.message === 'string' && body.message.trim()) return body.message;
+  if (typeof body.error === 'string' && body.error.trim()) {
+    const t = body.error.trim();
+    if (t.startsWith('{') || t.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(t);
+        if (parsed && typeof parsed.message === 'string') return parsed.message;
+      } catch {
+        /* ignore */
+      }
+    }
+    return body.error;
+  }
+  return 'Erro na requisição';
+}
+
 // Helper para fazer requisições
 async function request(endpoint, options = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -38,7 +58,7 @@ async function request(endpoint, options = {}) {
       } catch {
         error = { error: errorText || 'Erro desconhecido' };
       }
-      throw new Error(error.error || error.message || 'Erro na requisição');
+      throw new Error(apiErrorMessage(error));
     }
 
     const text = await response.text();

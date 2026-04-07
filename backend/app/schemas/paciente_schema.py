@@ -1,11 +1,21 @@
 # filepath: backend/app/schemas/paciente_schema.py
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, field_validator
+from typing import Optional, Any
 from datetime import date, datetime
 
 class PacienteBase(BaseModel):
     nome_completo: str
     cpf: Optional[str] = None
+
+    @field_validator('cpf', mode='before')
+    @classmethod
+    def empty_cpf_to_none(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return v
     data_nascimento: Optional[date] = None
     genero: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -29,6 +39,16 @@ class PacienteCreate(PacienteBase):
 class PacienteUpdate(BaseModel):
     nome_completo: Optional[str] = None
     cpf: Optional[str] = None
+
+    @field_validator('cpf', mode='before')
+    @classmethod
+    def empty_cpf_to_none(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return v
     data_nascimento: Optional[date] = None
     genero: Optional[str] = None
     email: Optional[EmailStr] = None
