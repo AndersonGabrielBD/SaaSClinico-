@@ -67,18 +67,15 @@ def buscar_mensalidade(mensalidade_id):
 @require_auth
 @require_roles(['admin', 'recepcao'])
 def buscar_mensalidade_paciente(paciente_id):
-    """Busca mensalidade de um paciente específico"""
+    """Lista mensalidades ativas de um paciente (pode haver mais de uma, por profissional)."""
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
         
         service = MensalidadeService()
-        mensalidade = service.buscar_mensalidade_por_paciente(paciente_id, clinica_id)
+        mensalidades = service.listar_mensalidades_por_paciente(paciente_id, clinica_id)
         
-        if not mensalidade:
-            return jsonify({'message': 'Paciente não possui mensalidade cadastrada'}), 404
-        
-        return jsonify(mensalidade), 200
+        return jsonify(mensalidades), 200
         
     except Exception as e:
         logger.error(f"❌ Erro ao buscar mensalidade do paciente: {str(e)}")
@@ -105,7 +102,8 @@ def criar_mensalidade():
             valor_mensalidade=dados.valor_mensalidade,
             dia_vencimento=dados.dia_vencimento,
             criado_por=user_id,
-            observacoes=dados.observacoes
+            observacoes=dados.observacoes,
+            profissional_id=dados.profissional_id,
         )
         
         return jsonify(mensalidade), 201
