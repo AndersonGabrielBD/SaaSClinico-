@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { mensalidadeService } from '@/services/mensalidadeService'
 import { pacienteService } from '@/services/pacienteService'
 import { profissionalService } from '@/services/profissionalService'
+import { pacoteService } from '@/services/pacoteService'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule } from '@/utils/roles'
 import { getTodayBrazil, getFirstDayOfMonthBrazil, getCurrentYearMonthBrazil, parseDateSafe } from '@/lib/dateUtils'
@@ -62,6 +63,7 @@ export default function MensalidadesPage() {
   const [showModal, setShowModal] = useState(false)
   const [selectedMensalidade, setSelectedMensalidade] = useState(null)
   const [pacientes, setPacientes] = useState([])
+  const [profissionais, setProfissionais] = useState([])
   const [abaAtiva, setAbaAtiva] = useState('ativas')
   const [calendarioMesAno, setCalendarioMesAno] = useState(() => {
     const { year, month } = getCurrentYearMonthBrazil()
@@ -140,6 +142,7 @@ export default function MensalidadesPage() {
         pagamento_id: pag.id,
         id: pag.id,
         paciente_nome: men.paciente_nome || 'Paciente',
+        profissional_nome: men.profissional_nome,
         valor_pago: pag.valor_pago ?? men.valor_mensalidade,
         valor_mensalidade: men.valor_mensalidade,
         data_vencimento: format(dataVenc, 'yyyy-MM-dd'),
@@ -160,6 +163,18 @@ export default function MensalidadesPage() {
       loadData()
       loadPacientes()
     }
+  }, [hasAccess])
+
+  useEffect(() => {
+    if (hasAccess !== true) return
+    ;(async () => {
+      try {
+        const data = await pacoteService.getProfissionais()
+        setProfissionais(Array.isArray(data) ? data : [])
+      } catch {
+        setProfissionais([])
+      }
+    })()
   }, [hasAccess])
 
   useEffect(() => {
@@ -185,8 +200,14 @@ export default function MensalidadesPage() {
         if (mid) acc[mid] = pagamento
         return acc
       }, {})
-      setMensalidades(mensalidadesAtivasData)
-      setMensalidadesInativas(mensalidadesInativasData)
+      const sortMensal = (arr) =>
+        [...(arr || [])].sort((a, b) => {
+          const byP = (a.paciente_nome || '').localeCompare(b.paciente_nome || '', 'pt-BR', { sensitivity: 'base' })
+          if (byP !== 0) return byP
+          return (a.profissional_nome || '').localeCompare(b.profissional_nome || '', 'pt-BR', { sensitivity: 'base' })
+        })
+      setMensalidades(sortMensal(mensalidadesAtivasData))
+      setMensalidadesInativas(sortMensal(mensalidadesInativasData))
       setPagamentosMesMap(pagamentosPorMensalidade)
       setProximosVencimentos(vencimentosData)
       setEstatisticas(statsData)
@@ -246,6 +267,7 @@ export default function MensalidadesPage() {
         id: pagamento?.id || `previsto-${m.id}-${dateKey}`,
         mensalidade_id: m.id,
         paciente_nome: m.paciente_nome || 'Paciente',
+        profissional_nome: m.profissional_nome,
         valor_mensalidade: m.valor_mensalidade,
         valor_pago: pagamento != null ? (pagamento.valor_pago ?? pagamento.valor_mensalidade ?? m.valor_mensalidade) : m.valor_mensalidade,
         status,
@@ -323,10 +345,12 @@ export default function MensalidadesPage() {
     try {
       if (selectedMensalidade?.id) {
         const novoDia = parseInt(formData.get('dia_vencimento'), 10)
+        const profissionalIdRaw = formData.get('profissional_id')?.toString().trim()
         await mensalidadeService.update(selectedMensalidade.id, {
           valor_mensalidade: parseFloat(formData.get('valor')),
           dia_vencimento: novoDia,
           observacoes,
+          profissional_id: profissionalIdRaw || null,
         })
         const { year, month } = getCurrentYearMonthBrazil()
         const pagamentoMes = pagamentosMesMap[selectedMensalidade.id]
@@ -338,11 +362,17 @@ export default function MensalidadesPage() {
         }
         showToast('Mensalidade atualizada!')
       } else {
+        const profissionalIdNovo = formData.get('profissional_id')?.toString().trim()
+        if (!profissionalIdNovo) {
+          showToast('Selecione o profissional vinculado a esta mensalidade', 'error')
+          return
+        }
         await mensalidadeService.create({
           paciente_id: formData.get('paciente_id'),
           valor_mensalidade: parseFloat(formData.get('valor')),
           dia_vencimento: parseInt(formData.get('dia_vencimento')),
           observacoes,
+          profissional_id: profissionalIdNovo,
         })
         showToast('Mensalidade criada!')
       }
@@ -394,7 +424,7 @@ export default function MensalidadesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Mensalidades</h1>
-          <p className="page-subtitle">Gerencie cobranças mensais recorrentes dos pacientes</p>
+          <p className="page-subtitle">Cobranças mensais por paciente e profissional (o mesmo paciente pode ter várias mensalidades)</p>
         </div>
         <div className="flex flex-wrap gap-2 self-start sm:self-auto">
           {abaAtiva === 'ativas' && mensalidades.length > 0 && (
@@ -582,8 +612,12 @@ export default function MensalidadesPage() {
                             </span>
                             <div className="flex-1 overflow-hidden space-y-0.5">
                               {eventosDia.slice(0, 3).map(ev => (
-                                <div key={ev.id} className={`text-xs truncate px-1.5 py-0.5 rounded ${statusClass(ev.status)}`}>
-                                  {ev.paciente_nome}
+                                <div
+                                  key={ev.id}
+                                  className={`text-xs truncate px-1.5 py-0.5 rounded ${statusClass(ev.status)}`}
+                                  title={ev.profissional_nome ? `${ev.paciente_nome} · ${ev.profissional_nome}` : ev.paciente_nome}
+                                >
+                                  {ev.profissional_nome ? `${ev.paciente_nome} · ${ev.profissional_nome}` : ev.paciente_nome}
                                 </div>
                               ))}
                               {eventosDia.length > 3 && <div className="text-xs text-neutral-500 px-1">+{eventosDia.length - 3}</div>}
@@ -618,6 +652,9 @@ export default function MensalidadesPage() {
                 <div key={ev.id} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border border-neutral-100 hover:bg-neutral-50">
                   <div>
                     <p className="font-medium text-neutral-900">{ev.paciente_nome || 'Paciente'}</p>
+                    {ev.profissional_nome ? (
+                      <p className="text-xs text-neutral-500">{ev.profissional_nome}</p>
+                    ) : null}
                     <p className="text-sm text-neutral-600">{formatCurrency(ev.valor_pago || ev.valor_mensalidade)}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -626,7 +663,7 @@ export default function MensalidadesPage() {
                     </span>
                     {ev.status === 'pendente' && ev.pagamento && (
                       <button
-                        onClick={() => abrirModalMarcarPago({ ...ev.pagamento, valor_pago: ev.pagamento.valor_pago ?? ev.valor_mensalidade, valor_mensalidade: ev.valor_mensalidade })}
+                        onClick={() => abrirModalMarcarPago({ ...ev.pagamento, valor_pago: ev.pagamento.valor_pago ?? ev.valor_mensalidade, valor_mensalidade: ev.valor_mensalidade, profissional_nome: ev.profissional_nome })}
                         className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700"
                       >
                         Marcar Pago
@@ -652,6 +689,9 @@ export default function MensalidadesPage() {
               <div key={venc.pagamento_id} className="bg-white border border-yellow-100 p-4 rounded-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <div className="flex-1">
                   <p className="font-semibold text-neutral-900">{venc.paciente_nome}</p>
+                  {venc.profissional_nome ? (
+                    <p className="text-xs text-neutral-500 mt-0.5">{venc.profissional_nome}</p>
+                  ) : null}
                   <p className="text-sm text-neutral-600 mt-1">
                     Vence em {venc.dias_ate_vencimento} dia{venc.dias_ate_vencimento !== 1 ? 's' : ''} • {(() => {
                       const date = parseDateSafe(venc.data_vencimento)
@@ -662,7 +702,7 @@ export default function MensalidadesPage() {
                 <div className="flex items-center gap-3">
                   <p className="font-bold text-lg text-neutral-900">{formatCurrency(venc.valor_pago)}</p>
                   <button
-                    onClick={() => abrirModalMarcarPago({ ...venc, id: venc.pagamento_id })}
+                    onClick={() => abrirModalMarcarPago({ ...venc, id: venc.pagamento_id, profissional_nome: venc.profissional_nome })}
                     className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 whitespace-nowrap"
                   >
                     Marcar Pago
@@ -703,7 +743,12 @@ export default function MensalidadesPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="font-semibold text-neutral-900">{mensalidade.paciente_nome}</h3>
-                          <p className="text-sm text-neutral-600 mt-0.5">Vence todo dia {mensalidade.dia_vencimento}</p>
+                          <p className="text-sm text-neutral-600 mt-0.5">
+                            {mensalidade.profissional_nome ? (
+                              <span>{mensalidade.profissional_nome} · </span>
+                            ) : null}
+                            Vence todo dia {mensalidade.dia_vencimento}
+                          </p>
                         </div>
                         <p className="font-bold text-lg text-neutral-900">{formatCurrency(mensalidade.valor_mensalidade)}</p>
                       </div>
@@ -764,6 +809,7 @@ export default function MensalidadesPage() {
               <thead className="bg-neutral-50">
                 <tr>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase">Paciente</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase">Profissional</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase">Valor</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-neutral-700 uppercase">Vence dia</th>
                   {abaAtiva === 'ativas' && (
@@ -790,6 +836,11 @@ export default function MensalidadesPage() {
                           {exibirLembrete && statusPagamento !== 'pago' && <Clock className={`w-4 h-4 flex-shrink-0 ${diasAteVencimento === 1 ? 'text-red-600' : 'text-orange-600'}`} />}
                           <span className="text-sm font-medium text-neutral-900 truncate max-w-[140px]">{mensalidade.paciente_nome}</span>
                         </div>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral-700 max-w-[120px]">
+                        <span className="truncate block" title={mensalidade.profissional_nome || ''}>
+                          {mensalidade.profissional_nome || '—'}
+                        </span>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap text-sm font-medium text-neutral-900">{formatCurrency(mensalidade.valor_mensalidade)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
@@ -857,7 +908,7 @@ export default function MensalidadesPage() {
             <div className="flex items-center justify-between p-4 border-b border-neutral-200 flex-shrink-0">
               <div>
                 <h2 className="text-base font-semibold text-neutral-900">{selectedMensalidade ? 'Editar mensalidade' : 'Nova mensalidade'}</h2>
-                <p className="text-xs text-neutral-500 mt-0.5">{selectedMensalidade ? 'Altere valor, dia de vencimento e observações.' : 'Preencha os dados da mensalidade.'}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">{selectedMensalidade ? 'Valor, vencimento, profissional e observações.' : 'Um mesmo paciente pode ter uma mensalidade por profissional.'}</p>
               </div>
               <button onClick={() => { setShowModal(false); setSelectedMensalidade(null) }} className="p-2 hover:bg-neutral-100 rounded-lg">
                 <X className="w-5 h-5 text-neutral-500" />
@@ -875,6 +926,34 @@ export default function MensalidadesPage() {
                   <select name="paciente_id" required className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
                     <option value="">Selecione</option>
                     {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome_completo}</option>)}
+                  </select>
+                  <p className="text-xs text-neutral-500 mt-1.5">
+                    Para o mesmo paciente com outro valor ou vencimento, use <strong className="font-medium text-neutral-600">Nova mensalidade</strong> de novo e escolha outro profissional (uma mensalidade ativa por profissional).
+                  </p>
+                </div>
+              )}
+              {selectedMensalidade ? (
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Profissional</label>
+                  <select
+                    name="profissional_id"
+                    defaultValue={selectedMensalidade.profissional_id || ''}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                  >
+                    <option value="">Sem profissional</option>
+                    {profissionais.map((p) => (
+                      <option key={p.id} value={p.id}>{p.nome_completo}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Profissional <span className="text-red-500">*</span></label>
+                  <select name="profissional_id" required className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
+                    <option value="">Selecione o profissional</option>
+                    {profissionais.map((p) => (
+                      <option key={p.id} value={p.id}>{p.nome_completo}</option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -914,6 +993,9 @@ export default function MensalidadesPage() {
                 <div className="p-3 bg-neutral-50 rounded-lg">
                   <p className="text-xs text-neutral-600 font-medium">Paciente</p>
                   <p className="font-medium text-neutral-900">{pagamentoParaPagar.paciente_nome}</p>
+                  {pagamentoParaPagar.profissional_nome ? (
+                    <p className="text-xs text-neutral-500 mt-1">Profissional: {pagamentoParaPagar.profissional_nome}</p>
+                  ) : null}
                 </div>
               )}
               <div>

@@ -11,6 +11,10 @@ class MensalidadeCreate(BaseModel):
     valor_mensalidade: Decimal = Field(..., gt=0, description="Valor da mensalidade")
     dia_vencimento: int = Field(..., ge=1, le=31, description="Dia do mês para vencimento")
     observacoes: Optional[str] = None
+    profissional_id: Optional[str] = Field(
+        None,
+        description="Profissional vinculado (permite várias mensalidades por paciente, uma por profissional)",
+    )
 
     @validator('valor_mensalidade')
     def validar_valor(cls, v):
@@ -25,6 +29,7 @@ class MensalidadeUpdate(BaseModel):
     dia_vencimento: Optional[int] = Field(None, ge=1, le=31)
     ativo: Optional[bool] = None
     observacoes: Optional[str] = None
+    profissional_id: Optional[str] = None
 
     @validator('valor_mensalidade')
     def validar_valor(cls, v):
@@ -48,7 +53,9 @@ class MensalidadeResponse(BaseModel):
     
     # Dados do paciente (opcional, via join)
     paciente_nome: Optional[str] = None
-    
+    profissional_id: Optional[str] = None
+    profissional_nome: Optional[str] = None
+
     class Config:
         from_attributes = True
 

@@ -64,6 +64,54 @@ class MensalidadeService:
                     break
         
         raise last_error if last_error else Exception(f"Erro desconhecido em {operation_name}")
+
+    def _profissional_embed(self) -> str:
+        """Nome do FK para embed PostgREST (usuarios.profissional_id)."""
+        return 'profissional:usuarios!mensalidades_pacientes_profissional_id_fkey(nome_completo)'
+
+    def _validar_profissional_clinica(self, profissional_id: Optional[str], clinica_id: str) -> None:
+        """Garante que o profissional existe na clínica e tem papel adequado."""
+        if not profissional_id:
+            return
+        response = self.supabase.table('usuarios') \
+            .select('id, role') \
+            .eq('id', profissional_id) \
+            .eq('clinica_id', clinica_id) \
+            .eq('ativo', True) \
+            .limit(1) \
+            .execute()
+        rows = response.data or []
+        if not rows:
+            raise ValueError('Profissional não encontrado ou inativo nesta clínica')
+        row = rows[0]
+        if row.get('role') not in ('fono', 'medico', 'profissional'):
+            raise ValueError('Usuário selecionado não é um profissional válido')
+
+    def _existe_mensalidade_ativa_duplicada(
+        self,
+        clinica_id: str,
+        paciente_id: str,
+        profissional_id: Optional[str],
+        excluir_mensalidade_id: Optional[str] = None,
+    ) -> bool:
+        """Uma mensalidade ativa por (paciente, profissional); profissional None = legado (sem vínculo)."""
+        response = self.supabase.table('mensalidades_pacientes') \
+            .select('id, profissional_id') \
+            .eq('clinica_id', clinica_id) \
+            .eq('paciente_id', paciente_id) \
+            .eq('ativo', True) \
+            .execute()
+        rows = response.data or []
+        for r in rows:
+            if excluir_mensalidade_id and r.get('id') == excluir_mensalidade_id:
+                continue
+            if profissional_id:
+                if r.get('profissional_id') == profissional_id:
+                    return True
+            else:
+                if r.get('profissional_id') == None or r.get('profissional_id') == '':
+                    return True
+        return False
     
     # ========================================================================
     # MENSALIDADES
@@ -73,7 +121,7 @@ class MensalidadeService:
         """Lista mensalidades da clínica com dados do paciente"""
         def operation():
             query = self.supabase.table('mensalidades_pacientes') \
-                .select('*, pacientes(id, nome_completo, cpf)') \
+                .select(f'*, pacientes(id, nome_completo, cpf), {self._profissional_embed()}') \
                 .eq('clinica_id', clinica_id) \
                 .order('data_criacao', desc=True)
             
@@ -87,6 +135,9 @@ class MensalidadeService:
                 paciente = item.pop('pacientes', None)
                 if paciente:
                     item['paciente_nome'] = paciente.get('nome_completo')
+                prof = item.pop('profissional', None)
+                if prof and isinstance(prof, dict):
+                    item['profissional_nome'] = prof.get('nome_completo')
                 mensalidades.append(item)
             
             logger.info(f"✅ Listadas {len(mensalidades)} mensalidades (filtro ativo={ativo})")
@@ -98,7 +149,7 @@ class MensalidadeService:
         """Busca uma mensalidade específica"""
         try:
             response = self.supabase.table('mensalidades_pacientes') \
-                .select('*, pacientes(id, nome_completo, cpf, telefone_principal)') \
+                .select(f'*, pacientes(id, nome_completo, cpf, telefone_principal), {self._profissional_embed()}') \
                 .eq('id', mensalidade_id) \
                 .eq('clinica_id', clinica_id) \
                 .single() \
@@ -109,6 +160,9 @@ class MensalidadeService:
             if paciente:
                 mensalidade['paciente_nome'] = paciente.get('nome_completo')
                 mensalidade['paciente_telefone'] = paciente.get('telefone_principal')
+            prof = mensalidade.pop('profissional', None)
+            if prof and isinstance(prof, dict):
+                mensalidade['profissional_nome'] = prof.get('nome_completo')
             
             logger.info(f"✅ Mensalidade {mensalidade_id} encontrada")
             return mensalidade
@@ -117,36 +171,44 @@ class MensalidadeService:
             logger.error(f"❌ Erro ao buscar mensalidade: {str(e)}")
             raise
     
-    def buscar_mensalidade_por_paciente(self, paciente_id: str, clinica_id: str) -> Optional[Dict]:
-        """Busca mensalidade de um paciente específico"""
+    def listar_mensalidades_por_paciente(self, paciente_id: str, clinica_id: str) -> List[Dict]:
+        """Lista mensalidades ativas e dados do paciente/profissional."""
         try:
             response = self.supabase.table('mensalidades_pacientes') \
-                .select('*') \
+                .select(f'*, pacientes(nome_completo), {self._profissional_embed()}') \
                 .eq('paciente_id', paciente_id) \
                 .eq('clinica_id', clinica_id) \
                 .eq('ativo', True) \
-                .maybe_single() \
+                .order('data_criacao', desc=True) \
                 .execute()
 
-            if response is None:
-                return None
+            rows = []
+            for item in response.data or []:
+                paciente = item.pop('pacientes', None)
+                if paciente:
+                    item['paciente_nome'] = paciente.get('nome_completo')
+                prof = item.pop('profissional', None)
+                if prof and isinstance(prof, dict):
+                    item['profissional_nome'] = prof.get('nome_completo')
+                rows.append(item)
+            return rows
 
-            return getattr(response, 'data', None)
-            
         except Exception as e:
-            logger.error(f"❌ Erro ao buscar mensalidade do paciente: {str(e)}")
+            logger.error(f"❌ Erro ao listar mensalidades do paciente: {str(e)}")
             raise
     
     def criar_mensalidade(self, clinica_id: str, paciente_id: str, 
                          valor_mensalidade: Decimal, dia_vencimento: int,
-                         criado_por: str, observacoes: Optional[str] = None) -> Dict:
-        """Cria uma nova mensalidade para um paciente"""
+                         criado_por: str, observacoes: Optional[str] = None,
+                         profissional_id: Optional[str] = None) -> Dict:
+        """Cria uma nova mensalidade para um paciente (várias por paciente, distintas por profissional)."""
         try:
-            # Verificar se já existe mensalidade ativa para o paciente
-            existente = self.buscar_mensalidade_por_paciente(paciente_id, clinica_id)
-            if existente:
-                raise ValueError(f"Paciente já possui mensalidade ativa")
-            
+            self._validar_profissional_clinica(profissional_id, clinica_id)
+            if self._existe_mensalidade_ativa_duplicada(clinica_id, paciente_id, profissional_id):
+                if profissional_id:
+                    raise ValueError('Já existe mensalidade ativa para este paciente e profissional')
+                raise ValueError('Já existe mensalidade ativa sem profissional vinculado para este paciente')
+
             dados = {
                 'clinica_id': clinica_id,
                 'paciente_id': paciente_id,
@@ -154,7 +216,8 @@ class MensalidadeService:
                 'dia_vencimento': dia_vencimento,
                 'ativo': True,
                 'observacoes': observacoes,
-                'criado_por': criado_por
+                'criado_por': criado_por,
+                'profissional_id': profissional_id,
             }
             
             response = self.supabase.table('mensalidades_pacientes') \
@@ -183,6 +246,34 @@ class MensalidadeService:
             # Converter Decimal para float se existir
             if 'valor_mensalidade' in dados_atualizacao:
                 dados_atualizacao['valor_mensalidade'] = float(dados_atualizacao['valor_mensalidade'])
+
+            cur = self.supabase.table('mensalidades_pacientes') \
+                .select('paciente_id, profissional_id, ativo') \
+                .eq('id', mensalidade_id) \
+                .eq('clinica_id', clinica_id) \
+                .single() \
+                .execute()
+            atual = cur.data
+            if not atual:
+                raise ValueError('Mensalidade não encontrada')
+
+            novo_prof = atual.get('profissional_id')
+            if 'profissional_id' in dados_atualizacao:
+                novo_prof = dados_atualizacao.get('profissional_id')
+            ativo_final = dados_atualizacao['ativo'] if 'ativo' in dados_atualizacao else atual.get('ativo')
+
+            if 'profissional_id' in dados_atualizacao:
+                self._validar_profissional_clinica(novo_prof, clinica_id)
+
+            if ativo_final and self._existe_mensalidade_ativa_duplicada(
+                clinica_id,
+                atual['paciente_id'],
+                novo_prof,
+                excluir_mensalidade_id=mensalidade_id,
+            ):
+                if novo_prof:
+                    raise ValueError('Já existe outra mensalidade ativa para este paciente e profissional')
+                raise ValueError('Já existe mensalidade ativa sem profissional vinculado para este paciente')
             
             response = self.supabase.table('mensalidades_pacientes') \
                 .update(dados_atualizacao) \
