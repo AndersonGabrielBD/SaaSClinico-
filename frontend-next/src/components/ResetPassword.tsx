@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Mail, Lock, KeyRound, AlertCircle, CheckCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { api, ResetPasswordRequestResponse, ResetPasswordResponse } from '@/lib/api';
+import { api } from '@/lib/api';
+import type { ResetPasswordRequestResponse, ResetPasswordResponse } from '@/types/resetPassword';
 import Link from 'next/link';
 
 export default function ResetPassword() {
@@ -24,10 +25,7 @@ export default function ResetPassword() {
     setSuccess('');
 
     try {
-      const result = await api.post<ResetPasswordRequestResponse>(
-        '/auth/reset-password-request',
-        { email }
-      );
+      const result = (await api.post('/auth/reset-password-request', { email })) as ResetPasswordRequestResponse;
 
       if (result.sucesso) {
         setStep('reset');
@@ -60,10 +58,11 @@ export default function ResetPassword() {
     }
 
     try {
-      const result = await api.post<ResetPasswordResponse>(
-        '/auth/reset-password',
-        { email, reset_code: resetCode, nova_senha: novaSenha }
-      );
+      const result = (await api.post('/auth/reset-password', {
+        email,
+        reset_code: resetCode,
+        nova_senha: novaSenha,
+      })) as ResetPasswordResponse;
 
       if (result.sucesso) {
         setSuccess(result.mensagem || 'Senha alterada com sucesso!');
