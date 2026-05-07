@@ -1,5 +1,5 @@
 # filepath: backend/app/routes/dashboard_routes.py
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.services.mensalidade_service import MensalidadeService
@@ -7,7 +7,7 @@ from database.supabase_client import get_supabase_client
 from datetime import date, timedelta
 from collections import defaultdict
 
-from app.utils.date_utils import today_brazil_str, start_of_week_brazil, days_ago_brazil
+from app.utils.date_utils import today_brazil_str
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -19,60 +19,60 @@ def get_dashboard_stats():
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
-        stats = _build_dashboard_stats(clinica_id)
+        data_inicio = request.args.get('data_inicio')
+        data_fim = request.args.get('data_fim')
+        stats = _build_dashboard_stats(clinica_id, data_inicio=data_inicio, data_fim=data_fim)
         return jsonify(stats), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def _build_dashboard_stats(clinica_id):
+def _resolve_periodo(data_inicio=None, data_fim=None):
+    if data_inicio and data_fim:
+        return data_inicio, data_fim
+
+    hoje = date.fromisoformat(today_brazil_str())
+    inicio = hoje.replace(day=1)
+    proximo_mes = inicio.replace(day=28) + timedelta(days=4)
+    fim = proximo_mes.replace(day=1) - timedelta(days=1)
+    return inicio.isoformat(), fim.isoformat()
+
+
+def _build_dashboard_stats(clinica_id, data_inicio=None, data_fim=None):
     """
     Monta estatísticas do dashboard usando agregações SQL diretas.
     Sem carregar registros em memória — cada métrica usa uma query pontual com filtros no banco.
     """
     client = get_supabase_client()
+    data_inicio, data_fim = _resolve_periodo(data_inicio, data_fim)
     hoje = today_brazil_str()
-    segunda_feira = start_of_week_brazil()
-    domingo_semana = segunda_feira + timedelta(days=6)
-    inicio_semana = segunda_feira.isoformat()
-    fim_semana = domingo_semana.isoformat()
-    trinta_dias_atras = days_ago_brazil(30).isoformat()
 
     # ── Total de pacientes ativos (COUNT no banco) ─────────────────────────
     total_pacientes = BaseRepository('pacientes', clinica_id).count(filters={'ativo': True})
 
-    # ── Agendamentos de hoje por status (GROUP BY no banco via RPC) ─────────
-    dist_result = client.rpc('get_distribuicao_status_agendamentos', {
-        'p_clinica_id': clinica_id,
-        'p_data': hoje
-    }).execute()
-    distribuicao_status = dist_result.data or {
-        'agendada': 0, 'confirmada': 0, 'concluida': 0, 'cancelada': 0, 'faltou': 0
-    }
-    consultas_hoje = sum(distribuicao_status.values())
-
-    # ── COUNT da semana (seg → dom desta semana; antes: só .gte, somava o futuro inteiro) ──
-    semana_result = client.table('agendamentos')\
-        .select('id', count='exact')\
-        .eq('clinica_id', clinica_id)\
-        .gte('data_agendamento', inicio_semana)\
-        .lte('data_agendamento', fim_semana)\
-        .execute()
-    consultas_semana = semana_result.count or 0
-
-    # ── Semana corrente (seg → sáb): agendados vs concluídos por dia (gráfico) ──
-    fim_sab = segunda_feira + timedelta(days=5)
-    inicio_seg_str = inicio_semana
-    fim_sab_str = fim_sab.isoformat()
-    por_dia_result = client.table('agendamentos')\
+    # ── Agendamentos do período: distribuição, totais e gráfico semanal (seg-sáb) ─────────
+    agendamentos_periodo_result = client.table('agendamentos')\
         .select('data_agendamento, status')\
         .eq('clinica_id', clinica_id)\
-        .gte('data_agendamento', inicio_seg_str)\
-        .lte('data_agendamento', fim_sab_str)\
+        .gte('data_agendamento', data_inicio)\
+        .lte('data_agendamento', data_fim)\
         .execute()
+
+    distribuicao_status = {
+        'agendada': 0,
+        'confirmada': 0,
+        'concluida': 0,
+        'cancelada': 0,
+        'faltou': 0,
+        'em_atendimento': 0,
+    }
+    consultas_periodo = 0
     ag_por_dia = defaultdict(int)
     conc_por_dia = defaultdict(int)
-    for row in (por_dia_result.data or []):
+    comp_total = 0
+    comp_concluidas = 0
+
+    for row in (agendamentos_periodo_result.data or []):
         raw_d = row.get('data_agendamento')
         if not raw_d:
             continue
@@ -81,14 +81,27 @@ def _build_dashboard_stats(clinica_id):
             d = date.fromisoformat(ds)
         except ValueError:
             continue
+        st = (row.get('status') or '').lower()
+        if st in distribuicao_status:
+            distribuicao_status[st] += 1
+
+        if st != 'cancelada':
+            consultas_periodo += 1
+
+        if st in ('concluida', 'faltou'):
+            comp_total += 1
+            if st == 'concluida':
+                comp_concluidas += 1
+
         wd = d.weekday()
         if wd > 5:
             continue
-        st = (row.get('status') or '').lower()
         if st != 'cancelada':
             ag_por_dia[wd] += 1
         if st == 'concluida':
             conc_por_dia[wd] += 1
+
+    consultas_semana = sum(conc_por_dia.values())
     dias_labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
     semana_por_dia = [
         {
@@ -99,26 +112,18 @@ def _build_dashboard_stats(clinica_id):
         for wd in range(6)
     ]
 
-    # ── Taxa de comparecimento — só status, filtro no banco ─────────────────
-    comp_result = client.table('agendamentos')\
-        .select('status')\
-        .eq('clinica_id', clinica_id)\
-        .gte('data_agendamento', trinta_dias_atras)\
-        .lte('data_agendamento', hoje)\
-        .in_('status', ['concluida', 'faltou'])\
-        .execute()
-    comp_rows = comp_result.data or []
-    if comp_rows:
-        concluidas = sum(1 for r in comp_rows if r['status'] == 'concluida')
-        taxa_comparecimento = round(concluidas / len(comp_rows) * 100, 1)
+    # ── Taxa de comparecimento no período ────────────────────────────────────
+    if comp_total > 0:
+        taxa_comparecimento = round(comp_concluidas / comp_total * 100, 1)
     else:
         taxa_comparecimento = 0.0
 
-    # ── Próximos agendamentos — apenas 10 linhas com JOIN, ordenado no banco ──
+    # ── Agendamentos do período (até 10 linhas com JOIN, ordenado no banco) ──
     proximos_result = client.table('agendamentos')\
         .select('id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, paciente_id, profissional_id, paciente:pacientes(id, nome_completo, telefone_principal), profissional:usuarios!profissional_id(id, nome_completo)')\
         .eq('clinica_id', clinica_id)\
-        .gte('data_agendamento', hoje)\
+        .gte('data_agendamento', data_inicio)\
+        .lte('data_agendamento', data_fim)\
         .in_('status', ['agendada', 'confirmada'])\
         .order('data_agendamento', desc=False)\
         .order('horario_inicio', desc=False)\
@@ -126,34 +131,48 @@ def _build_dashboard_stats(clinica_id):
         .execute()
     proximos_agendamentos = proximos_result.data or []
 
-    # ── Faturamento do mês (mensalidades) ───────────────────────────────────
+    # ── Faturamento no período (mensalidades) ────────────────────────────────
     faturamento_mes = 0.0
     try:
-        mensalidade_stats = MensalidadeService().obter_estatisticas(clinica_id)
-        faturamento_mes = float(mensalidade_stats.get('valor_total_recebido_mes', 0))
+        resumo = client.rpc('get_resumo_financeiro', {
+            'p_clinica_id': clinica_id,
+            'p_data_inicio': data_inicio,
+            'p_data_fim': data_fim,
+        }).execute()
+        totais = (resumo.data or {}).get('totais', {})
+        faturamento_mes = float(totais.get('pago', 0))
     except Exception:
-        faturamento_mes = 0.0
+        try:
+            mensalidade_stats = MensalidadeService().obter_estatisticas(clinica_id)
+            faturamento_mes = float(mensalidade_stats.get('valor_total_recebido_mes', 0))
+        except Exception:
+            faturamento_mes = 0.0
 
     return {
         'total_pacientes': total_pacientes,
         'pacientes_ativos': total_pacientes,
-        'consultas_hoje': consultas_hoje,
+        'consultas_hoje': consultas_periodo,
         'consultas_semana': consultas_semana,
         'faturamento_mes': faturamento_mes,
         'taxa_comparecimento': taxa_comparecimento,
         'distribuicao_status': distribuicao_status,
         'proximos_agendamentos': proximos_agendamentos,
         'semana_por_dia': semana_por_dia,
+        'periodo': {
+            'inicio': data_inicio,
+            'fim': data_fim,
+            'referencia': hoje,
+        },
 
         # Compatibilidade com payload antigo
-        'agendamentos_hoje': consultas_hoje,
+        'agendamentos_hoje': consultas_periodo,
         'agendamentos_semana': consultas_semana,
         'agendamentos': {
-            'total': consultas_hoje,
-            'agendados': distribuicao_status['agendada'],
-            'confirmados': distribuicao_status['confirmada'],
-            'concluidos': distribuicao_status['concluida'],
-            'cancelados': distribuicao_status['cancelada']
+            'total': consultas_periodo,
+            'agendados': distribuicao_status.get('agendada', 0),
+            'confirmados': distribuicao_status.get('confirmada', 0),
+            'concluidos': distribuicao_status.get('concluida', 0),
+            'cancelados': distribuicao_status.get('cancelada', 0)
         }
     }
 

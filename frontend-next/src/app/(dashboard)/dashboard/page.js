@@ -20,13 +20,15 @@ import {
   ShieldX,
   ArrowUpRight,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Activity,
   UserCheck,
   CalendarCheck,
   Package
 } from 'lucide-react'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
-import { endOfMonth, format, startOfMonth } from 'date-fns'
+import { addMonths, endOfMonth, format, isSameMonth, startOfMonth, startOfToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { parseDateSafe, formatTimeHHmm } from '@/lib/dateUtils'
@@ -162,8 +164,11 @@ export default function DashboardPage() {
   const [resumoPacotes, setResumoPacotes] = useState(null)
   const [statsPacotes, setStatsPacotes] = useState(null)
   const [abaFinanceiroDash, setAbaFinanceiroDash] = useState('mensalidades')
+  const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(new Date()))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const isCurrentMonth = isSameMonth(selectedMonth, startOfToday())
+  const selectedMonthLabel = format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })
 
   useEffect(() => {
     const userRole = getUserRole()
@@ -182,21 +187,20 @@ export default function DashboardPage() {
     if (hasAccess === true) {
       loadStats()
     }
-  }, [hasAccess])
+  }, [hasAccess, selectedMonth])
 
   const loadStats = async () => {
     try {
       setLoading(true)
       setError('')
       
-      const hoje = new Date()
-      const data_inicio = format(startOfMonth(hoje), 'yyyy-MM-dd')
-      const data_fim = format(endOfMonth(hoje), 'yyyy-MM-dd')
+      const data_inicio = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
+      const data_fim = format(endOfMonth(selectedMonth), 'yyyy-MM-dd')
       
       const [dashData, financeiroData, pendenciasData, statsPacotesData, resumoPacotesData] = await Promise.allSettled([
-        dashboardService.getStats(),
+        dashboardService.getStats({ data_inicio, data_fim }),
         getResumoFinanceiro({ data_inicio, data_fim }),
-        getPendencias(),
+        getPendencias({ data_inicio, data_fim }),
         pacoteService.getEstatisticas(),
         pacoteService.getResumoFinanceiroPacotes({ data_inicio, data_fim }),
       ])
@@ -316,6 +320,15 @@ export default function DashboardPage() {
     }))
   }, [stats])
 
+  const handlePrevMonth = () => {
+    setSelectedMonth((prev) => startOfMonth(addMonths(prev, -1)))
+  }
+
+  const handleNextMonth = () => {
+    if (isCurrentMonth) return
+    setSelectedMonth((prev) => startOfMonth(addMonths(prev, 1)))
+  }
+
   if (hasAccess === false) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-center animate-fade-in">
@@ -386,28 +399,58 @@ export default function DashboardPage() {
     )
   }
 
-  const hoje = new Date()
-  const greeting = hoje.getHours() < 12 ? 'Bom dia' : hoje.getHours() < 18 ? 'Boa tarde' : 'Boa noite'
+  const agora = new Date()
+  const greeting = agora.getHours() < 12 ? 'Bom dia' : agora.getHours() < 18 ? 'Boa tarde' : 'Boa noite'
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-neutral-900 tracking-tight">
             {greeting} 
           </h1>
           <p className="text-sm text-neutral-500 mt-1">
-            Aqui está o resumo da sua clínica — {format(hoje, "dd 'de' MMMM, yyyy", { locale: ptBR })}
+            Aqui está o resumo da sua clínica — {selectedMonthLabel}
           </p>
         </div>
-        <Link 
-          href="/agenda"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors shadow-sm"
-        >
-          <Calendar className="w-4 h-4" />
-          Ver Agenda
-        </Link>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <div className="inline-flex items-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-white to-emerald-50/40 p-1.5 shadow-sm">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-neutral-600 transition hover:bg-white hover:text-emerald-700"
+              aria-label="Mês anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-[180px] px-2 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700/60">Período</p>
+              <p className="text-sm font-semibold capitalize text-neutral-800">{selectedMonthLabel}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              disabled={isCurrentMonth}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-neutral-600 transition hover:bg-white hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-35"
+              aria-label="Próximo mês"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          {isCurrentMonth && (
+            <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+              Mês atual
+            </span>
+          )}
+          <Link 
+            href="/agenda"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-600"
+          >
+            <Calendar className="w-4 h-4" />
+            Ver Agenda
+          </Link>
+        </div>
       </div>
 
       {/* Stats grid */}
@@ -422,9 +465,9 @@ export default function DashboardPage() {
           href="/pacientes"
         />
         <StatCard
-          title="Consultas Hoje"
+          title="Consultas no mês"
           value={stats?.consultas_hoje || 0}
-          subtitle={`${stats?.consultas_semana || 0} esta semana`}
+          subtitle={`${stats?.consultas_semana || 0} no período`}
           icon={CalendarCheck}
           iconBg="bg-orange-50"
           iconColor="text-orange-600"
@@ -442,7 +485,7 @@ export default function DashboardPage() {
         <StatCard
           title="Comparecimento"
           value={`${stats?.taxa_comparecimento?.toFixed(0) || 0}%`}
-          subtitle="Este mês"
+          subtitle="No mês selecionado"
           icon={UserCheck}
           iconBg="bg-purple-50"
           iconColor="text-purple-600"
@@ -465,7 +508,7 @@ export default function DashboardPage() {
                 {abaFinanceiroDash === 'mensalidades' ? 'Mensalidades' : 'Pacotes'}
               </h3>
               <p className="text-xs text-neutral-500">
-                {format(hoje, "MMMM yyyy", { locale: ptBR })} · visão do mês
+                {format(selectedMonth, "MMMM yyyy", { locale: ptBR })} · visão do mês
               </p>
             </div>
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
@@ -778,7 +821,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Status distribution - Donut */}
-        <ChartCard title="Status de Hoje" subtitle="Distribuição de agendamentos">
+        <ChartCard title="Status do Mês" subtitle="Distribuição de agendamentos no período">
           {statusChartData.length > 0 ? (
             <div className="flex flex-col items-center">
               <div className="h-44 w-full">
@@ -815,7 +858,7 @@ export default function DashboardPage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-48 text-center">
               <Calendar className="w-8 h-8 text-neutral-300 mb-2" />
-              <p className="text-sm text-neutral-500">Nenhum agendamento hoje</p>
+              <p className="text-sm text-neutral-500">Nenhum agendamento no período</p>
             </div>
           )}
         </ChartCard>
@@ -825,8 +868,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Weekly activity chart */}
         <ChartCard
-          title="Atendimentos da Semana"
-          subtitle="Segunda a sábado · semana corrente (exc. cancelados)"
+          title="Atendimentos por Dia da Semana"
+          subtitle="Segunda a sábado · agregado do mês selecionado"
         >
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
@@ -859,8 +902,8 @@ export default function DashboardPage() {
 
         {/* Next appointments */}
         <ChartCard
-          title="Próximos Agendamentos"
-          subtitle="Agenda de hoje"
+          title="Agendamentos no Mês"
+          subtitle="Próximos registros dentro do período selecionado"
           action={
             <Link href="/agenda" className="text-xs text-primary-600 hover:text-primary-700 font-semibold flex items-center gap-1">
               Ver todos <ArrowRight className="w-3 h-3" />

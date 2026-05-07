@@ -320,6 +320,8 @@ def get_pendencias():
     try:
         user = get_current_user()
         clinica_id = user['clinica_id']
+        data_inicio = request.args.get('data_inicio')
+        data_fim = request.args.get('data_fim')
 
         hoje = today_brazil().isoformat()
 
@@ -332,6 +334,11 @@ def get_pendencias():
             .eq('clinica_id', clinica_id)
             .eq('status', 'pendente')
         )
+
+        if data_inicio:
+            base_query = base_query.gte('data_vencimento', data_inicio)
+        if data_fim:
+            base_query = base_query.lte('data_vencimento', data_fim)
 
         # Duas queries com filtro de data no banco — sem carregamento total
         vencidos_res = base_query.lt('data_vencimento', hoje).order('data_vencimento').execute()
@@ -357,7 +364,11 @@ def get_pendencias():
             'total_vencidos': len(vencidos),
             'total_a_vencer': len(a_vencer),
             'valor_vencido': sum(float(p.get('valor_pago', 0)) for p in vencidos),
-            'valor_a_vencer': sum(float(p.get('valor_pago', 0)) for p in a_vencer)
+            'valor_a_vencer': sum(float(p.get('valor_pago', 0)) for p in a_vencer),
+            'periodo': {
+                'inicio': data_inicio,
+                'fim': data_fim
+            }
         }), 200
 
     except Exception as e:
