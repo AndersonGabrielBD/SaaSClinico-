@@ -460,8 +460,9 @@ export const deleteTipoAtendimento = (id) => {
 // DASHBOARD
 // ============================================================================
 
-export const getDashboardStats = () => {
-  return request('/dashboard/stats');
+export const getDashboardStats = (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return request(`/dashboard/stats${query ? `?${query}` : ''}`);
 };
 
 export const getRecentActivity = () => {
@@ -511,8 +512,9 @@ export const getResumoFinanceiro = (params = {}) => {
   return request(`/financeiro/relatorio/resumo${query ? `?${query}` : ''}`);
 };
 
-export const getPendencias = () => {
-  return request('/financeiro/pendencias');
+export const getPendencias = (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return request(`/financeiro/pendencias${query ? `?${query}` : ''}`);
 };
 
 // ============================================================================

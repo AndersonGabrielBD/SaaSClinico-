@@ -2,8 +2,8 @@ import * as api from '@/lib/api'
 
 export const dashboardService = {
   // Obter estatísticas gerais
-  async getStats() {
-    return api.getEstatisticas()
+  async getStats(params = {}) {
+    return api.getEstatisticas(params)
   },
 
   // Próximos agendamentos
