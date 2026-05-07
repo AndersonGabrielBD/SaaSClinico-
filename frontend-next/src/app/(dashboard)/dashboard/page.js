@@ -26,7 +26,7 @@ import {
   Package
 } from 'lucide-react'
 import { LoadingSkeleton } from '@/components/common/LoadingSpinner'
-import { format } from 'date-fns'
+import { endOfMonth, format, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { parseDateSafe, formatTimeHHmm } from '@/lib/dateUtils'
@@ -190,8 +190,8 @@ export default function DashboardPage() {
       setError('')
       
       const hoje = new Date()
-      const data_inicio = format(new Date(hoje.getFullYear(), hoje.getMonth(), 1), 'yyyy-MM-dd')
-      const data_fim = format(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0), 'yyyy-MM-dd')
+      const data_inicio = format(startOfMonth(hoje), 'yyyy-MM-dd')
+      const data_fim = format(endOfMonth(hoje), 'yyyy-MM-dd')
       
       const [dashData, financeiroData, pendenciasData, statsPacotesData, resumoPacotesData] = await Promise.allSettled([
         dashboardService.getStats(),
@@ -442,7 +442,7 @@ export default function DashboardPage() {
         <StatCard
           title="Comparecimento"
           value={`${stats?.taxa_comparecimento?.toFixed(0) || 0}%`}
-          subtitle="Últimos 30 dias"
+          subtitle="Este mês"
           icon={UserCheck}
           iconBg="bg-purple-50"
           iconColor="text-purple-600"
