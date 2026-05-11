@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import uuid
 
@@ -78,6 +78,11 @@ class RelatorioService:
                     usuarios!profissional_id(nome_completo)
                 ''') \
                 .eq('clinica_id', clinica_id)
+
+            if filters and filters.get('lixeira'):
+                query = query.not_.is_('deletado_em', 'null')
+            else:
+                query = query.is_('deletado_em', 'null')
             
             # Filtro por role: só admin vê todos; demais roles com acesso vêem só os próprios
             if user_role and str(user_role).lower() != 'admin':
@@ -94,7 +99,7 @@ class RelatorioService:
             
             # Formatar resposta
             relatorios = []
-            for item in response.data:
+            for item in response.data or []:
                 paciente = item.pop('pacientes', None)
                 profissional = item.pop('usuarios', None)
                 
@@ -127,6 +132,8 @@ class RelatorioService:
                 ''',
             )
             if not relatorio:
+                raise TenantResourceNotFound('Relatório não encontrado')
+            if relatorio.get('deletado_em'):
                 raise TenantResourceNotFound('Relatório não encontrado')
 
             paciente = relatorio.pop('pacientes', None)
@@ -182,6 +189,7 @@ class RelatorioService:
                 .update(dados_atualizacao) \
                 .eq('id', relatorio_id) \
                 .eq('clinica_id', clinica_id) \
+                .is_('deletado_em', 'null') \
                 .execute()
             
             logger.info(f"✅ Relatório {relatorio_id} atualizado")
@@ -192,26 +200,50 @@ class RelatorioService:
             raise
     
     def excluir_relatorio(self, relatorio_id: str, clinica_id: str) -> None:
-        """Exclui relatório e arquivo do storage"""
+        """Soft delete: mantém arquivo no storage até o job de limpeza (90 dias)."""
         try:
-            # Buscar informações do relatório
-            relatorio = self.buscar_relatorio(relatorio_id, clinica_id)
-            arquivo_path = relatorio.get('arquivo_path')
-            
-            # Excluir arquivo do storage
-            if arquivo_path:
-                logger.info(f"🗑️ Excluindo arquivo: {arquivo_path}")
-                self.supabase.storage.from_(self.bucket_name).remove([arquivo_path])
-            
-            # Excluir registro do banco
+            relatorio = fetch_row_for_tenant(
+                self.supabase,
+                'relatorios',
+                relatorio_id,
+                clinica_id,
+                select='id, deletado_em',
+            )
+            if not relatorio:
+                raise TenantResourceNotFound('Relatório não encontrado')
+            if relatorio.get('deletado_em'):
+                return
+
             self.supabase.table('relatorios') \
-                .delete() \
+                .update({'deletado_em': datetime.now(timezone.utc).isoformat()}) \
                 .eq('id', relatorio_id) \
                 .eq('clinica_id', clinica_id) \
                 .execute()
-            
-            logger.info(f"✅ Relatório {relatorio_id} excluído")
-            
+
+            logger.info(f"✅ Relatório {relatorio_id} marcado como excluído (soft delete)")
+
+        except TenantResourceNotFound:
+            raise
         except Exception as e:
             logger.error(f"❌ Erro ao excluir relatório: {str(e)}")
             raise
+
+    def restaurar_relatorio(self, relatorio_id: str, clinica_id: str) -> Dict:
+        """Remove soft delete (apenas registros ainda na lixeira)."""
+        relatorio = fetch_row_for_tenant(
+            self.supabase,
+            'relatorios',
+            relatorio_id,
+            clinica_id,
+            select='id, deletado_em',
+        )
+        if not relatorio or not relatorio.get('deletado_em'):
+            raise TenantResourceNotFound('Relatório não encontrado ou não está na lixeira')
+
+        self.supabase.table('relatorios') \
+            .update({'deletado_em': None}) \
+            .eq('id', relatorio_id) \
+            .eq('clinica_id', clinica_id) \
+            .execute()
+
+        return self.buscar_relatorio(relatorio_id, clinica_id)

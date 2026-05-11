@@ -13,6 +13,42 @@ logger = logging.getLogger(__name__)
 
 agendamento_bp = Blueprint('agendamentos', __name__)
 
+ROLES_PROFISSIONAL_AGENDA = frozenset({'fono', 'medico', 'profissional'})
+
+
+def _validate_profissional_para_agenda(client, clinica_id: str, profissional_id: str):
+    """
+    Profissional deve existir na clínica, estar ativo e ter role de atendimento.
+    Retorna (None) se OK ou (response, status_code) em caso de erro.
+    """
+    try:
+        res = (
+            client.table('usuarios')
+            .select('id, role, clinica_id, ativo')
+            .eq('id', profissional_id)
+            .eq('clinica_id', clinica_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as e:
+        logger.warning('[AGENDAMENTO] Falha ao validar profissional: %s', e)
+        return jsonify({'error': 'Não foi possível validar o profissional'}), 400
+
+    row = res.data if isinstance(res.data, dict) else None
+    if not row:
+        return jsonify({'error': 'Profissional inválido ou não pertence a esta clínica'}), 400
+    if not row.get('ativo', True):
+        return jsonify({'error': 'Profissional inativo'}), 400
+    role = (row.get('role') or '').lower()
+    if role not in ROLES_PROFISSIONAL_AGENDA:
+        return jsonify({'error': 'Profissional sem perfil válido para agenda'}), 400
+    return None
+
+
+def _is_agendamento_overlap_db_error(msg: str) -> bool:
+    m = (msg or '').lower()
+    return '23p01' in m or 'exclusion' in m or 'overlap' in m or 'agendamentos_profissional_horario_excl' in m
+
 _AGENDAMENTOS_SELECT_EMBEDS = """
     id, data_agendamento, horario_inicio, horario_fim, status, tipo_atendimento, observacoes,
     paciente_id, profissional_id, sala_id, clinica_id, recorrencia_id, recorrencia_tipo,
@@ -267,7 +303,7 @@ def create_agendamento():
         user = get_current_user()
         clinica_id = user['clinica_id']
         
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validações de campos obrigatórios
         required_fields = ['paciente_id', 'profissional_id', 'data_agendamento', 'horario_inicio', 'horario_fim']
@@ -280,12 +316,46 @@ def create_agendamento():
         hoje = today_brazil().isoformat()
         if data_agendamento < hoje:
             return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
-        
-        # Set padrões
-        data['status'] = data.get('status', 'agendada')
-        
+
+        hi, hf = data.get('horario_inicio'), data.get('horario_fim')
+        if str(hi) >= str(hf):
+            return jsonify({'error': 'horario_inicio deve ser anterior a horario_fim'}), 400
+
+        client = get_supabase_client()
+        err_prof = _validate_profissional_para_agenda(client, clinica_id, data['profissional_id'])
+        if err_prof:
+            return err_prof
+
         repo = BaseRepository('agendamentos', clinica_id)
-        agendamento = repo.create(data)
+        has_conflict = repo.check_agendamento_conflict(
+            data['profissional_id'],
+            data_agendamento,
+            hi,
+            hf,
+            sala_id=data.get('sala_id'),
+            exclude_id=None,
+        )
+        if has_conflict:
+            return jsonify({
+                'error': 'Conflito de horário',
+                'message': 'Profissional já tem agendamento neste horário',
+            }), 409
+
+        insert_keys = (
+            'paciente_id', 'profissional_id', 'sala_id', 'data_agendamento',
+            'horario_inicio', 'horario_fim', 'tipo_atendimento', 'observacoes',
+            'status', 'recorrencia_id', 'recorrencia_tipo', 'pacote_item_id',
+            'confirmacao_via_sms', 'criado_por',
+        )
+        row = {k: data[k] for k in insert_keys if k in data}
+        if row.get('sala_id') in (None, ''):
+            row.pop('sala_id', None)
+        row.setdefault('status', 'agendada')
+        uid = user.get('id') or user.get('user_id')
+        if uid and 'criado_por' not in row:
+            row['criado_por'] = uid
+
+        agendamento = repo.create(row)
         
         return jsonify(agendamento), 201
         
@@ -295,6 +365,11 @@ def create_agendamento():
         # Interpretar erros de constraint
         if 'data_futura' in error_str or '23514' in error_str:
             return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
+        elif _is_agendamento_overlap_db_error(error_str):
+            return jsonify({
+                'error': 'Conflito de horário',
+                'message': 'Profissional já tem agendamento neste horário',
+            }), 409
         elif 'unique constraint' in error_str.lower():
             return jsonify({'error': 'Este agendamento já existe'}), 400
         elif 'foreign key' in error_str.lower():
@@ -322,11 +397,35 @@ def update_agendamento(agendamento_id):
                 return jsonify({'error': 'Não é possível reagendar para datas passadas'}), 400
         
         repo = BaseRepository('agendamentos', clinica_id)
+        client = get_supabase_client()
         
         # Verifica se existe
         existing = repo.get_by_id(agendamento_id)
         if not existing:
             return jsonify({'error': 'Agendamento não encontrado'}), 404
+
+        if 'profissional_id' in data:
+            err_prof = _validate_profissional_para_agenda(
+                client, clinica_id, data['profissional_id'],
+            )
+            if err_prof:
+                return err_prof
+
+        prof_id = data.get('profissional_id', existing.get('profissional_id'))
+        d_ag = data.get('data_agendamento', existing.get('data_agendamento'))
+        h_i = data.get('horario_inicio', existing.get('horario_inicio'))
+        h_f = data.get('horario_fim', existing.get('horario_fim'))
+        sala_id = data.get('sala_id', existing.get('sala_id'))
+        if d_ag and h_i and h_f and prof_id:
+            if str(h_i) >= str(h_f):
+                return jsonify({'error': 'horario_inicio deve ser anterior a horario_fim'}), 400
+            if repo.check_agendamento_conflict(
+                prof_id, d_ag, h_i, h_f, sala_id=sala_id, exclude_id=agendamento_id,
+            ):
+                return jsonify({
+                    'error': 'Conflito de horário',
+                    'message': 'Profissional já tem agendamento neste horário',
+                }), 409
         
         agendamento = repo.update(agendamento_id, data)
         
@@ -338,6 +437,11 @@ def update_agendamento(agendamento_id):
         # Interpretar erros de constraint
         if 'data_futura' in error_str or '23514' in error_str:
             return jsonify({'error': 'Não é possível agendar em datas passadas'}), 400
+        elif _is_agendamento_overlap_db_error(error_str):
+            return jsonify({
+                'error': 'Conflito de horário',
+                'message': 'Profissional já tem agendamento neste horário',
+            }), 409
         elif 'unique constraint' in error_str.lower():
             return jsonify({'error': 'Este agendamento já existe'}), 400
         elif 'foreign key' in error_str.lower():

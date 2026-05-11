@@ -9,6 +9,8 @@ import logging
 from flask import send_file
 from app.services.pdf_service import PdfService
 
+logger = logging.getLogger(__name__)
+
 EVOLUCAO_WRITABLE_FIELDS = (
     'conteudo',
     'titulo_resumo',
@@ -19,6 +21,29 @@ EVOLUCAO_WRITABLE_FIELDS = (
     'data_sessao',
     'agendamento_id',
 )
+
+PRONTUARIO_WRITABLE_FIELDS = (
+    'titulo',
+    'descricao',
+    'diagnostico_preliminar',
+    'historico_clinico',
+    'alergias',
+    'medicacoes',
+    'visivel_para_paciente',
+    'agendamento_id',
+    'profissional_id',
+    'queixas',
+    'paciente_id',
+)
+
+
+def _pick_prontuario_update_payload(data):
+    if not isinstance(data, dict):
+        return None, (jsonify({'error': 'JSON inválido'}), 400)
+    out = {k: data[k] for k in PRONTUARIO_WRITABLE_FIELDS if k in data}
+    if not out:
+        return None, (jsonify({'error': 'Nenhum campo permitido para atualização'}), 400)
+    return out, None
 
 
 def _profissional_paciente_ids(client, clinica_id, user_id):
@@ -40,7 +65,7 @@ def _assert_prontuario_evolucao_access(prontuario_id):
     prontuario = fetch_row_for_tenant(
         repo.client, 'prontuarios', prontuario_id, clinica_id, select='*',
     )
-    if not prontuario:
+    if not prontuario or prontuario.get('deletado_em'):
         return None, None, (jsonify({'error': 'Prontuário não encontrado'}), 404)
     if user_role in ['fono', 'medico', 'profissional']:
         paciente_ids = _profissional_paciente_ids(repo.client, clinica_id, user_id)
@@ -133,6 +158,7 @@ def get_prontuarios():
                 .select('*, pacientes(id, nome_completo), usuarios:criado_por(nome_completo)') \
                 .eq('clinica_id', clinica_id) \
                 .in_('paciente_id', paciente_ids) \
+                .is_('deletado_em', 'null') \
                 .order('data_criacao', desc=True) \
                 .execute()
             
@@ -149,7 +175,8 @@ def get_prontuarios():
             repo = BaseRepository('prontuarios', clinica_id)
             prontuarios = repo.client.table('prontuarios') \
                 .select('*, pacientes(id, nome_completo), usuarios:criado_por(nome_completo)') \
-                .eq('clinica_id', clinica_id)
+                .eq('clinica_id', clinica_id) \
+                .is_('deletado_em', 'null')
             
             if paciente_id:
                 prontuarios = prontuarios.eq('paciente_id', paciente_id)
@@ -200,7 +227,7 @@ def get_prontuario(prontuario_id):
             select='*, usuarios:criado_por(nome_completo)',
         )
 
-        if not prontuario:
+        if not prontuario or prontuario.get('deletado_em'):
             return jsonify({'error': 'Prontuário não encontrado'}), 404
         
         # Extrair o nome do criador do objeto nested
@@ -296,11 +323,14 @@ def update_prontuario(prontuario_id):
         user_id = user.get('id')
         
         data = request.get_json()
+        payload, perr = _pick_prontuario_update_payload(data)
+        if perr:
+            return perr
         
         repo = BaseRepository('prontuarios', clinica_id)
         
         existing = repo.get_by_id(prontuario_id)
-        if not existing:
+        if not existing or existing.get('deletado_em'):
             return jsonify({'error': 'Prontuário não encontrado'}), 404
         
         if user_role in ['fono', 'medico', 'profissional']:
@@ -314,7 +344,7 @@ def update_prontuario(prontuario_id):
             if existing.get('paciente_id') not in paciente_ids:
                 return jsonify({'error': 'Sem permissão para editar este prontuário'}), 403
         
-        prontuario = repo.update(prontuario_id, data)
+        prontuario = repo.update(prontuario_id, payload)
         
         return jsonify(prontuario), 200
         
@@ -334,11 +364,11 @@ def delete_prontuario(prontuario_id):
         user_id = user.get('id')
         
         repo = BaseRepository('prontuarios', clinica_id)
-        
+        existing = repo.get_by_id(prontuario_id)
+        if not existing or existing.get('deletado_em'):
+            return jsonify({'error': 'Prontuário não encontrado'}), 404
+
         if user_role in ['fono', 'medico', 'profissional']:
-            existing = repo.get_by_id(prontuario_id)
-            if not existing:
-                return jsonify({'error': 'Prontuário não encontrado'}), 404
             vinculos = repo.client.table('pacientes_profissionais') \
                 .select('paciente_id') \
                 .eq('profissional_id', user_id) \
@@ -348,10 +378,10 @@ def delete_prontuario(prontuario_id):
             paciente_ids = [v['paciente_id'] for v in vinculos.data] if vinculos.data else []
             if existing.get('paciente_id') not in paciente_ids:
                 return jsonify({'error': 'Sem permissão para deletar este prontuário'}), 403
+
+        repo.update(prontuario_id, {'deletado_em': datetime.now(timezone.utc).isoformat()})
         
-        repo.delete(prontuario_id)
-        
-        return jsonify({'message': 'Prontuário deletado'}), 200
+        return jsonify({'message': 'Prontuário removido'}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -384,7 +414,7 @@ def export_prontuario_pdf(prontuario_id):
             select='*, pacientes(id, nome_completo, cpf, data_nascimento)',
         )
 
-        if not prontuario_data:
+        if not prontuario_data or prontuario_data.get('deletado_em'):
             return jsonify({'error': 'Prontuário não encontrado'}), 404
         
         # Verificar permissões (profissionais só acessam seus pacientes)
@@ -412,6 +442,7 @@ def export_prontuario_pdf(prontuario_id):
             .select('*') \
             .eq('prontuario_id', prontuario_id) \
             .eq('clinica_id', clinica_id) \
+            .is_('deletado_em', 'null') \
             .order('data_criacao', desc=False) \
             .execute()
         
@@ -464,6 +495,7 @@ def get_ultima_evolucao(prontuario_id):
             .eq('prontuario_id', prontuario_id)
             .eq('clinica_id', clinica_id)
             .eq('criado_por', user_id)
+            .is_('deletado_em', 'null')
             .order('data_criacao', desc=True)
             .limit(1)
             .execute()
@@ -495,6 +527,7 @@ def list_evolucoes(prontuario_id):
             .select('*, usuarios:criado_por(nome_completo)')
             .eq('prontuario_id', prontuario_id)
             .eq('clinica_id', clinica_id)
+            .is_('deletado_em', 'null')
         )
         if user_role in ['fono', 'medico', 'profissional']:
             q = q.eq('criado_por', user_id)
@@ -561,7 +594,7 @@ def finalizar_evolucao(prontuario_id, evolucao_id):
         ev = fetch_row_for_tenant(
             repo.client, 'evolucoes', evolucao_id, clinica_id, select='*',
         )
-        if not ev or ev.get('prontuario_id') != prontuario_id:
+        if not ev or ev.get('prontuario_id') != prontuario_id or ev.get('deletado_em'):
             return jsonify({'error': 'Evolução não encontrada'}), 404
 
         ok, msg = _can_mutate_evolucao(ev, user_role, user_id)
@@ -604,7 +637,7 @@ def update_evolucao(prontuario_id, evolucao_id):
         ev = fetch_row_for_tenant(
             repo.client, 'evolucoes', evolucao_id, clinica_id, select='*',
         )
-        if not ev or ev.get('prontuario_id') != prontuario_id:
+        if not ev or ev.get('prontuario_id') != prontuario_id or ev.get('deletado_em'):
             return jsonify({'error': 'Evolução não encontrada'}), 404
 
         ok, msg = _can_mutate_evolucao(ev, user_role, user_id)
@@ -657,7 +690,7 @@ def delete_evolucao(prontuario_id, evolucao_id):
         ev = fetch_row_for_tenant(
             repo.client, 'evolucoes', evolucao_id, clinica_id, select='*',
         )
-        if not ev or ev.get('prontuario_id') != prontuario_id:
+        if not ev or ev.get('prontuario_id') != prontuario_id or ev.get('deletado_em'):
             return jsonify({'error': 'Evolução não encontrada'}), 404
 
         ok, msg = _can_mutate_evolucao(ev, user_role, user_id)
@@ -665,10 +698,12 @@ def delete_evolucao(prontuario_id, evolucao_id):
             code = 400 if 'finalizada' in (msg or '') else 403
             return jsonify({'error': msg}), code
 
-        repo.client.table('evolucoes').delete().eq('id', evolucao_id).eq(
+        repo.client.table('evolucoes').update({
+            'deletado_em': datetime.now(timezone.utc).isoformat(),
+        }).eq('id', evolucao_id).eq(
             'clinica_id', clinica_id
         ).eq('prontuario_id', prontuario_id).execute()
-        return jsonify({'message': 'Evolução excluída'}), 200
+        return jsonify({'message': 'Evolução removida'}), 200
     except Exception as e:
         logger.error(f"❌ [EVOLUCAO] delete: {e}")
         return jsonify({'error': str(e)}), 500
