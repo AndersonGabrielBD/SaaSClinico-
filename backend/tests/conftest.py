@@ -90,13 +90,16 @@ class FakeQueryBuilder:
     """Builder encadeável que simula o client do Supabase."""
     def __init__(self, data=None):
         self._data = data if data is not None else []
+        if self._data is not None and not isinstance(self._data, list):
+            self._data = [self._data]
         self._count = len(self._data) if self._data else 0
+        self._maybe_single = False
 
     def select(self, *a, **kw):
         if kw.get('count') == 'exact':
             self._count = len(self._data)
         return self
-    def insert(self, data):         self._data = [data]; return self
+    def insert(self, data):         self._data = [data] if not isinstance(data, list) else data; return self
     def update(self, data):         return self
     def delete(self):               return self
     def eq(self, *a):               return self
@@ -105,15 +108,23 @@ class FakeQueryBuilder:
     def not_(self, *a):             return self
     def gte(self, *a):              return self
     def lte(self, *a):              return self
+    def lt(self, *a):               return self
     def order(self, *a, **kw):      return self
     def limit(self, *a):            return self
     def single(self):               return self
+    def maybe_single(self):
+        self._maybe_single = True
+        return self
     def range(self, *a):            return self
     def ilike(self, *a):            return self
     def is_(self, *a):              return self
     def or_(self, *a):              return self
     def not_in(self, *a):           return self
-    def execute(self):              return FakeResponse(self._data, count=self._count)
+    def execute(self):
+        if getattr(self, '_maybe_single', False):
+            row = self._data[0] if self._data else None
+            return FakeResponse(row, count=1 if row else 0)
+        return FakeResponse(self._data, count=self._count)
 
 
 class FakeSupabaseClient:

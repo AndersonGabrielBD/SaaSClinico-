@@ -46,7 +46,9 @@ def listar_relatorios():
             filters['paciente_id'] = request.args.get('paciente_id')
         if request.args.get('profissional_id'):
             filters['profissional_id'] = request.args.get('profissional_id')
-        
+        if request.args.get('lixeira') == '1' and str(user_role).lower() == 'admin':
+            filters['lixeira'] = True
+
         service = RelatorioService()
         relatorios = service.listar_relatorios(
             clinica_id, filters, user_role, user_id
@@ -255,4 +257,24 @@ def excluir_relatorio(relatorio_id):
         return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"❌ Erro ao excluir relatório: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@relatorios_bp.route('/<relatorio_id>/restaurar', methods=['POST'])
+@require_auth
+@require_roles(['admin'])
+def restaurar_relatorio(relatorio_id):
+    """Restaura relatório soft-deleted (até expirar o prazo do job de limpeza)."""
+    try:
+        user = get_current_user()
+        clinica_id = user['clinica_id']
+
+        service = RelatorioService()
+        relatorio = service.restaurar_relatorio(relatorio_id, clinica_id)
+        return jsonify(relatorio), 200
+
+    except TenantResourceNotFound as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"❌ Erro ao restaurar relatório: {str(e)}")
         return jsonify({'error': str(e)}), 500

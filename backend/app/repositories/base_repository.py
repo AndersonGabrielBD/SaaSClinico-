@@ -375,7 +375,8 @@ class BaseRepository:
                 for ag in agendamentos:
                     if exclude_id and ag['id'] == exclude_id:
                         continue
-                    if ag.get('status') in ['cancelado']:
+                    st = (ag.get('status') or '')
+                    if isinstance(st, str) and st.lower() in ('cancelada', 'cancelado', 'concluida', 'concluído'):
                         continue
                     
                     h_inicio = ag.get('horario_inicio', '')
