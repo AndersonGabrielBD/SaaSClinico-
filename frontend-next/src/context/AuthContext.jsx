@@ -54,12 +54,18 @@ export function AuthProvider({ children }) {
           if (currentToken !== tokenAtStart) return
 
           console.error('Erro ao carregar usuário:', error)
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem(TOKEN_KEY)
-            localStorage.removeItem(USER_KEY)
+
+          // Só derruba a sessão em falha de autenticação confirmada (401).
+          // Erros de rede/timeout/500 são transitórios — a sessão local
+          // (já carregada do localStorage acima) é mantida.
+          if (error.status === 401) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem(TOKEN_KEY)
+              localStorage.removeItem(USER_KEY)
+            }
+            setIsAuthenticated(false)
+            setUser(null)
           }
-          setIsAuthenticated(false)
-          setUser(null)
         }
       } else {
         setIsAuthenticated(false)
