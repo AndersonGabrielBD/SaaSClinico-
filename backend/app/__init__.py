@@ -8,6 +8,7 @@ __version__ = "1.0.0"
 
 from flask import Flask, jsonify
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 from config import Config
 import os
@@ -30,6 +31,16 @@ def create_app(testing=False):
 
     app = Flask(__name__)
     app.config['TESTING'] = testing
+
+    # Confia no(s) header(s) X-Forwarded-* do proxy reverso (Render/Railway/Nginx/etc).
+    # Sem isso, request.remote_addr é o IP do proxy — o mesmo para todos os usuários —
+    # o que faz o rate limit de login (por IP) ser compartilhado por toda a clínica.
+    proxy_count = int(os.getenv('TRUSTED_PROXY_COUNT', '1'))
+    if proxy_count > 0:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=proxy_count, x_proto=proxy_count,
+            x_host=proxy_count, x_port=proxy_count,
+        )
 
     app.config['SECRET_KEY'] = Config.SECRET_KEY
     app.config['JSON_SORT_KEYS'] = False

@@ -22,6 +22,10 @@ function apiErrorMessage(body) {
   return 'Erro na requisição';
 }
 
+// Evita que múltiplas requisições paralelas (ex.: dashboard disparando 5+ chamadas
+// de uma vez) cada uma dispare sua própria limpeza de sessão + redirect ao receber 401.
+let loggingOut = false;
+
 // Helper para fazer requisições
 async function request(endpoint, options = {}) {
   const tokenAtRequest = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -46,9 +50,10 @@ async function request(endpoint, options = {}) {
       const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/signup');
       const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
 
-      if (response.status === 401 && typeof window !== 'undefined' && !isAuthEndpoint && !isLoginPage) {
+      if (response.status === 401 && typeof window !== 'undefined' && !isAuthEndpoint && !isLoginPage && !loggingOut) {
         const currentToken = localStorage.getItem('token');
         if (currentToken === tokenAtRequest) {
+          loggingOut = true;
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           window.location.href = '/login';
@@ -62,7 +67,9 @@ async function request(endpoint, options = {}) {
       } catch {
         error = { error: errorText || 'Erro desconhecido' };
       }
-      throw new Error(apiErrorMessage(error));
+      const err = new Error(apiErrorMessage(error));
+      err.status = response.status;
+      throw err;
     }
 
     const text = await response.text();

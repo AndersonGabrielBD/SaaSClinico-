@@ -68,21 +68,22 @@ def _fetch_user_from_db(user_id: str) -> dict | None:
     This ensures stale JWT claims never grant access to the wrong tenant or role.
     Uses limit(1) instead of maybe_single() — maybe_single() returns HTTP 406 on
     0 rows with some supabase-py versions, which breaks auth on every request.
+
+    Exceptions (network hiccups, Supabase timeouts, etc.) are intentionally
+    NOT caught here — they propagate to require_auth, which returns 500.
+    Swallowing them and returning None would make require_auth report
+    "Usuário não encontrado" (401) for a transient infra error, forcing a
+    spurious logout on a perfectly valid session.
     """
     from database.supabase_client import get_supabase_client
-    try:
-        res = (
-            get_supabase_client()
-            .table('usuarios')
-            .select('id, clinica_id, role, nome_completo, ativo')
-            .eq('id', user_id)
-            .limit(1)
-            .execute()
-        )
-    except Exception as e:
-        logger.warning(f"[AUTH] Erro ao buscar usuário {user_id}: {e}")
-        return None
-
+    res = (
+        get_supabase_client()
+        .table('usuarios')
+        .select('id, clinica_id, role, nome_completo, ativo')
+        .eq('id', user_id)
+        .limit(1)
+        .execute()
+    )
     rows = res.data if res and res.data else []
     return rows[0] if rows else None
 
