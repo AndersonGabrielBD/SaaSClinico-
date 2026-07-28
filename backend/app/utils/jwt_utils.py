@@ -2,6 +2,7 @@
 import jwt
 import os
 import logging
+import time
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify
@@ -62,30 +63,54 @@ def get_access_token() -> str:
     return request.headers.get('Authorization', '')
 
 
-def _fetch_user_from_db(user_id: str) -> dict | None:
+def fetch_usuario_row(user_id: str, select_fields: str) -> dict | None:
     """
-    Fetches live clinica_id, role and ativo from the database.
-    This ensures stale JWT claims never grant access to the wrong tenant or role.
+    Looks up a single row in 'usuarios' by id, retrying once on an empty result.
+
     Uses limit(1) instead of maybe_single() — maybe_single() returns HTTP 406 on
     0 rows with some supabase-py versions, which breaks auth on every request.
 
     Exceptions (network hiccups, Supabase timeouts, etc.) are intentionally
-    NOT caught here — they propagate to require_auth, which returns 500.
-    Swallowing them and returning None would make require_auth report
-    "Usuário não encontrado" (401) for a transient infra error, forcing a
-    spurious logout on a perfectly valid session.
+    NOT caught here — callers should let them propagate to a 500, never treat
+    an infra error as "usuário não encontrado" (401) and force a spurious logout.
+
+    Retries once on an empty result: when a page fires several authenticated
+    requests in parallel (e.g. right after login), the burst of concurrent
+    lookups against Supabase/PostgREST has been observed to intermittently
+    return 0 rows for a user that unquestionably exists (confirmed moments
+    earlier by the login query itself). A single retry absorbs that transient
+    blip without weakening the check — a user that's genuinely gone still
+    fails on the second attempt.
     """
     from database.supabase_client import get_supabase_client
-    res = (
-        get_supabase_client()
-        .table('usuarios')
-        .select('id, clinica_id, role, nome_completo, ativo')
-        .eq('id', user_id)
-        .limit(1)
-        .execute()
-    )
-    rows = res.data if res and res.data else []
-    return rows[0] if rows else None
+
+    def _query():
+        res = (
+            get_supabase_client()
+            .table('usuarios')
+            .select(select_fields)
+            .eq('id', user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = res.data if res and res.data else []
+        return rows[0] if rows else None
+
+    row = _query()
+    if row is None:
+        time.sleep(0.15)
+        row = _query()
+        if row is not None:
+            logger.warning(f"[AUTH] Usuário {user_id} veio vazio na 1ª tentativa e apareceu no retry")
+    return row
+
+
+def _fetch_user_from_db(user_id: str) -> dict | None:
+    """
+    Fetches live clinica_id, role and ativo from the database.
+    This ensures stale JWT claims never grant access to the wrong tenant or role.
+    """
+    return fetch_usuario_row(user_id, 'id, clinica_id, role, nome_completo, ativo')
 
 
 def require_auth(f):

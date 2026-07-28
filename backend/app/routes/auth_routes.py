@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify
 from config import Config
 from database.supabase_client import get_supabase_client
 from app.extensions import limiter
-from app.utils.jwt_utils import create_token, require_auth, get_current_user
+from app.utils.jwt_utils import create_token, require_auth, get_current_user, fetch_usuario_row
 from app.services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
@@ -52,19 +52,11 @@ def login():
 
     # Fetch the clinic profile — never auto-create or guess a clinic
     try:
-        profile_res = (
-            supabase.table('usuarios')
-            .select('clinica_id, role, nome_completo, ativo')
-            .eq('id', user_data.id)
-            .limit(1)
-            .execute()
-        )
+        profile = fetch_usuario_row(user_data.id, 'clinica_id, role, nome_completo, ativo')
     except Exception as e:
         logger.error(f"[AUTH] Erro ao buscar perfil do usuário {user_data.id}: {e}")
         return jsonify({'error': 'Erro ao carregar perfil do usuário'}), 500
 
-    rows = profile_res.data if profile_res and profile_res.data else []
-    profile = rows[0] if rows else None
     if not profile:
         logger.warning(f"[AUTH] Usuário {user_data.id} autenticado no Auth mas sem perfil em 'usuarios'")
         return jsonify({
@@ -172,21 +164,15 @@ def get_me():
     """Returns live profile data for the authenticated user."""
     user = get_current_user()
 
-    supabase = get_supabase_client()
     try:
-        res = (
-            supabase.table('usuarios')
-            .select('id, email, clinica_id, role, nome_completo, foto_perfil_url, especialidade, numero_registro, primeiro_acesso')
-            .eq('id', user['id'])
-            .limit(1)
-            .execute()
+        data = fetch_usuario_row(
+            user['id'],
+            'id, email, clinica_id, role, nome_completo, foto_perfil_url, especialidade, numero_registro, primeiro_acesso',
         )
     except Exception as e:
         logger.error(f"[AUTH] /me falhou para {user.get('id')}: {e}")
         return jsonify({'error': 'Erro ao carregar perfil'}), 500
 
-    rows = res.data if res and res.data else []
-    data = rows[0] if rows else None
     if not data:
         return jsonify({'error': 'Perfil não encontrado'}), 404
 
