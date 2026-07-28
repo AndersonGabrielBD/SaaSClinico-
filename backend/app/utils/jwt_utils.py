@@ -63,9 +63,12 @@ def get_access_token() -> str:
     return request.headers.get('Authorization', '')
 
 
+FETCH_USUARIO_RETRY_DELAYS = (0.3, 0.6)
+
+
 def fetch_usuario_row(user_id: str, select_fields: str) -> dict | None:
     """
-    Looks up a single row in 'usuarios' by id, retrying once on an empty result.
+    Looks up a single row in 'usuarios' by id, retrying on an empty result.
 
     Uses limit(1) instead of maybe_single() — maybe_single() returns HTTP 406 on
     0 rows with some supabase-py versions, which breaks auth on every request.
@@ -74,13 +77,15 @@ def fetch_usuario_row(user_id: str, select_fields: str) -> dict | None:
     NOT caught here — callers should let them propagate to a 500, never treat
     an infra error as "usuário não encontrado" (401) and force a spurious logout.
 
-    Retries once on an empty result: when a page fires several authenticated
+    Retries on an empty result: when a page fires several authenticated
     requests in parallel (e.g. right after login), the burst of concurrent
     lookups against Supabase/PostgREST has been observed to intermittently
     return 0 rows for a user that unquestionably exists (confirmed moments
-    earlier by the login query itself). A single retry absorbs that transient
-    blip without weakening the check — a user that's genuinely gone still
-    fails on the second attempt.
+    earlier by the login query itself). Production timing showed the flaky
+    window can outlast a single 150ms retry — failing requests measured
+    ~450-550ms total, consistent with two back-to-back empty attempts 150ms
+    apart. Backing off further (300ms, then 600ms) gives the condition more
+    room to clear. A user that's genuinely gone still fails every attempt.
     """
     from database.supabase_client import get_supabase_client
 
@@ -98,10 +103,12 @@ def fetch_usuario_row(user_id: str, select_fields: str) -> dict | None:
 
     row = _query()
     if row is None:
-        time.sleep(0.15)
-        row = _query()
-        if row is not None:
-            logger.warning(f"[AUTH] Usuário {user_id} veio vazio na 1ª tentativa e apareceu no retry")
+        for attempt, delay in enumerate(FETCH_USUARIO_RETRY_DELAYS, start=2):
+            time.sleep(delay)
+            row = _query()
+            if row is not None:
+                logger.warning(f"[AUTH] Usuário {user_id} veio vazio, apareceu na tentativa {attempt}")
+                break
     return row
 
 
