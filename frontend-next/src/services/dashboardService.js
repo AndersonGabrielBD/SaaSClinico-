@@ -6,6 +6,11 @@ export const dashboardService = {
     return api.getEstatisticas(params)
   },
 
+  // Bundle de resumo financeiro + pendências + resumo de pacotes (1 request em vez de 3)
+  async getFinanceiroResumo(params = {}) {
+    return api.getDashboardFinanceiroResumo(params)
+  },
+
   // Próximos agendamentos
   async getProximosAgendamentos(limite = 10) {
     return api.getProximosAgendamentos(limite)

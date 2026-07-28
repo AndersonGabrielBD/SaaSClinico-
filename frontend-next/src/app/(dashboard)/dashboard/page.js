@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { dashboardService } from '@/services/dashboardService'
 import { pacoteService } from '@/services/pacoteService'
-import { getResumoFinanceiro, getPendencias } from '@/lib/api'
 import { getUserRole } from '@/utils/auth'
 import { canAccessModule } from '@/utils/roles'
 import { 
@@ -197,21 +196,22 @@ export default function DashboardPage() {
       const data_inicio = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
       const data_fim = format(endOfMonth(selectedMonth), 'yyyy-MM-dd')
       
-      const [dashData, financeiroData, pendenciasData, statsPacotesData, resumoPacotesData] = await Promise.allSettled([
+      const [dashData, financeiroCombinado, statsPacotesData] = await Promise.allSettled([
         dashboardService.getStats({ data_inicio, data_fim }),
-        getResumoFinanceiro({ data_inicio, data_fim }),
-        getPendencias({ data_inicio, data_fim }),
+        dashboardService.getFinanceiroResumo({ data_inicio, data_fim }),
         pacoteService.getEstatisticas(),
-        pacoteService.getResumoFinanceiroPacotes({ data_inicio, data_fim }),
       ])
-      
+
       if (dashData.status === 'fulfilled') setStats(dashData.value)
-      if (financeiroData.status === 'fulfilled') setResumoFinanceiro(financeiroData.value)
-      if (pendenciasData.status === 'fulfilled') setPendencias(pendenciasData.value)
+      if (financeiroCombinado.status === 'fulfilled') {
+        const { resumo_financeiro, pendencias, resumo_pacotes } = financeiroCombinado.value
+        if (resumo_financeiro) setResumoFinanceiro(resumo_financeiro)
+        if (pendencias) setPendencias(pendencias)
+        if (resumo_pacotes) setResumoPacotes(resumo_pacotes)
+      }
       if (statsPacotesData.status === 'fulfilled') setStatsPacotes(statsPacotesData.value)
-      if (resumoPacotesData.status === 'fulfilled') setResumoPacotes(resumoPacotesData.value)
-      
-      if (dashData.status === 'rejected' && financeiroData.status === 'rejected' && pendenciasData.status === 'rejected') {
+
+      if (dashData.status === 'rejected' && financeiroCombinado.status === 'rejected') {
         throw new Error('Não foi possível carregar nenhum dado do dashboard')
       }
     } catch (err) {

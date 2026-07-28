@@ -480,6 +480,12 @@ export const getRecentActivity = () => {
   return request('/dashboard/recent');
 };
 
+// Bundle de resumo financeiro + pendências + resumo de pacotes (1 request em vez de 3)
+export const getDashboardFinanceiroResumo = (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return request(`/dashboard/financeiro-resumo${query ? `?${query}` : ''}`);
+};
+
 // Aliases para compatibilidade
 export const getEstatisticas = getDashboardStats;
 export const getProximosAgendamentos = (limite = 10) => getRecentActivity();
@@ -614,6 +620,7 @@ export default {
   deleteTipoAtendimento,
   getDashboardStats,
   getRecentActivity,
+  getDashboardFinanceiroResumo,
   getEstatisticas,
   getProximosAgendamentos,
   getLancamentos,
