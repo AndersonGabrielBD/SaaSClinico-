@@ -4,7 +4,7 @@ import logging
 from flask import Blueprint, request, jsonify
 
 from app.utils.jwt_utils import require_auth, get_current_user
-from database.supabase_client import get_supabase_client
+from database.supabase_client import get_auth_client
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +36,8 @@ def change_password():
         if old_password == new_password:
             return jsonify({'error': 'Nova senha não pode ser igual à senha antiga'}), 400
         
-        supabase = get_supabase_client()
-        
+        supabase = get_auth_client()
+
         # Primeiro, verifica se a senha antiga está correcta
         # Tenta fazer login com email e senha antiga
         try:

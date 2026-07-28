@@ -3,7 +3,7 @@ import logging
 import secrets
 import string
 from datetime import datetime, timedelta
-from database.supabase_client import get_supabase_client
+from database.supabase_client import get_supabase_client, get_auth_client
 from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ class AuthService:
             return {'sucesso': False, 'mensagem': 'Senha deve ter no mínimo 8 caracteres'}
 
         try:
-            supabase = get_supabase_client()
+            supabase = get_auth_client()
 
             user_response = (
                 supabase.table('usuarios')
