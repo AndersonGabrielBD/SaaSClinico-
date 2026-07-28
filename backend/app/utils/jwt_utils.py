@@ -66,10 +66,9 @@ def _fetch_user_from_db(user_id: str) -> dict | None:
     """
     Fetches live clinica_id, role and ativo from the database.
     This ensures stale JWT claims never grant access to the wrong tenant or role.
-    Uses maybe_single() so 0 rows does not raise PGRST116 (unlike .single()).
+    Uses limit(1) instead of maybe_single() — maybe_single() returns HTTP 406 on
+    0 rows with some supabase-py versions, which breaks auth on every request.
     """
-    from postgrest.exceptions import APIError
-
     from database.supabase_client import get_supabase_client
     try:
         res = (
@@ -77,17 +76,15 @@ def _fetch_user_from_db(user_id: str) -> dict | None:
             .table('usuarios')
             .select('id, clinica_id, role, nome_completo, ativo')
             .eq('id', user_id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-    except APIError as e:
-        # Linha extra inesperada (>1) ou outro erro PostgREST
-        logger.warning(f"[AUTH] Erro PostgREST ao buscar usuário {user_id}: {e.code} {e.message}")
+    except Exception as e:
+        logger.warning(f"[AUTH] Erro ao buscar usuário {user_id}: {e}")
         return None
 
-    if res is None:
-        return None
-    return res.data if isinstance(res.data, dict) else None
+    rows = res.data if res and res.data else []
+    return rows[0] if rows else None
 
 
 def require_auth(f):

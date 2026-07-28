@@ -24,7 +24,8 @@ function apiErrorMessage(body) {
 
 // Helper para fazer requisições
 async function request(endpoint, options = {}) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const tokenAtRequest = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = tokenAtRequest;
 
   const config = {
     ...options,
@@ -46,9 +47,12 @@ async function request(endpoint, options = {}) {
       const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
 
       if (response.status === 401 && typeof window !== 'undefined' && !isAuthEndpoint && !isLoginPage) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+        const currentToken = localStorage.getItem('token');
+        if (currentToken === tokenAtRequest) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }
       }
 
       const errorText = await response.text();
