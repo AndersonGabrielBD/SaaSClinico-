@@ -56,14 +56,15 @@ def login():
             supabase.table('usuarios')
             .select('clinica_id, role, nome_completo, ativo')
             .eq('id', user_data.id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
     except Exception as e:
         logger.error(f"[AUTH] Erro ao buscar perfil do usuário {user_data.id}: {e}")
         return jsonify({'error': 'Erro ao carregar perfil do usuário'}), 500
 
-    profile = profile_res.data if profile_res is not None else None
+    rows = profile_res.data if profile_res and profile_res.data else []
+    profile = rows[0] if rows else None
     if not profile:
         logger.warning(f"[AUTH] Usuário {user_data.id} autenticado no Auth mas sem perfil em 'usuarios'")
         return jsonify({
@@ -177,14 +178,15 @@ def get_me():
             supabase.table('usuarios')
             .select('id, email, clinica_id, role, nome_completo, foto_perfil_url, especialidade, numero_registro, primeiro_acesso')
             .eq('id', user['id'])
-            .maybe_single()
+            .limit(1)
             .execute()
         )
     except Exception as e:
         logger.error(f"[AUTH] /me falhou para {user.get('id')}: {e}")
         return jsonify({'error': 'Erro ao carregar perfil'}), 500
 
-    data = res.data if res is not None else None
+    rows = res.data if res and res.data else []
+    data = rows[0] if rows else None
     if not data:
         return jsonify({'error': 'Perfil não encontrado'}), 404
 

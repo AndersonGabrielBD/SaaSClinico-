@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import * as api from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import { getDefaultHomePath } from '@/utils/roles'
@@ -15,27 +15,31 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const sessionCheckIdRef = useRef(0)
 
   useEffect(() => {
     checkSession()
   }, [])
 
   const checkSession = async () => {
+    const checkId = ++sessionCheckIdRef.current
+    const tokenAtStart =
+      typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
-      
-      if (token) {
+      if (tokenAtStart) {
         setIsAuthenticated(true)
-        
-        // Carrega dados do localStorage
-        const userData = typeof window !== 'undefined' ? localStorage.getItem(USER_KEY) : null
+
+        const userData =
+          typeof window !== 'undefined' ? localStorage.getItem(USER_KEY) : null
         if (userData) {
           setUser(JSON.parse(userData))
         }
-        
-        // Tenta carregar do backend para atualizar
+
         try {
           const response = await api.getCurrentUser()
+          if (checkId !== sessionCheckIdRef.current) return
+
           if (response && response.user) {
             setUser(response.user)
             if (typeof window !== 'undefined') {
@@ -43,8 +47,13 @@ export function AuthProvider({ children }) {
             }
           }
         } catch (error) {
+          if (checkId !== sessionCheckIdRef.current) return
+
+          const currentToken =
+            typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+          if (currentToken !== tokenAtStart) return
+
           console.error('Erro ao carregar usuário:', error)
-          // Se falhar, remove o token inválido
           if (typeof window !== 'undefined') {
             localStorage.removeItem(TOKEN_KEY)
             localStorage.removeItem(USER_KEY)
@@ -57,17 +66,21 @@ export function AuthProvider({ children }) {
         setUser(null)
       }
     } catch (error) {
+      if (checkId !== sessionCheckIdRef.current) return
       console.error('Erro ao verificar sessão:', error)
       setIsAuthenticated(false)
       setUser(null)
     } finally {
-      setLoading(false)
+      if (checkId === sessionCheckIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
   const signIn = async (email, password) => {
+    sessionCheckIdRef.current += 1
     setLoading(true)
-    
+
     try {
       const response = await api.login(email, password)
 
