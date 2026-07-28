@@ -1,13 +1,20 @@
 # filepath: backend/app/routes/dashboard_routes.py
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
 from flask import Blueprint, jsonify, request
 from app.utils.jwt_utils import require_auth, require_roles, get_current_user
 from app.repositories.base_repository import BaseRepository
 from app.services.mensalidade_service import MensalidadeService
+from app.services.pacote_service import PacoteService
+from app.routes.financeiro_routes import _build_resumo_financeiro, _build_pendencias
 from database.supabase_client import get_supabase_client
 from datetime import date, timedelta
 from collections import defaultdict
 
 from app.utils.date_utils import today_brazil_str
+
+logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -36,6 +43,49 @@ def _resolve_periodo(data_inicio=None, data_fim=None):
     proximo_mes = inicio.replace(day=28) + timedelta(days=4)
     fim = proximo_mes.replace(day=1) - timedelta(days=1)
     return inicio.isoformat(), fim.isoformat()
+
+
+def _resolve_future(future, nome):
+    try:
+        return future.result()
+    except Exception as e:
+        logger.error(f"[DASHBOARD] {nome} falhou: {e}")
+        return None
+
+
+@dashboard_bp.route('/financeiro-resumo', methods=['GET'])
+@require_auth
+@require_roles(['admin', 'recepcao'])
+def get_dashboard_financeiro_resumo():
+    """
+    Bundle de resumo financeiro + pendências + resumo de pacotes pra dashboard —
+    1 validação de auth em vez de 3, com as 3 buscas rodando em paralelo em threads.
+    """
+    user = get_current_user()
+    clinica_id = user['clinica_id']
+    data_inicio, data_fim = _resolve_periodo(
+        request.args.get('data_inicio'), request.args.get('data_fim')
+    )
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        fut_financeiro = executor.submit(_build_resumo_financeiro, clinica_id, data_inicio, data_fim)
+        fut_pendencias = executor.submit(_build_pendencias, clinica_id, data_inicio, data_fim)
+        fut_pacotes = executor.submit(
+            PacoteService().obter_resumo_financeiro_pacotes, clinica_id, data_inicio, data_fim
+        )
+
+        resumo_financeiro = _resolve_future(fut_financeiro, 'resumo_financeiro')
+        pendencias = _resolve_future(fut_pendencias, 'pendencias')
+        resumo_pacotes = _resolve_future(fut_pacotes, 'resumo_pacotes')
+
+    if resumo_financeiro is None and pendencias is None and resumo_pacotes is None:
+        return jsonify({'error': 'Erro ao carregar dados financeiros'}), 500
+
+    return jsonify({
+        'resumo_financeiro': resumo_financeiro,
+        'pendencias': pendencias,
+        'resumo_pacotes': resumo_pacotes,
+    }), 200
 
 
 def _build_dashboard_stats(clinica_id, data_inicio=None, data_fim=None):
