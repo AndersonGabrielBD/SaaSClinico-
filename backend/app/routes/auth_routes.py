@@ -5,7 +5,7 @@ import logging
 from flask import Blueprint, request, jsonify
 
 from config import Config
-from database.supabase_client import get_supabase_client
+from database.supabase_client import get_auth_client
 from app.extensions import limiter
 from app.utils.jwt_utils import create_token, require_auth, get_current_user, fetch_usuario_row
 from app.services.auth_service import AuthService
@@ -35,7 +35,7 @@ def login():
     if not email or not password:
         return jsonify({'error': 'Email e senha são obrigatórios'}), 400
 
-    supabase = get_supabase_client()
+    supabase = get_auth_client()
 
     try:
         auth_response = supabase.auth.sign_in_with_password({
@@ -112,7 +112,7 @@ def signup():
     ):
         return jsonify({'error': 'Código de convite inválido.'}), 400
 
-    supabase = get_supabase_client()
+    supabase = get_auth_client()
 
     try:
         auth_response = supabase.auth.sign_up({'email': email, 'password': password})

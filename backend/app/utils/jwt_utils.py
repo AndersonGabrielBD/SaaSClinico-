@@ -112,21 +112,40 @@ def fetch_usuario_row(user_id: str, select_fields: str) -> dict | None:
     return row
 
 
+_USER_VALIDATION_TTL = 30  # segundos — trade-off aceito: revogar acesso leva até 30s pra valer
+_user_validation_cache: dict[str, tuple[float, dict]] = {}
+
+
 def _fetch_user_from_db(user_id: str) -> dict | None:
     """
     Fetches live clinica_id, role and ativo from the database.
     This ensures stale JWT claims never grant access to the wrong tenant or role.
+
+    Cacheado por processo por até _USER_VALIDATION_TTL segundos: sob rajada de
+    requisições paralelas do mesmo usuário (ex: uma página que dispara várias
+    chamadas autenticadas ao mesmo tempo), evita repetir a mesma consulta várias
+    vezes em sequência — reduz tanto a carga no Supabase quanto a chance de bater
+    na instabilidade que motivou o retry em fetch_usuario_row. Resultados vazios
+    (usuário não encontrado) não são cacheados, para não travar um falso-negativo
+    transitório pela janela toda — esse caso já é coberto pelo retry.
     """
-    return fetch_usuario_row(user_id, 'id, clinica_id, role, nome_completo, ativo')
+    cached = _user_validation_cache.get(user_id)
+    if cached and cached[0] > time.time():
+        return cached[1]
+
+    row = fetch_usuario_row(user_id, 'id, clinica_id, role, nome_completo, ativo')
+    if row is not None:
+        _user_validation_cache[user_id] = (time.time() + _USER_VALIDATION_TTL, row)
+    return row
 
 
 def require_auth(f):
     """
     Decorator that:
     1. Validates the JWT signature and expiry.
-    2. Re-fetches clinica_id, role and ativo from the DB on every request —
-       so any change to the user's record takes effect immediately without
-       waiting for the token to expire.
+    2. Re-checks clinica_id, role and ativo (cached up to _USER_VALIDATION_TTL
+       seconds — see _fetch_user_from_db) — so a change to the user's record
+       takes effect within that window, without waiting for the token to expire.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
